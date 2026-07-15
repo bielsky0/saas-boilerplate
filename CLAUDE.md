@@ -1,0 +1,1 @@
+@docs/specyfikacja.md
