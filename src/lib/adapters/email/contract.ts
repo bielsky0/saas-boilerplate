@@ -10,7 +10,7 @@
  * Templates available for this phase (spec 10.2). The minimum set grows as
  * later modules land (password reset, magic link, invitations, …).
  */
-export type TemplateName = "verify-email" | "welcome";
+export type TemplateName = "verify-email" | "welcome" | "invitation";
 
 /** Structured payload each template understands. Kept loose per template. */
 export type TemplateData = Record<string, unknown>;

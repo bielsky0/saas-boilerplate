@@ -15,6 +15,13 @@
       "when": 1784138742834,
       "tag": "0001_last_bromley",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784142632886,
+      "tag": "0002_steady_fabian_cortez",
+      "breakpoints": true
     }
   ]
 }

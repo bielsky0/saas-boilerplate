@@ -18,7 +18,7 @@ test("protected route redirects to login and returns after sign-in", async ({ pa
 
   await loginViaUi(page, email, TEST_PASSWORD);
 
-  // Redirect-back to the originally requested page.
+  // Redirect-back to the originally requested page (the personal dashboard).
   await page.waitForURL("**/dashboard");
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Personal" })).toBeVisible();
 });

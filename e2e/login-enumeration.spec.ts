@@ -45,5 +45,6 @@ test("signing up an existing email looks identical to a fresh signup", async ({
   await page.getByRole("button", { name: /create account/i }).click();
 
   await page.waitForURL("**/verify-email?status=sent");
-  await expect(page.getByText(/check your inbox/i)).toBeVisible();
+  // Scope to the heading — /check your inbox/ also matches Next's route announcer.
+  await expect(page.getByRole("heading", { name: /check your inbox/i })).toBeVisible();
 });

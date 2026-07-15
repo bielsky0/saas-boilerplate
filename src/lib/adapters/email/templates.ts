@@ -45,9 +45,30 @@ function renderWelcome(data: TemplateData): RenderedEmail {
   };
 }
 
+function renderInvitation(data: TemplateData): RenderedEmail {
+  const url = String(data.url ?? "");
+  const safeUrl = escapeHtml(url);
+  const orgName = typeof data.orgName === "string" && data.orgName ? data.orgName : "a team";
+  const inviter =
+    typeof data.inviterName === "string" && data.inviterName ? data.inviterName : "A teammate";
+  const role = typeof data.role === "string" && data.role ? data.role : "member";
+  return {
+    subject: `You've been invited to join ${orgName}`,
+    html: layout(
+      `<h2>Join ${escapeHtml(orgName)}</h2>
+       <p>${escapeHtml(inviter)} invited you to join <strong>${escapeHtml(orgName)}</strong> as ${escapeHtml(role)}.</p>
+       <p><a href="${safeUrl}" style="display:inline-block;padding:10px 16px;background:#111;color:#fff;border-radius:6px;text-decoration:none">Accept invitation</a></p>
+       <p>Or paste this link into your browser:<br><a href="${safeUrl}">${safeUrl}</a></p>
+       <p style="color:#666;font-size:13px">If you weren't expecting this, you can ignore this email.</p>`,
+    ),
+    text: `${inviter} invited you to join ${orgName} as ${role}.\n\nAccept the invitation by opening this link:\n${url}\n\nIf you weren't expecting this, you can ignore this email.\n`,
+  };
+}
+
 const renderers: Record<TemplateName, (data: TemplateData) => RenderedEmail> = {
   "verify-email": renderVerifyEmail,
   welcome: renderWelcome,
+  invitation: renderInvitation,
 };
 
 export function renderTemplate(template: TemplateName, data: TemplateData): RenderedEmail {

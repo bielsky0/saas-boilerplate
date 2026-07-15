@@ -11,6 +11,13 @@ export default async function VerifyEmailPage({
   const params = await searchParams;
   const status = Array.isArray(params.status) ? params.status[0] : params.status;
   const isSuccess = status === "success";
+  const rawCallback = Array.isArray(params.callbackUrl)
+    ? params.callbackUrl[0]
+    : params.callbackUrl;
+  const callbackUrl =
+    rawCallback && rawCallback.startsWith("/") && !rawCallback.startsWith("//")
+      ? rawCallback
+      : undefined;
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-4 px-4 py-12 text-center">
@@ -22,6 +29,13 @@ export default async function VerifyEmailPage({
           ? "Your email address has been confirmed."
           : "If that email isn't already registered, we've sent a verification link. Open it to finish setting up your account."}
       </p>
+      {/* After sign-up the user is signed in (autoSignIn); if they came from an
+          invitation, offer a direct link back to it. */}
+      {!isSuccess && callbackUrl ? (
+        <Link href={callbackUrl} className="text-sm underline">
+          Continue
+        </Link>
+      ) : null}
       <Link href={isSuccess ? "/dashboard" : "/login"} className="text-sm underline">
         {isSuccess ? "Go to dashboard" : "Back to log in"}
       </Link>

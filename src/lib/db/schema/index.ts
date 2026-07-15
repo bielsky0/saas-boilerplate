@@ -11,9 +11,12 @@
  * they are the identity substrate multi-tenancy (§3) is built on top of, so they
  * have no tenant-owner column (see the header of `./auth`).
  *
- * Example (added later):
- *   export * from "./organizations";
- *   export * from "./memberships";
+ * §3 owner-scoped reference: `personal_account` / `organization` are the two
+ * tenant owners; `membership` and `invitation` are scoped by `organizationId`.
  */
 
 export * from "./auth";
+export * from "./personal-accounts";
+export * from "./organizations";
+export * from "./memberships";
+export * from "./invitations";

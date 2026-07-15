@@ -10,6 +10,12 @@ const nextConfig: NextConfig = {
   // Emit a self-contained server bundle so the app runs on Vercel *and* as a
   // standalone Node.js server / Docker container (spec 19.1).
   output: "standalone",
+  experimental: {
+    // Enable `forbidden()` / `unauthorized()` so RBAC failures render real
+    // 403/401 responses from server components, actions, and route handlers
+    // (spec 4.2). See src/features/organizations/context.ts.
+    authInterrupts: true,
+  },
 };
 
 export default nextConfig;

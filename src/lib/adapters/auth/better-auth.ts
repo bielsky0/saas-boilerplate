@@ -48,6 +48,22 @@ export const auth = betterAuth({
       await email.send("verify-email", { url, name: user.name }, { to: user.email });
     },
   },
+  databaseHooks: {
+    user: {
+      create: {
+        // Every user owns exactly one personal account (spec 3.1), created here at
+        // registration. Idempotent (unique userId + onConflictDoNothing) so seed
+        // paths and retries never duplicate; a read-side `ensurePersonalAccount`
+        // backfills any pre-existing user.
+        after: async (createdUser) => {
+          await db
+            .insert(schema.personalAccount)
+            .values({ userId: createdUser.id })
+            .onConflictDoNothing();
+        },
+      },
+    },
+  },
   // nextCookies MUST be last: it applies Set-Cookie from server-action calls
   // (signUpEmail/signInEmail/signOut) to the Next.js response.
   plugins: [nextCookies()],

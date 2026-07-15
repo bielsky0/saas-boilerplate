@@ -8,11 +8,12 @@ import { signUpAction, type FormState } from "../actions";
 
 const initialState: FormState = {};
 
-export function SignUpForm() {
+export function SignUpForm({ callbackUrl }: { callbackUrl?: string }) {
   const [state, formAction, pending] = useActionState(signUpAction, initialState);
 
   return (
     <form action={formAction} className="flex flex-col gap-4" noValidate>
+      {callbackUrl ? <input type="hidden" name="callbackUrl" value={callbackUrl} /> : null}
       <FormField label="Name (optional)" htmlFor="name">
         <Input id="name" name="name" type="text" autoComplete="name" />
       </FormField>

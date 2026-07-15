@@ -45,8 +45,16 @@ export async function signUpAction(_prev: FormState, formData: FormData): Promis
     return { error: GENERIC_ERROR };
   }
 
-  // Neutral outcome for both fresh and already-registered emails (spec 2.1).
-  redirect("/verify-email?status=sent");
+  // Neutral outcome for both fresh and already-registered emails (spec 2.1): the
+  // redirect target is identical either way. A `callbackUrl` (e.g. an invitation)
+  // is carried through so the verify-email page can offer a "continue" link
+  // without leaking whether the email already existed.
+  const callbackUrl = safeCallbackUrl(formData.get("callbackUrl"));
+  const target =
+    callbackUrl === "/dashboard"
+      ? "/verify-email?status=sent"
+      : `/verify-email?status=sent&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+  redirect(target);
 }
 
 export async function signInAction(_prev: FormState, formData: FormData): Promise<FormState> {

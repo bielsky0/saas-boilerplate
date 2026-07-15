@@ -19,7 +19,7 @@ test("register → verify email → reach protected dashboard", async ({ page, r
 
   // Neutral "check your inbox" screen.
   await page.waitForURL("**/verify-email?status=sent");
-  await expect(page.getByText(/check your inbox/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /check your inbox/i })).toBeVisible();
 
   // Retrieve and open the verification link → verifies + auto sign-in → dashboard.
   const link = await getVerificationLink(request, email);

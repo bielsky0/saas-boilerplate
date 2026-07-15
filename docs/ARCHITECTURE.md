@@ -78,11 +78,24 @@ implementation in code once the corresponding module is built (spec §17.2):
   with an indexed owner column, re-export from `schema/index.ts`, run
   `pnpm db:generate` then `pnpm db:migrate`. The auth tables in
   `src/lib/db/schema/auth.ts` show the schema/migration mechanics (they are the
-  tenant-owner exception noted above). Owner-scoped reference: _to be added with §3._
+  tenant-owner exception noted above). **Owner-scoped reference:** the two tenant
+  owners are `personal_account` and `organization`; `membership`/`invitation`
+  carry an indexed `organizationId` and every read/write is scoped by it in the
+  feature's data layer `src/features/organizations/data.ts` — copy that layer's
+  shape (never query a tenant table without its owner filter).
 - **Add a protected endpoint / server action:** resolve the session via
   `requireSession()` in `src/lib/auth/index.ts` before doing anything. Reference:
-  the `src/app/dashboard/page.tsx` server component and the sign-out server
-  action in `src/features/auth/actions.ts`. RBAC/tenant checks layer on in §3/§4.
+  the `src/app/(app)/dashboard/page.tsx` server component and the sign-out server
+  action in `src/features/auth/actions.ts`.
+- **Add an org-scoped (RBAC) action or page:** call `requireOrgPermission(slug,
+  permission)` from `src/features/organizations/context.ts` as the FIRST line —
+  it resolves the active org from the URL slug, checks the centralized role→
+  permission map in `src/features/rbac/index.ts`, and calls Next's `forbidden()`
+  (a real 403) when the permission is missing (spec 4.2). Reference: every action
+  in `src/features/organizations/actions.ts` and the guarded
+  `src/app/(app)/orgs/[slug]/settings/page.tsx`. UI gating via `hasPermission` is
+  cosmetic only. The active tenant is always derived from the `/orgs/[slug]` URL
+  (stateless, refresh-safe — spec 3.5), never from hidden session state.
 
 ## Common commands
 
