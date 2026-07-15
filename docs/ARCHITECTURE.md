@@ -50,6 +50,9 @@ exports as modules are built.
 2. **Tenant isolation (§1.3, §11.2).** Every business record belongs to exactly
    one owner (`organization_id` **or** `account_id`). All queries are scoped by
    that key in the data-access layer — the UI is never a security boundary.
+   _Exception:_ the Better Auth identity tables (`user`, `session`, `account`,
+   `verification` in `src/lib/db/schema/auth.ts`) carry no owner column — they
+   are the identity substrate multi-tenancy is built on top of.
 
 3. **Authorization on the backend (§4.2).** Every data-changing server action
    checks the required permission in the active-organization context and returns
@@ -67,13 +70,19 @@ implementation in code once the corresponding module is built (spec §17.2):
 
 - **Add a provider adapter:** create `src/lib/adapters/<name>/` with a
   `contract.ts` (interface) + a concrete implementation; expose it via `index.ts`.
-  Reference: _to be added with the first real adapter (auth)._
+  Reference: `src/lib/adapters/auth/` (`contract.ts` → `AuthAdapter`,
+  `better-auth.ts` = the only file importing the SDK, `index.ts` = the barrel
+  exporting `authAdapter`). `src/lib/adapters/email/` is a second example, whose
+  `index.ts` picks the concrete provider from an env var.
 - **Add a tenant-isolated entity:** add a table in `src/lib/db/schema/<entity>.ts`
   with an indexed owner column, re-export from `schema/index.ts`, run
-  `pnpm db:generate` then `pnpm db:migrate`. Reference: _to be added with §3._
-- **Add a protected endpoint / server action:** resolve session + active tenant
-  and assert the RBAC permission via `src/lib/auth` before mutating. Reference:
-  _to be added with §4._
+  `pnpm db:generate` then `pnpm db:migrate`. The auth tables in
+  `src/lib/db/schema/auth.ts` show the schema/migration mechanics (they are the
+  tenant-owner exception noted above). Owner-scoped reference: _to be added with §3._
+- **Add a protected endpoint / server action:** resolve the session via
+  `requireSession()` in `src/lib/auth/index.ts` before doing anything. Reference:
+  the `src/app/dashboard/page.tsx` server component and the sign-out server
+  action in `src/features/auth/actions.ts`. RBAC/tenant checks layer on in §3/§4.
 
 ## Common commands
 
@@ -82,6 +91,7 @@ implementation in code once the corresponding module is built (spec §17.2):
 | `pnpm dev`                     | Run the app locally                      |
 | `pnpm build` / `pnpm start`    | Production build / serve                 |
 | `pnpm lint` / `pnpm typecheck` | ESLint / `tsc --noEmit`                  |
+| `pnpm test:e2e`                | Playwright E2E (auth flows)              |
 | `pnpm format`                  | Prettier write                           |
 | `pnpm db:up` / `pnpm db:down`  | Start / stop local Postgres (Docker)     |
 | `pnpm db:generate`             | Generate a migration from schema changes |
@@ -90,7 +100,12 @@ implementation in code once the corresponding module is built (spec §17.2):
 
 ## Local setup
 
-1. `cp .env.example .env` and adjust if needed.
+1. `cp .env.example .env` and adjust if needed (set a real `BETTER_AUTH_SECRET`).
 2. `pnpm install`
 3. `pnpm db:up` then `pnpm db:migrate`
 4. `pnpm dev` → http://localhost:3000
+
+With `EMAIL_PROVIDER=log` (the default) no mail is sent — sign up and the
+verification link is printed to the server console (and captured in-process for
+the E2E tests via `/api/dev/emails`). E2E: `pnpm exec playwright install chromium`
+once, ensure the DB is migrated, then `pnpm test:e2e`.

@@ -13,9 +13,10 @@ jobs:
     name: Lint, typecheck & build
     runs-on: ubuntu-latest
     env:
-      # The build imports the env schema (fail-fast validation), so provide a
-      # dummy DATABASE_URL. No real database is needed to lint/typecheck/build.
+      # The build imports the env schema (fail-fast validation), so provide
+      # dummy secrets. No real database or auth is needed to lint/typecheck/build.
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci
+      BETTER_AUTH_SECRET: ci-dummy-secret-not-used-at-runtime
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,3 +44,60 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    env:
+      # Real Postgres service below; log email adapter so the verification link
+      # is captured in-process and read via /api/dev/emails (no SMTP).
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/e2e
+      BETTER_AUTH_SECRET: ci-e2e-secret-not-a-real-secret
+      EMAIL_PROVIDER: log
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Apply database migrations
+        run: pnpm db:migrate
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

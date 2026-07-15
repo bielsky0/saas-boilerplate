@@ -7,4 +7,4 @@
  * in `src/features/*` and `src/lib/*`.
  */
 
-export {};
+export * from "./ui";

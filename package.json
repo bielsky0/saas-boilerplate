@@ -12,6 +12,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:up": "docker compose up -d",
@@ -22,14 +23,18 @@
   },
   "dependencies": {
     "@t3-oss/env-nextjs": "^0.13.8",
-    "drizzle-orm": "^0.44.6",
+    "better-auth": "^1.6.23",
+    "drizzle-orm": "^0.45.2",
     "next": "16.2.10",
     "postgres": "^3.4.7",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "resend": "^6.17.2",
     "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@better-auth/cli": "^1.4.21",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
