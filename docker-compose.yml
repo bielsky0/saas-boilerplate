@@ -1,0 +1,24 @@
+# Local development database (spec 11 — PostgreSQL reference engine).
+# `pnpm db:up` starts it, `pnpm db:down` stops it. The credentials below must
+# match DATABASE_URL in your .env (see .env.example).
+services:
+  postgres:
+    image: postgres:16
+    container_name: saas_boilerplate_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: saas_boilerplate
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d saas_boilerplate"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

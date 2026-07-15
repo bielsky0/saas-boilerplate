@@ -1,0 +1,13 @@
+/**
+ * Billing feature module (spec 5 — billing & payments).
+ *
+ * Plans/pricing from config, hosted checkout, customer portal, quota/limit
+ * checks (enforced before the action, incremented atomically), and plan-based
+ * rendering. Subscription state is always the result of processing a signed,
+ * idempotent provider webhook — never guessed client-side.
+ *
+ * Talks to payment providers ONLY through `src/lib/adapters/billing`
+ * (Stripe reference; Lemon Squeezy / Paddle / … pluggable) — spec 1.2, 5.1.
+ */
+
+export {};
