@@ -61,6 +61,8 @@ export type AuthErrorCode =
   | "INVALID_CREDENTIALS"
   | "WEAK_PASSWORD"
   | "VERIFICATION_INVALID"
+  /** A password-reset token that is expired, already used, or forged (spec 2.1). */
+  | "INVALID_TOKEN"
   | "ACCOUNT_SUSPENDED"
   | "USER_NOT_FOUND"
   | "IMPERSONATION_FORBIDDEN"
@@ -80,6 +82,17 @@ export interface SignInInput {
   password: string;
 }
 
+export interface RequestPasswordResetInput {
+  email: string;
+  /** Same-origin path the emailed link lands on after the engine validates it. */
+  redirectTo: string;
+}
+
+export interface ResetPasswordInput {
+  token: string;
+  newPassword: string;
+}
+
 export interface AuthAdapter {
   /**
    * Create an email/password account and trigger the verification email.
@@ -95,6 +108,26 @@ export interface AuthAdapter {
    * wrong password both return INVALID_CREDENTIALS.
    */
   signInEmailPassword(input: SignInInput, headers: Headers): Promise<AuthResult>;
+
+  /**
+   * Send a password-reset link (spec 2.1).
+   *
+   * ALWAYS resolves `{ ok: true }`, for the same anti-enumeration reason sign-up
+   * does: "we sent you a link" and "that address has no account" must be
+   * indistinguishable. The engine already flattens the timing difference too, so
+   * the adapter must not leak a distinct outcome and undo that.
+   */
+  requestPasswordReset(input: RequestPasswordResetInput, headers: Headers): Promise<AuthResult>;
+
+  /**
+   * Consume a reset token and set a new password (spec 2.1). Every live session
+   * for that user is invalidated as a side effect.
+   *
+   * Fails with INVALID_TOKEN for an expired/used/forged token — safe to surface,
+   * because a token is not an identifier: saying so reveals nothing about who, or
+   * whether, an account exists.
+   */
+  resetPassword(input: ResetPasswordInput, headers: Headers): Promise<AuthResult>;
 
   /** Resolve and fully validate the current session (server-side source of truth). */
   getSession(headers: Headers): Promise<Session | null>;

@@ -108,6 +108,21 @@ The application is intended to support two deployment targets:
 
 Environment variables will be validated at application startup so missing configuration fails fast with a clear error.
 
+### Required in production: `CRON_SECRET`
+
+Background jobs (emails, retries, the onboarding sequence, data cleanup) are
+drained by `GET /api/cron/jobs`, authenticated with `Authorization: Bearer
+$CRON_SECRET`. Vercel Cron attaches that header automatically once the variable is
+set; on Docker or standalone Node, point any scheduler at the same URL with the
+same header.
+
+**If `CRON_SECRET` is unset the endpoint answers 404 and nothing is retried.** The
+happy path still delivers, so nothing looks broken — until the first email-provider
+outage, which then never recovers. Generate one with `openssl rand -base64 32`.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full setup, including the
+Vercel Hobby daily-cron limitation.
+
 ## License
 
 The license has not been specified yet.

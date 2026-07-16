@@ -33,6 +33,32 @@ export const env = createEnv({
     // Only required when EMAIL_PROVIDER=resend; the resend adapter throws a
     // clear error at construction if it is selected without a key.
     RESEND_API_KEY: z.string().optional(),
+    // Signs unsubscribe links (spec 10.3). Falls back to BETTER_AUTH_SECRET when
+    // unset, so the boilerplate needs zero extra config. Set it explicitly if you
+    // ever intend to rotate BETTER_AUTH_SECRET: whichever secret signs these links
+    // inherits a "never rotate without a compat window" constraint, because an
+    // unsubscribe link must keep working forever (RFC 8058) — including from a
+    // three-year-old mail archive. This variable exists so that constraint does not
+    // have to land on the session secret. Generate: openssl rand -base64 32.
+    EMAIL_UNSUBSCRIBE_SECRET: z.string().min(32).optional(),
+    // Selects the background-jobs adapter implementation (spec 12). One member
+    // today: this is the seam, not a fake choice. The postgres adapter closes over
+    // `db` and cannot throw at construction, so the "default provider must never
+    // throw at module load" rule holds trivially (same reason EMAIL_PROVIDER
+    // defaults to "log").
+    JOBS_PROVIDER: z.enum(["postgres"]).default("postgres"),
+    // Shared secret for the job-drain endpoint (spec 12). Vercel Cron attaches it
+    // automatically as `Authorization: Bearer $CRON_SECRET`; a Docker/systemd curl
+    // or any external pinger sends the same header, so ONE mechanism serves both
+    // deploy targets (§19.1) — unlike x-vercel-signature, which would make a
+    // critical path Vercel-only. Unset = the route answers 404, exactly as
+    // BILLING_PROVIDER=none makes the webhook route answer 404.
+    //
+    // A production deployment MUST set it. Without it `after()` still delivers the
+    // happy path, so everything LOOKS fine — but retries and all scheduled work
+    // (the onboarding sequence, pruning) silently never run.
+    // Generate: openssl rand -base64 32.
+    CRON_SECRET: z.string().min(32).optional(),
     // Selects the billing adapter implementation (spec 5.1). Defaults to "none"
     // so the boilerplate builds and runs with zero payment configuration: the
     // adapter factory runs at module load, so a default that could throw would

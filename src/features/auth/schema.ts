@@ -26,5 +26,21 @@ export const signInSchema = z.object({
   password: z.string().min(1, "Enter your password."),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+});
+
+/**
+ * The engine only enforces LENGTH on a reset (see `resetPassword` in the auth
+ * adapter), so spec 2.1's letter+digit rule is ours to apply here — exactly as it
+ * is on sign-up. Reusing `passwordSchema` is what keeps the two from drifting.
+ */
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, "This reset link is invalid or has expired."),
+  password: passwordSchema,
+});
+
 export type SignUpValues = z.infer<typeof signUpSchema>;
 export type SignInValues = z.infer<typeof signInSchema>;
+export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;

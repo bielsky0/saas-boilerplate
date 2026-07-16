@@ -14,8 +14,15 @@
  *     filter `isNull(deletedAt)`.
  * So retention is about data lifecycle, not access. Access is already revoked.
  *
- * THE PURGE JOB IS DEFERRED TO §12 (background jobs) — `src/lib/adapters/jobs/` is
- * still a stub, and building the job now would mean designing its migration blind.
+ * THE PURGE JOB IS STILL UNBUILT, but no longer blocked on infrastructure: §12
+ * landed, so the queue it needs now exists. Building it means adding a
+ * `retention.purge` job name in `src/lib/adapters/jobs/contract.ts`, a handler
+ * beside `features/jobs/handler.ts` (`job.prune` is the worked example of a
+ * cron-shaped, idempotent task), and enqueuing it from the daily cron in
+ * `src/app/api/cron/jobs/route.ts` the same way `job.prune` self-schedules.
+ *
+ * What remains is a DATA decision, which is why this is still deferred rather than
+ * merely unfinished:
  *
  * ⚠️ HARD BLOCKER FOR WHOEVER BUILDS IT — do not rediscover this at 2am:
  *
@@ -30,8 +37,8 @@
  *
  * The purge therefore needs its own migration making `createdByUserId` nullable
  * with `onDelete: "set null"`, plus a decision on ordering (purge orgs before
- * their creators, or null the column first). Both are §12's to make, with the
- * reasoning written down there.
+ * their creators, or null the column first). Whoever builds the job makes both
+ * calls, and writes the reasoning down beside it.
  *
  * `audit_log` is deliberately NOT purged with its subjects — `actorUserId` is
  * `onDelete: "set null"` and the actor/target labels are snapshots, precisely so

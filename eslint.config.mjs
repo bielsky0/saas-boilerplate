@@ -17,6 +17,19 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
   ]),
   /**
+   * Email templates are not web pages (spec 10.2).
+   *
+   * They render to a standalone HTML document delivered to a mail client, so they
+   * legitimately own `<html>`/`<head>`. `next/head` is a router concept and does
+   * not exist here; the rule's advice is simply inapplicable rather than ignored.
+   */
+  {
+    files: ["src/lib/adapters/email/templates/**/*.tsx"],
+    rules: {
+      "@next/next/no-head-element": "off",
+    },
+  },
+  /**
    * Super-admin containment (spec 6.3).
    *
    * Two things must not leak out of `src/features/admin`:

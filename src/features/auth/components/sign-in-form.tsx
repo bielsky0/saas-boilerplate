@@ -25,6 +25,11 @@ export function SignInForm({ callbackUrl }: { callbackUrl?: string }) {
           autoComplete="current-password"
           required
         />
+        <p className="text-xs">
+          <Link href="/forgot-password" className="text-muted-foreground underline">
+            Forgot your password?
+          </Link>
+        </p>
       </FormField>
 
       {state.error ? <FormMessage>{state.error}</FormMessage> : null}

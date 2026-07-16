@@ -24,6 +24,13 @@ function createEmailAdapter(): EmailAdapter {
 
 export const email: EmailAdapter = createEmailAdapter();
 
-export type { EmailAdapter, Recipient, TemplateName, TemplateData } from "./contract";
-export { getOutbox, clearOutbox } from "./log";
+export type {
+  EmailAdapter,
+  Recipient,
+  SendOptions,
+  TemplateName,
+  TemplateData,
+  TemplateProps,
+} from "./contract";
+export { getOutbox, clearOutbox, failFor, pendingFailures } from "./log";
 export type { SentEmail } from "./log";

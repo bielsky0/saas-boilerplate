@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createHash, randomUUID } from "node:crypto";
 
-import { email } from "@/lib/adapters/email";
+import { enqueueEmail } from "@/features/emails/send";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { invitation, membership, organization } from "@/lib/db/schema";
@@ -123,28 +123,39 @@ export async function inviteMemberAction(
           eq(invitation.status, "pending"),
         ),
       );
-    await tx.insert(invitation).values({
-      organizationId: ctx.org.id,
-      email: parsed.data.email,
-      role: parsed.data.role,
-      tokenHash: hashToken(rawToken),
-      status: "pending",
-      expiresAt,
-      invitedByUserId: ctx.session.user.id,
-    });
-  });
+    const [row] = await tx
+      .insert(invitation)
+      .values({
+        organizationId: ctx.org.id,
+        email: parsed.data.email,
+        role: parsed.data.role,
+        tokenHash: hashToken(rawToken),
+        status: "pending",
+        expiresAt,
+        invitedByUserId: ctx.session.user.id,
+      })
+      .returning({ id: invitation.id });
 
-  const url = `${clientEnv.NEXT_PUBLIC_APP_URL}/invitations/${rawToken}`;
-  await email.send(
-    "invitation",
-    {
-      url,
-      orgName: ctx.org.name,
-      inviterName: ctx.session.user.name ?? ctx.session.user.email,
-      role: parsed.data.role,
-    },
-    { to: parsed.data.email },
-  );
+    // Enqueued INSIDE the transaction, so a rollback un-sends the invitation
+    // rather than emailing a link to a row that does not exist. It also takes the
+    // provider's latency out of this action: the admin's "Invitation sent"
+    // no longer waits on an HTTP call that might time out.
+    await enqueueEmail(
+      tx,
+      "invitation",
+      {
+        url: `${clientEnv.NEXT_PUBLIC_APP_URL}/invitations/${rawToken}`,
+        orgName: ctx.org.name,
+        inviterName: ctx.session.user.name ?? ctx.session.user.email,
+        role: parsed.data.role,
+      },
+      { to: parsed.data.email },
+      // The invitation row's own id: re-inviting mints a NEW row (the update above
+      // revokes the old one), so a genuine re-invite gets a genuinely new key and
+      // is not swallowed as a duplicate.
+      { dedupeKey: `invitation:${row!.id}` },
+    );
+  });
 
   revalidatePath(`/orgs/${slug}/members`);
   return { success: `Invitation sent to ${parsed.data.email}.` };

@@ -26,6 +26,9 @@ src/
     rbac/                  §4  roles & permissions
     billing/               §5  plans, checkout, quota
     admin/                 §6  super-admin
+    emails/                §10 categories, suppression, the one send path
+    onboarding/            §10.3 the day 0/3/7 sequence
+    jobs/                  §12 handler registry, enqueue, drain triggers
     content/               §8/§9 blog, docs, changelog, SEO
     plugins/               §18 optional add-ons
   lib/                     Cross-cutting, non-feature code
@@ -47,20 +50,35 @@ exports as modules are built.
    directly. It depends on the contract in `src/lib/adapters/<provider>`; only
    the adapter implementation imports the SDK. Swapping a provider = one adapter.
 
-2. **Tenant isolation (§1.3, §11.2).** Every business record belongs to exactly
-   one owner (`organization_id` **or** `account_id`). All queries are scoped by
-   that key in the data-access layer — the UI is never a security boundary.
-   There are exactly **two** documented exceptions; do not add a third without
-   the same treatment (a header stating what replaces the owner filter):
+2. **Tenant isolation (§1.3, §11.2).** Every **business** record belongs to
+   exactly one owner (`organization_id` **or** `account_id`). All queries are
+   scoped by that key in the data-access layer — the UI is never a security
+   boundary.
+
+   **System/infrastructure** tables are exempt, and the exemption is a rule, not a
+   list: a table qualifies when its subject is not a tenant record **and** its
+   access boundary is a system credential rather than an owner filter. Both halves
+   must hold, and each such table justifies itself in its own header:
    - the Better Auth identity tables (`user`, `session`, `account`,
-     `verification` in `src/lib/db/schema/auth.ts`) carry no owner column — they
-     are the identity substrate multi-tenancy is built on top of;
-   - the super-admin panel (§6): `audit_log` has no tenant owner, and
-     `src/features/admin/data.ts` queries **across** tenants by design, because
-     §6.2 requires a global view. What replaces the owner filter there is
-     `requireSuperAdmin()`, called as the first line of every caller. Both are
-     fenced by `no-restricted-imports` in `eslint.config.mjs` so an unguarded
-     caller fails CI rather than silently breaching isolation.
+     `verification` in `src/lib/db/schema/auth.ts`) — the identity substrate
+     multi-tenancy is built on top of; a user exists before any tenant does;
+   - `audit_log` (§6.3) — a super-admin action log is cross-tenant by definition
+     and may concern no tenant at all. Boundary: `requireSuperAdmin()`;
+   - `job` (§12) — a cron job (retention purge, weekly reports) belongs to no
+     tenant, so an XOR CHECK cannot hold. Boundary: `CRON_SECRET` /
+     `requireSuperAdmin()`. Tenant ids live in `payload`, as data;
+   - `email_suppression` (§10.3) — an address is not a tenant record: it may map
+     to no user, and to several tenants at once. Boundary: an HMAC-signed link.
+
+   `src/features/admin/data.ts` likewise queries **across** tenants by design,
+   because §6.2 requires a global view; `requireSuperAdmin()` is what replaces the
+   owner filter, and `no-restricted-imports` in `eslint.config.mjs` fences it so an
+   unguarded caller fails CI rather than silently breaching isolation.
+
+   The instructive near-miss is `webhook_event`: it looks like infrastructure, but
+   it is only ever written **after** its owner is resolved, so it carries the owner
+   like any business table. "The query is awkward to scope" is not the same as "the
+   subject is not a tenant record".
 
 3. **Authorization on the backend (§4.2).** Every data-changing server action
    checks the required permission in the active-organization context and returns
@@ -70,6 +88,24 @@ exports as modules are built.
    directly. Add variables to `src/lib/env/server.ts` (server) or
    `src/lib/env/client.ts` (`NEXT_PUBLIC_*`). The schema is imported from
    `next.config.ts`, so a missing var fails `pnpm dev`/`pnpm build` immediately.
+
+5. **The fast path is an optimization; the durable check is the guarantee
+   (§10, §12).** Async work resolves the same way everywhere in this codebase, and
+   it is worth naming because each instance looks like a local trick until you see
+   the pattern:
+   - `after()` drains the queue post-response; **cron is what actually delivers.**
+     Losing the kick delays work, it never drops it.
+   - `enqueueEmail` checks suppression to avoid junk rows; **the handler's
+     send-time check is what honors an unsubscribe.** A day-7 job enqueued on day 0
+     cannot know about a day-2 opt-out.
+   - The onboarding sequence is never cancelled by deleting rows; **the handler's
+     run-time guard is the interrupt.** A delete would race the claim and lose.
+   - The webhook's watermark protects the upsert; **`billing.notify` re-reading the
+     current row is what stops a stale event mailing a false confirmation.**
+
+   When adding async work, ask which of your two checks survives a crash, a
+   redelivery, and a week of elapsed time. That one is load-bearing; the other is
+   just latency.
 
 ## Reference patterns (fill in as modules land)
 
@@ -88,8 +124,15 @@ implementation in code once the corresponding module is built (spec §17.2):
   construction, because the factory runs at module load and would break
   `next build` for anyone without that vendor configured — hence
   `EMAIL_PROVIDER=log` and `BILLING_PROVIDER=none`.
-  `AdminAuthAdapter` (same `contract.ts`) is a fourth, and shows what to do when
-  a vendor's shape does NOT match the spec's vocabulary. Three rules there:
+  `src/lib/adapters/jobs/` is a fourth, and shows what to do when an adapter's
+  operation must participate in the CALLER's transaction. `enqueue(writer, …)`
+  always writes a row; the adapter is the thing that **drains** (the postgres one
+  executes the handler; a hosted scheduler would forward the row instead). That
+  transactional-outbox shape is what lets the contract demand a `writer` without
+  lying — the tempting "simplification" of having a hosted adapter's `enqueue` call
+  its own SDK silently destroys atomicity, because an HTTP call cannot roll back.
+  `AdminAuthAdapter` (same `contract.ts` as auth) is a fifth, and shows what to do
+  when a vendor's shape does NOT match the spec's vocabulary. Three rules there:
   1. **One source of truth, translated at the boundary.** Better Auth's `admin`
      plugin stores the super-admin flag as a role string in `user.role`. The
      contract exposes a plain `isSuperAdmin: boolean`, derived in the adapter.
@@ -107,6 +150,47 @@ implementation in code once the corresponding module is built (spec §17.2):
      join our memberships/subscriptions or see our `deletedAt`. Only operations
      that need the identity ENGINE (minting/revoking sessions) are in the
      contract; everything else is a Drizzle query in `features/admin/data.ts`.
+- **Add a background job (§12):** add the name to `JobName` and its payload to
+  `JobPayloads` in `src/lib/adapters/jobs/contract.ts`, write the handler in the
+  owning feature, and register it in `src/features/jobs/registry.ts` (`JobRegistry`
+  is `Record<JobName, _>`, so a name with no handler is a compile error). Enqueue
+  with `enqueueJob(writer, …)` from `src/features/jobs/enqueue.ts`. Four rules:
+  1. **Pass a `tx` as `writer` whenever the job accompanies a business write.**
+     Enqueue is a plain INSERT, so it commits — or rolls back — atomically with
+     your change. Reference: `src/features/billing/webhooks.ts` enqueues the
+     notification inside the same transaction as the idempotency marker, and
+     inherits its exactly-once guarantee for free. Sending mail there instead would
+     double-send on the rollback path, hold a pooled connection across an HTTP call
+     (deadlock — see `features/admin/audit.ts`), and make webhook latency depend on
+     the email provider.
+  2. **Handlers must be idempotent.** The queue is at-least-once, never
+     exactly-once: `runAt` doubles as a visibility timeout, so a job still running
+     at `CLAIM_TIMEOUT` is claimed again. Use a `dedupeKey` for anything whose
+     trigger can fire twice.
+  3. **Payloads are JSON primitives, and untrusted on the way out.** `payload` is
+     jsonb: a `Date` goes in and an ISO string comes back with the type still
+     claiming `Date`. Every handler zod-parses its payload first — see
+     `src/features/emails/handler.ts`.
+  4. **A no-op is success, not failure.** A suppressed email or an interrupted
+     sequence step returns cleanly; retrying would never change the answer, and
+     dead-lettering fills the queue with red rows recording correct behaviour.
+
+  Worked examples, in increasing order of subtlety: `src/features/jobs/handler.ts`
+  (`job.prune` — a cron-shaped task), `src/features/emails/handler.ts` (validation
+  - send-time policy), `src/features/onboarding/handler.ts` (a scheduled step with
+    a run-time guard), `src/features/billing/notify.ts` (fan-out into per-recipient
+    children, so a partial failure cannot re-mail anyone).
+
+- **Add an email template (§10.2):** add it to `TemplateName` and `TemplateProps`
+  in `src/lib/adapters/email/contract.ts`, write the component in
+  `src/lib/adapters/email/templates/`, register it in that folder's `index.ts`, and
+  classify it in `src/features/emails/categories.ts` (`Record<TemplateName, _>` —
+  forgetting is a compile error). Send with `enqueueEmail(writer, …)`; **never call
+  `email.send` directly** — the `email.send` handler is the one delivery path, which
+  is what keeps retry, suppression and List-Unsubscribe in one place each.
+  Templates are plain JSX rendered by `@react-email/render`, which produces the HTML
+  and the plain-text fallback from one component. Mail clients are not browsers:
+  inline styles only, no flex/grid, no external assets.
 - **Add a tenant-isolated entity:** add a table in `src/lib/db/schema/<entity>.ts`
   with an indexed owner column, re-export from `schema/index.ts`, run
   `pnpm db:generate` then `pnpm db:migrate`. The auth tables in
@@ -266,6 +350,46 @@ once, ensure the DB is migrated, then `pnpm test:e2e`.
 > `/admin/users` and `/admin/audit` are global by design, so they contain every
 > parallel worker's rows. Assert by filtering on a `uniqueEmail()` (`?q=…`) —
 > never by list position or "the first row".
+
+### Background jobs in production (spec 12, 19.1)
+
+Two things drain the queue, and **only one of them is a guarantee**:
+
+- `after()` fires a drain once the response is sent. It covers the happy path, and
+  needs no configuration.
+- `GET /api/cron/jobs` is what actually delivers. Retries, the day-3/day-7
+  onboarding steps and the daily prune exist **solely** because something calls it.
+
+**Set `CRON_SECRET` in production.** Without it the route answers 404 and nothing
+drains — but mail still appears to work, right up until the first provider blip,
+which then never recovers. That asymmetry is the whole hazard: the symptom of a
+missing `CRON_SECRET` is silence, not an error.
+
+Authentication is a bearer token rather than a Vercel signature, so **one mechanism
+serves both deploy targets** (§19.1):
+
+```bash
+# Vercel: `vercel.json` already declares the schedule, and Vercel Cron attaches
+# `Authorization: Bearer $CRON_SECRET` automatically. Just set CRON_SECRET.
+#
+# Docker / standalone Node: point any scheduler at the same URL.
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://app:3000/api/cron/jobs
+```
+
+> **Vercel Hobby is daily-only.** It rejects sub-daily cron expressions, so
+> `vercel.json` ships `0 3 * * *`. Consequence: `after()` still covers the happy
+> path, but a _retry_ could wait up to 24h. Because auth is a bearer secret, any
+> external pinger (cron-job.org, a GitHub Actions `schedule:`, UptimeRobot) hitting
+> the same URL every few minutes fixes that with zero code change. Pro allows
+> `*/1 * * * *`.
+
+Do **not** replace this with an in-process `setInterval`: it does not exist on
+Vercel, so the primary deploy target would silently have a different execution
+model from the secondary one — and it would make the E2E suite nondeterministic,
+since a background drain racing `expect()` is a flake generator.
+
+Locally, drain by hand with `POST /api/dev/jobs/run` (404 in production); inspect
+the queue with `GET /api/dev/jobs`, or `pnpm db:studio` → `job`.
 
 ### Billing webhooks locally (spec 5.4)
 

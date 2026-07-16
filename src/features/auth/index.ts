@@ -7,15 +7,30 @@
  * session/authorization helpers live in `src/lib/auth`.
  */
 
-export { signInAction, signUpAction, signOutAction, type FormState } from "./actions";
+export {
+  signInAction,
+  signUpAction,
+  signOutAction,
+  requestPasswordResetAction,
+  resetPasswordAction,
+  type FormState,
+  type ForgotPasswordState,
+  type ResetPasswordState,
+} from "./actions";
 export {
   emailSchema,
   passwordSchema,
   signInSchema,
   signUpSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
   type SignInValues,
   type SignUpValues,
+  type ForgotPasswordValues,
+  type ResetPasswordValues,
 } from "./schema";
 export { SignUpForm } from "./components/sign-up-form";
 export { SignInForm } from "./components/sign-in-form";
 export { SignOutButton } from "./components/sign-out-button";
+export { ForgotPasswordForm } from "./components/forgot-password-form";
+export { ResetPasswordForm } from "./components/reset-password-form";

@@ -6,13 +6,16 @@ import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
 
-import { email } from "@/lib/adapters/email";
+import { enqueueEmail } from "@/features/emails/send";
+import { startOnboardingSequence } from "@/features/onboarding/sequence";
 import { db, schema } from "@/lib/db";
 import { env } from "@/lib/env/server";
 import type {
   AdminAuthAdapter,
   AuthAdapter,
   AuthResult,
+  RequestPasswordResetInput,
+  ResetPasswordInput,
   Session,
   SignInInput,
   SignUpInput,
@@ -87,12 +90,38 @@ export const auth = betterAuth({
     // a "verify your email" banner instead.
     requireEmailVerification: false,
     autoSignIn: true,
+    // Spec 2.1 "token wygasający, np. 1h". Seconds.
+    resetPasswordTokenExpiresIn: 3600,
+    // Spec 2.1 "invalidacja wszystkich aktywnych sesji użytkownika po zmianie
+    // hasła". The engine deletes every session on reset — do NOT hand-roll this
+    // alongside it, or the two mechanisms will disagree.
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url }) => {
+      await enqueueEmail(db, "password-reset", { url, name: user.name }, { to: user.email });
+    },
   },
   emailVerification: {
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
-      await email.send("verify-email", { url, name: user.name }, { to: user.email });
+      await enqueueEmail(db, "verify-email", { url, name: user.name }, { to: user.email });
+    },
+    /**
+     * Start the onboarding sequence (spec 10.3). Day 0 IS the welcome, so this one
+     * trigger does both things the spec asks for.
+     *
+     * `db`, not a transaction: the engine owns the connection this hook runs on and
+     * offers no way to hand it ours — features/admin/audit.ts Rule B, for the same
+     * underlying reason.
+     *
+     * This can fire TWICE. The engine returns early when `emailVerified` is already
+     * true, but that check is not atomic with the UPDATE that sets it, so a mail
+     * scanner prefetching the link while the human clicks can pass both. The dedupe
+     * keys inside `startOnboardingSequence` are what actually close that — not the
+     * engine's guard.
+     */
+    afterEmailVerification: async (verified) => {
+      await startOnboardingSequence(db, verified.id);
     },
   },
   databaseHooks: {
@@ -231,6 +260,49 @@ export const betterAuthAdapter: AuthAdapter = {
         code === "EMAIL_NOT_VERIFIED"
       ) {
         return { ok: false, code: "INVALID_CREDENTIALS" };
+      }
+      return { ok: false, code: "UNKNOWN" };
+    }
+  },
+
+  async requestPasswordReset(
+    input: RequestPasswordResetInput,
+    headers: Headers,
+  ): Promise<AuthResult> {
+    try {
+      await auth.api.requestPasswordReset({
+        headers,
+        body: { email: input.email, redirectTo: input.redirectTo },
+      });
+      return { ok: true };
+    } catch {
+      // Anti-enumeration: resolve as success WHATEVER went wrong. The engine
+      // already returns a neutral body and performs a dummy lookup to flatten the
+      // timing for an unknown address; surfacing any error here — including a
+      // configuration one like RESET_PASSWORD_DISABLED — would hand back exactly
+      // the signal that work exists to hide. A genuine outage shows up in the
+      // queue's dead letters, which is where it belongs.
+      return { ok: true };
+    }
+  },
+
+  async resetPassword(input: ResetPasswordInput, headers: Headers): Promise<AuthResult> {
+    try {
+      await auth.api.resetPassword({
+        headers,
+        body: { token: input.token, newPassword: input.newPassword },
+      });
+      return { ok: true };
+    } catch (error) {
+      const code = errorCode(error);
+      // The engine has no separate "expired" code: an expired token simply fails
+      // to be consumed and surfaces as INVALID_TOKEN, which is also the right thing
+      // to tell the user — either way the link is dead and they need a new one.
+      if (code === "INVALID_TOKEN") {
+        return { ok: false, code: "INVALID_TOKEN" };
+      }
+      if (code === "PASSWORD_TOO_SHORT" || code === "PASSWORD_TOO_LONG") {
+        return { ok: false, code: "WEAK_PASSWORD" };
       }
       return { ok: false, code: "UNKNOWN" };
     }

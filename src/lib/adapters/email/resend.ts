@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 
 import { env } from "@/lib/env/server";
-import type { EmailAdapter, Recipient, TemplateData, TemplateName } from "./contract";
+import type { EmailAdapter, Recipient, SendOptions, TemplateData, TemplateName } from "./contract";
 import { renderTemplate } from "./templates";
 
 /**
@@ -18,15 +18,24 @@ export function createResendEmailAdapter(): EmailAdapter {
   const resend = new Resend(env.RESEND_API_KEY);
 
   return {
-    async send(template: TemplateName, data: TemplateData, recipient: Recipient): Promise<void> {
-      const rendered = renderTemplate(template, data);
+    async send(
+      template: TemplateName,
+      data: TemplateData,
+      recipient: Recipient,
+      options?: SendOptions,
+    ): Promise<void> {
+      const rendered = await renderTemplate(template, data);
       const { error } = await resend.emails.send({
         from: env.EMAIL_FROM,
         to: recipient.to,
         subject: rendered.subject,
         html: rendered.html,
         text: rendered.text,
+        ...(options?.headers ? { headers: options.headers } : {}),
       });
+      // Throwing is deliberate and load-bearing: it is how the job queue learns to
+      // retry with backoff (spec 12.2). Do not soften this into a logged warning —
+      // that turns a transient outage into permanent silent loss.
       if (error) {
         throw new Error(`Resend failed to send "${template}" to ${recipient.to}: ${error.message}`);
       }

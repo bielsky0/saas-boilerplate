@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { processBillingEvent } from "@/features/billing/webhooks";
+import { kickDrain } from "@/features/jobs/runner";
 import { billing } from "@/lib/adapters/billing";
 
 /**
@@ -47,5 +48,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Infrastructure errors propagate to a 500 on purpose (see header).
   const processed = await processBillingEvent(result.event);
+
+  // Any notification the event enqueued is committed by now; run it after the
+  // response so the provider's timeout never depends on our email provider. Only
+  // on "processed" — a duplicate enqueued nothing. Purely a latency win: cron
+  // would pick the job up regardless.
+  if (processed.status === "processed") kickDrain();
+
   return NextResponse.json({ received: true, status: processed.status });
 }

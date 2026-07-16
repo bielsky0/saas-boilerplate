@@ -5,6 +5,7 @@ import type {
   BillingPaymentData,
   BillingSubscriptionData,
 } from "@/lib/adapters/billing";
+import { jobs } from "@/lib/adapters/jobs";
 import { db } from "@/lib/db";
 import { billingPayment, subscription, webhookEvent } from "@/lib/db/schema";
 import { findBillingCustomer } from "./data";
@@ -140,6 +141,23 @@ async function applyPaymentEvent(
  *
  * Infrastructure failures are intentionally left to propagate: a 5xx tells the
  * provider to retry, which is exactly right for a transient fault.
+ *
+ * NOTIFICATIONS (spec 10.2) ARE ENQUEUED INSIDE THIS TRANSACTION, and the enqueue
+ * is a plain INSERT precisely so that it can be. Sending mail here instead would
+ * break in three ways, none of them obvious:
+ *   - it is not transactional. If the send succeeds and the transaction THEN rolls
+ *     back, the marker rolls back with it, the provider retries, the marker
+ *     inserts — and the mail goes out twice. Rare and unreproducible, which is
+ *     worse than common;
+ *   - it holds a pooled connection open across an HTTP call to the email provider.
+ *     That is the deadlock features/admin/audit.ts documents, with an outage as
+ *     the trigger: on the small default pool, a provider timing out plus a webhook
+ *     burst wedges the whole app;
+ *   - it makes webhook latency depend on the email provider. Stripe times out
+ *     around 20s and retries, so a slow provider MANUFACTURES the redeliveries
+ *     that then hit the first problem.
+ * The enqueue has none of these and inherits the marker's exactly-once guarantee
+ * for free. The drain happens after the response, from the route.
  */
 export async function processBillingEvent(event: BillingEvent): Promise<ProcessResult> {
   const customer = await findBillingCustomer(event.provider, event.customerId);
@@ -178,9 +196,64 @@ export async function processBillingEvent(event: BillingEvent): Promise<ProcessR
 
     if ("subscription" in event) {
       await applySubscriptionEvent(tx, event, customer);
+      await enqueueSubscriptionNotification(tx, event, customer);
     } else {
       await applyPaymentEvent(tx, event, customer);
+      await enqueuePaymentNotification(tx, event, customer);
     }
     return { status: "processed" } as const;
   });
+}
+
+/**
+ * Announce a NEW subscription (spec 10.2) — never an update.
+ *
+ * `applySubscriptionEvent` collapses created/updated/canceled into one upsert
+ * because they all carry the full subscription; notifications must not. Firing on
+ * `updated` would mail a receipt on every renewal, quantity change and card swap.
+ */
+async function enqueueSubscriptionNotification(
+  tx: Tx,
+  event: BillingEvent & { subscription: BillingSubscriptionData },
+  customer: Owner,
+): Promise<void> {
+  if (event.type !== "subscription.created") return;
+  await jobs.enqueue(
+    tx,
+    "billing.notify",
+    {
+      kind: "subscription-confirmed",
+      organizationId: customer.organizationId,
+      accountId: customer.accountId,
+      eventId: event.id,
+      providerSubscriptionId: event.subscription.providerSubscriptionId,
+    },
+    { dedupeKey: `billing:subscription-confirmed:${event.provider}:${event.id}` },
+  );
+}
+
+/** Dunning notice for a failed charge (spec 10.2). */
+async function enqueuePaymentNotification(
+  tx: Tx,
+  event: BillingEvent & { payment: BillingPaymentData },
+  customer: Owner,
+): Promise<void> {
+  if (event.payment.status !== "failed") return;
+  await jobs.enqueue(
+    tx,
+    "billing.notify",
+    {
+      kind: "payment-failed",
+      organizationId: customer.organizationId,
+      accountId: customer.accountId,
+      eventId: event.id,
+      amount: event.payment.amount,
+      currency: event.payment.currency,
+    },
+    // Keyed on the provider EVENT id, not the payment id: the marker above already
+    // guarantees one enqueue per event, so this is belt-and-braces — and it earns
+    // its keep the day someone moves this enqueue out of the transaction, when it
+    // becomes the only thing still holding the line.
+    { dedupeKey: `billing:payment-failed:${event.provider}:${event.id}` },
+  );
 }
