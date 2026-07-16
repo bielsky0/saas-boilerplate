@@ -24,20 +24,26 @@ test("the last owner cannot be demoted or removed", async ({ page, request }) =>
   await page.waitForURL(`**/orgs/${slug}`);
 
   await page.goto(`/orgs/${slug}/members`);
-  const row = page.getByRole("listitem").filter({ hasText: owner });
+  const row = page.getByRole("row").filter({ hasText: owner });
   await expect(row).toBeVisible();
 
-  // Attempt to demote self to member → blocked.
-  await row.getByRole("combobox").selectOption("member");
+  // Attempt to demote self to member → blocked. The role control is a Radix
+  // Select (a combobox button + a portaled listbox), not a native <select>.
+  await row.getByRole("combobox").click();
+  await page.getByRole("option", { name: "Member" }).click();
   await row.getByRole("button", { name: /save/i }).click();
   await expect(row.getByText(/keep at least one owner/i)).toBeVisible();
 
-  // Attempt to remove self → blocked.
-  await row.getByRole("button", { name: /remove/i }).click();
+  // Attempt to remove self → blocked. Removal is confirmed in a dialog first.
+  await row.getByRole("button", { name: /^remove$/i }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /remove member/i })
+    .click();
   await expect(row.getByText(/can't remove the last owner/i)).toBeVisible();
 
-  // Still an owner after both attempts (the status label, not the <option>).
+  // Still an owner after both attempts (the role badge, not the select value).
   await page.reload();
-  const rowAfter = page.getByRole("listitem").filter({ hasText: owner });
+  const rowAfter = page.getByRole("row").filter({ hasText: owner });
   await expect(rowAfter.getByText("owner", { exact: true })).toBeVisible();
 });

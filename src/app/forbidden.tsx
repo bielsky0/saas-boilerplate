@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { Button } from "@/components/ui";
+
 /**
  * Global 403 boundary (spec 4.2). Rendered whenever a server component, server
  * action, or route handler calls `forbidden()` — the response carries a real 403
@@ -10,12 +12,14 @@ export default function Forbidden() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-4 px-4 py-12 text-center">
       <h1 className="text-2xl font-semibold">Access denied</h1>
-      <p className="text-sm text-black/70 dark:text-white/70">
+      <p className="text-muted-foreground text-sm">
         You don&apos;t have permission to view this page or perform this action.
       </p>
-      <Link href="/dashboard" className="text-sm underline">
-        Back to your dashboard
-      </Link>
+      <div>
+        <Button asChild variant="link">
+          <Link href="/dashboard">Back to your dashboard</Link>
+        </Button>
+      </div>
     </main>
   );
 }

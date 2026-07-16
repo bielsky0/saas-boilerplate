@@ -1,22 +1,47 @@
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
 import type { ButtonHTMLAttributes } from "react";
 
+import { cn } from "@/lib/utils";
+
 /**
- * Token-driven button primitive (spec 7.1). Presentational only — no data
- * access. First real design-system component; more variants land with the UI
- * system phase.
+ * Button primitive (spec §7.1). Token-driven via `cva`; presentational only.
+ * `asChild` renders the styles onto the child element (Radix `Slot`) so a
+ * `<Link>` can look like a button without nesting an `<a>` in a `<button>` —
+ * the canonical pattern for link-styled CTAs across the app.
  */
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "ghost";
-};
+export const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        link: "text-foreground underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-9 px-4 py-2",
+        sm: "h-8 rounded-md px-3 text-xs",
+        lg: "h-10 rounded-md px-6",
+        icon: "size-9",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  },
+);
 
-const base =
-  "inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2";
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean;
+  };
 
-const variants = {
-  primary: "bg-foreground text-background hover:opacity-90",
-  ghost: "bg-transparent hover:bg-black/5 dark:hover:bg-white/10",
-} as const;
-
-export function Button({ variant = "primary", className = "", ...props }: ButtonProps) {
-  return <button className={`${base} ${variants[variant]} ${className}`} {...props} />;
+export function Button({ className, variant, size, asChild = false, ...props }: ButtonProps) {
+  const Comp = asChild ? Slot : "button";
+  return <Comp className={cn(buttonVariants({ variant, size }), className)} {...props} />;
 }

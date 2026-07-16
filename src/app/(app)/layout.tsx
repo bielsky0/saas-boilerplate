@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { ThemeToggle } from "@/components/theme-toggle";
 import { SignOutButton } from "@/features/auth";
 import { AccountSwitcher } from "@/features/organizations";
 import { ensurePersonalAccount, listUserOrgs } from "@/features/organizations/data";
@@ -21,15 +22,18 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="border-b border-black/10 dark:border-white/10">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="font-semibold">
+      <header className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 border-b backdrop-blur">
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link href="/dashboard" className="shrink-0 font-semibold">
               SaaS
             </Link>
             <AccountSwitcher personalLabel={personalLabel} orgs={orgs} />
           </div>
-          <SignOutButton />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <SignOutButton />
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 
-import { Button, FormField, Input } from "@/components/ui";
+import { Button, FormField, FormMessage, Input } from "@/components/ui";
 import { signUpAction, type FormState } from "../actions";
 
 const initialState: FormState = {};
@@ -29,24 +29,20 @@ export function SignUpForm({ callbackUrl }: { callbackUrl?: string }) {
           required
           minLength={8}
         />
-        <p className="text-xs text-black/60 dark:text-white/60">
+        <p className="text-muted-foreground text-xs">
           At least 8 characters, including a letter and a number.
         </p>
       </FormField>
 
-      {state.error ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {state.error}
-        </p>
-      ) : null}
+      {state.error ? <FormMessage>{state.error}</FormMessage> : null}
 
       <Button type="submit" disabled={pending}>
         {pending ? "Creating account…" : "Create account"}
       </Button>
 
-      <p className="text-sm text-black/60 dark:text-white/60">
+      <p className="text-muted-foreground text-sm">
         Already have an account?{" "}
-        <Link href="/login" className="underline">
+        <Link href="/login" className="text-foreground font-medium underline">
           Log in
         </Link>
       </p>

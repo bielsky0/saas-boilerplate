@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createHash } from "node:crypto";
 
+import { Button } from "@/components/ui";
 import { AcceptInvitationForm } from "@/features/organizations/components/accept-invitation-form";
 import { getInvitationWithValidity, getOrgById } from "@/features/organizations/data";
 import { getServerSession } from "@/lib/auth";
@@ -37,12 +38,14 @@ export default async function AcceptInvitationPage({
     return (
       <Shell>
         <h1 className="text-2xl font-semibold">Invitation unavailable</h1>
-        <p className="text-sm text-black/70 dark:text-white/70">
+        <p className="text-muted-foreground text-sm">
           This invitation link is invalid, has expired, or has already been used.
         </p>
-        <Link href="/dashboard" className="text-sm underline">
-          Go to your dashboard
-        </Link>
+        <div>
+          <Button asChild variant="link">
+            <Link href="/dashboard">Go to your dashboard</Link>
+          </Button>
+        </div>
       </Shell>
     );
   }
@@ -55,31 +58,25 @@ export default async function AcceptInvitationPage({
   return (
     <Shell>
       <h1 className="text-2xl font-semibold">Join {orgName}</h1>
-      <p className="text-sm text-black/70 dark:text-white/70">
-        You&apos;ve been invited to join <span className="font-medium">{orgName}</span> as{" "}
-        {invite.role}.
+      <p className="text-muted-foreground text-sm">
+        You&apos;ve been invited to join{" "}
+        <span className="text-foreground font-medium">{orgName}</span> as {invite.role}.
       </p>
 
       {session ? (
         <AcceptInvitationForm token={token} />
       ) : (
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-black/70 dark:text-white/70">
-            Sign in or create an account to accept.
-          </p>
+          <p className="text-muted-foreground text-sm">Sign in or create an account to accept.</p>
           <div className="flex gap-3">
-            <Link
-              href={`/login?callbackUrl=${encodeURIComponent(returnTo)}`}
-              className="rounded-md bg-black px-4 py-2 text-sm text-white dark:bg-white dark:text-black"
-            >
-              Log in
-            </Link>
-            <Link
-              href={`/signup?callbackUrl=${encodeURIComponent(returnTo)}`}
-              className="rounded-md border border-black/15 px-4 py-2 text-sm dark:border-white/20"
-            >
-              Create account
-            </Link>
+            <Button asChild>
+              <Link href={`/login?callbackUrl=${encodeURIComponent(returnTo)}`}>Log in</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={`/signup?callbackUrl=${encodeURIComponent(returnTo)}`}>
+                Create account
+              </Link>
+            </Button>
           </div>
         </div>
       )}

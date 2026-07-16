@@ -23,7 +23,7 @@ export default async function LoginPage({
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-6 px-4 py-12">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold">Welcome back</h1>
-        <p className="text-sm text-black/60 dark:text-white/60">Log in to your account.</p>
+        <p className="text-muted-foreground text-sm">Log in to your account.</p>
       </div>
       <SignInForm callbackUrl={callbackUrl} />
     </main>

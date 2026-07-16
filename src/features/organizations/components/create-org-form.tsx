@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 
-import { Button, FormField, Input } from "@/components/ui";
+import { Button, FormField, FormMessage, Input } from "@/components/ui";
 import { createOrganizationAction } from "../actions";
 import type { ActionState } from "../actions";
 
@@ -25,11 +25,7 @@ export function CreateOrgForm() {
         <Input id="slug" name="slug" placeholder="auto-generated from name" />
       </FormField>
 
-      {state.error ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {state.error}
-        </p>
-      ) : null}
+      {state.error ? <FormMessage>{state.error}</FormMessage> : null}
 
       <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "Create organization"}

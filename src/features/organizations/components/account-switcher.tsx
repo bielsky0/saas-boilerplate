@@ -1,22 +1,28 @@
 "use client";
 
+import { ChevronsUpDown, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { Dropdown } from "@/components/ui";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 /**
- * Global account/context switcher (spec 3.5). Lists the personal account + every
+ * Global account/context switcher (spec §3.5). Lists the personal account + every
  * org the user actively belongs to; selecting one navigates to that context's
  * URL (`/dashboard` or `/orgs/[slug]`). The active item is derived from the
  * current path, so refresh/deep-links keep context. UI only — access is enforced
  * server-side per route.
  */
 export type SwitcherOrg = { id: string; name: string; slug: string };
-
-const itemClass =
-  "block rounded px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/10";
-const activeClass = "bg-black/5 font-medium dark:bg-white/10";
 
 export function AccountSwitcher({
   personalLabel,
@@ -33,38 +39,49 @@ export function AccountSwitcher({
     : personalLabel;
 
   return (
-    <Dropdown trigger={<span className="max-w-40 truncate">{current}</span>}>
-      <div className="px-3 py-1 text-xs uppercase tracking-wide opacity-50">Personal</div>
-      <Link
-        href="/dashboard"
-        role="menuitem"
-        className={`${itemClass} ${onPersonal ? activeClass : ""}`}
-      >
-        {personalLabel}
-      </Link>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label="Switch account"
+          className="max-w-52 justify-between gap-2"
+        >
+          <span className="truncate">{current}</span>
+          <ChevronsUpDown className="size-4 opacity-60" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-56">
+        <DropdownMenuLabel>Personal</DropdownMenuLabel>
+        <DropdownMenuItem asChild>
+          <Link href="/dashboard" className={cn(onPersonal && "font-medium")}>
+            {personalLabel}
+          </Link>
+        </DropdownMenuItem>
 
-      {orgs.length > 0 ? (
-        <>
-          <div className="mt-1 px-3 py-1 text-xs uppercase tracking-wide opacity-50">
-            Organizations
-          </div>
-          {orgs.map((org) => (
-            <Link
-              key={org.id}
-              href={`/orgs/${org.slug}`}
-              role="menuitem"
-              className={`${itemClass} ${org.slug === activeSlug ? activeClass : ""}`}
-            >
-              {org.name}
-            </Link>
-          ))}
-        </>
-      ) : null}
+        {orgs.length > 0 ? (
+          <>
+            <DropdownMenuLabel>Organizations</DropdownMenuLabel>
+            {orgs.map((org) => (
+              <DropdownMenuItem key={org.id} asChild>
+                <Link
+                  href={`/orgs/${org.slug}`}
+                  className={cn(org.slug === activeSlug && "font-medium")}
+                >
+                  {org.name}
+                </Link>
+              </DropdownMenuItem>
+            ))}
+          </>
+        ) : null}
 
-      <div className="my-1 border-t border-black/10 dark:border-white/10" />
-      <Link href="/orgs/new" role="menuitem" className={itemClass}>
-        + New organization
-      </Link>
-    </Dropdown>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/orgs/new">
+            <Plus className="mr-2 size-4" /> New organization
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

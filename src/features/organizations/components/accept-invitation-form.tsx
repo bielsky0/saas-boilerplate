@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 
-import { Button } from "@/components/ui";
+import { Button, FormMessage } from "@/components/ui";
 import { acceptInvitationAction } from "../actions";
 import type { ActionState } from "../actions";
 
@@ -22,11 +22,7 @@ export function AcceptInvitationForm({ token }: { token: string }) {
       <Button type="submit" disabled={pending}>
         {pending ? "Joining…" : "Accept invitation"}
       </Button>
-      {state.error ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {state.error}
-        </p>
-      ) : null}
+      {state.error ? <FormMessage>{state.error}</FormMessage> : null}
     </form>
   );
 }

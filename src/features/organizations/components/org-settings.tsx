@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useId } from "react";
 
-import { Button, FormField, Input } from "@/components/ui";
+import { Button, ConfirmDialog, FormField, FormMessage, Input, toast } from "@/components/ui";
 import {
   deleteOrganizationAction,
   leaveOrganizationAction,
@@ -12,15 +12,14 @@ import type { ActionState } from "../actions";
 
 const initial: ActionState = {};
 
-/** Edit org name + slug (spec 3.2). Re-checks `organization.update` server-side. */
-export function OrgSettingsForm({
-  slug,
-  name,
-}: {
-  slug: string;
-  name: string;
-}) {
+/** Edit org name + slug (spec §3.2). Re-checks `organization.update` server-side. */
+export function OrgSettingsForm({ slug, name }: { slug: string; name: string }) {
   const [state, action, pending] = useActionState(updateOrganizationAction, initial);
+
+  useEffect(() => {
+    if (state.success) toast.success(state.success);
+  }, [state]);
+
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name="slug" value={slug} />
@@ -31,16 +30,7 @@ export function OrgSettingsForm({
         <Input id="org-slug" name="newSlug" defaultValue={slug} />
       </FormField>
 
-      {state.error ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {state.error}
-        </p>
-      ) : null}
-      {state.success ? (
-        <p role="status" className="text-sm text-green-700 dark:text-green-400">
-          {state.success}
-        </p>
-      ) : null}
+      {state.error ? <FormMessage>{state.error}</FormMessage> : null}
 
       <div>
         <Button type="submit" disabled={pending}>
@@ -51,38 +41,60 @@ export function OrgSettingsForm({
   );
 }
 
-/** Soft-delete the org (spec 11.3). Re-checks `organization.delete` server-side. */
+/** Soft-delete the org (spec §11.3). Re-checks `organization.delete` server-side. */
 export function DeleteOrgButton({ slug }: { slug: string }) {
   const [state, action, pending] = useActionState(deleteOrganizationAction, initial);
+  const formId = useId();
+
   return (
-    <form action={action} className="flex items-center gap-3">
-      <input type="hidden" name="slug" value={slug} />
-      <Button type="submit" variant="ghost" disabled={pending}>
-        {pending ? "Deleting…" : "Delete organization"}
-      </Button>
-      {state.error ? (
-        <span role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {state.error}
-        </span>
-      ) : null}
-    </form>
+    <div className="flex flex-col gap-2">
+      <form id={formId} action={action}>
+        <input type="hidden" name="slug" value={slug} />
+      </form>
+      <div>
+        <ConfirmDialog
+          trigger={
+            <Button type="button" variant="destructive" disabled={pending}>
+              {pending ? "Deleting…" : "Delete organization"}
+            </Button>
+          }
+          title="Delete this organization?"
+          description="This removes access for every member. You can't undo this from the UI."
+          confirmLabel="Delete organization"
+          confirmForm={formId}
+          disabled={pending}
+        />
+      </div>
+      {state.error ? <FormMessage>{state.error}</FormMessage> : null}
+    </div>
   );
 }
 
-/** Leave the org (spec 3.4). Blocked for the sole owner (server-side). */
+/** Leave the org (spec §3.4). Blocked for the sole owner (server-side). */
 export function LeaveOrgButton({ slug }: { slug: string }) {
   const [state, action, pending] = useActionState(leaveOrganizationAction, initial);
+  const formId = useId();
+
   return (
-    <form action={action} className="flex items-center gap-3">
-      <input type="hidden" name="slug" value={slug} />
-      <Button type="submit" variant="ghost" disabled={pending}>
-        {pending ? "Leaving…" : "Leave organization"}
-      </Button>
-      {state.error ? (
-        <span role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {state.error}
-        </span>
-      ) : null}
-    </form>
+    <div className="flex flex-col gap-2">
+      <form id={formId} action={action}>
+        <input type="hidden" name="slug" value={slug} />
+      </form>
+      <div>
+        <ConfirmDialog
+          trigger={
+            <Button type="button" variant="outline" disabled={pending}>
+              {pending ? "Leaving…" : "Leave organization"}
+            </Button>
+          }
+          title="Leave this organization?"
+          description="You'll lose access to its resources until someone invites you back."
+          confirmLabel="Leave organization"
+          confirmForm={formId}
+          disabled={pending}
+        />
+      </div>
+      {state.error ? <FormMessage>{state.error}</FormMessage> : null}
+    </div>
   );
 }

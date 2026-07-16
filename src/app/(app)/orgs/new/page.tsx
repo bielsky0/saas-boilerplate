@@ -11,7 +11,7 @@ export default async function NewOrganizationPage() {
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6">
       <h1 className="text-2xl font-semibold">Create an organization</h1>
-      <p className="text-sm text-black/70 dark:text-white/70">
+      <p className="text-muted-foreground text-sm">
         You&apos;ll be added as the owner and can invite teammates next.
       </p>
       <CreateOrgForm />

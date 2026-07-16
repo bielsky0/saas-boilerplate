@@ -1,26 +1,131 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Design tokens (spec §7.1). A single source of truth for colors, radius, and
+ * fonts — a theme change is a change here, not in every component. Values are
+ * HSL channel triplets so Tailwind utilities can add opacity (e.g. `bg-ring/50`).
+ * Dark mode is class-based (`.dark` on <html>, toggled by next-themes) rather
+ * than `prefers-color-scheme`, so users can pick light/dark/system (spec §7.2).
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --radius: 0.625rem;
+
+  --background: 0 0% 100%;
+  --foreground: 0 0% 9%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 9%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 9%;
+
+  --primary: 0 0% 9%;
+  --primary-foreground: 0 0% 98%;
+
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 9%;
+
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 45%;
+
+  --accent: 0 0% 96%;
+  --accent-foreground: 0 0% 9%;
+
+  --destructive: 0 72% 45%;
+  --destructive-foreground: 0 0% 98%;
+
+  --success: 142 71% 30%;
+  --success-foreground: 0 0% 98%;
+
+  --warning: 38 92% 45%;
+  --warning-foreground: 0 0% 98%;
+
+  --border: 0 0% 89%;
+  --input: 0 0% 89%;
+  --ring: 0 0% 63%;
+}
+
+.dark {
+  --background: 0 0% 4%;
+  --foreground: 0 0% 93%;
+
+  --card: 0 0% 7%;
+  --card-foreground: 0 0% 93%;
+
+  --popover: 0 0% 7%;
+  --popover-foreground: 0 0% 93%;
+
+  --primary: 0 0% 93%;
+  --primary-foreground: 0 0% 9%;
+
+  --secondary: 0 0% 15%;
+  --secondary-foreground: 0 0% 93%;
+
+  --muted: 0 0% 15%;
+  --muted-foreground: 0 0% 63%;
+
+  --accent: 0 0% 15%;
+  --accent-foreground: 0 0% 93%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+
+  --success: 142 64% 45%;
+  --success-foreground: 0 0% 4%;
+
+  --warning: 38 92% 55%;
+  --warning-foreground: 0 0% 4%;
+
+  --border: 0 0% 18%;
+  --input: 0 0% 22%;
+  --ring: 0 0% 45%;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    border-color: hsl(var(--border));
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
 }

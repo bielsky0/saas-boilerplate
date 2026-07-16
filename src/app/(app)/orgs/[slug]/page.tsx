@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Badge, Button } from "@/components/ui";
 import { requireOrgAccess } from "@/features/organizations/context";
 import { LeaveOrgButton } from "@/features/organizations/components/org-settings";
 
@@ -7,32 +8,28 @@ import { LeaveOrgButton } from "@/features/organizations/components/org-settings
  * Organization overview (spec 3.5). Entry point for an org context; access is
  * enforced by `requireOrgAccess` (403 for non-members, 404 for unknown slugs).
  */
-export default async function OrganizationPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+export default async function OrganizationPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const { org, role } = await requireOrgAccess(slug);
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
+      <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold">{org.name}</h1>
-        <p className="text-sm text-black/60 dark:text-white/60">
-          Your role: <span className="font-medium capitalize">{role}</span>
+        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+          Your role: <Badge variant="outline">{role}</Badge>
         </p>
       </div>
-      <nav className="flex gap-4 text-sm">
-        <Link href={`/orgs/${slug}/members`} className="underline">
-          Members
-        </Link>
-        <Link href={`/orgs/${slug}/settings`} className="underline">
-          Settings
-        </Link>
+      <nav className="flex gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/orgs/${slug}/members`}>Members</Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/orgs/${slug}/settings`}>Settings</Link>
+        </Button>
       </nav>
 
-      <div className="border-t border-black/10 pt-6 dark:border-white/10">
+      <div className="border-border border-t pt-6">
         <LeaveOrgButton slug={slug} />
       </div>
     </div>

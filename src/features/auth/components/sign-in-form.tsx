@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 
-import { Button, FormField, Input } from "@/components/ui";
+import { Button, FormField, FormMessage, Input } from "@/components/ui";
 import { signInAction, type FormState } from "../actions";
 
 const initialState: FormState = {};
@@ -27,19 +27,15 @@ export function SignInForm({ callbackUrl }: { callbackUrl?: string }) {
         />
       </FormField>
 
-      {state.error ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {state.error}
-        </p>
-      ) : null}
+      {state.error ? <FormMessage>{state.error}</FormMessage> : null}
 
       <Button type="submit" disabled={pending}>
         {pending ? "Signing in…" : "Log in"}
       </Button>
 
-      <p className="text-sm text-black/60 dark:text-white/60">
+      <p className="text-muted-foreground text-sm">
         Need an account?{" "}
-        <Link href="/signup" className="underline">
+        <Link href="/signup" className="text-foreground font-medium underline">
           Sign up
         </Link>
       </p>

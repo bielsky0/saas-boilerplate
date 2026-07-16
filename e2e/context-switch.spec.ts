@@ -30,7 +30,8 @@ test("switching org context filters members by tenant", async ({ page, request }
   await loginViaUi(page, user, TEST_PASSWORD);
   await page.waitForURL("**/dashboard");
 
-  const switcher = page.locator('button[aria-haspopup="menu"]');
+  // The theme toggle is also a menu button, so target the switcher by its label.
+  const switcher = page.getByRole("button", { name: "Switch account" });
 
   // Switch to Alpha via the account switcher.
   await switcher.click();

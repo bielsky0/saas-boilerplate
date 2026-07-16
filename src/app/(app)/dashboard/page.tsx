@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { Alert, Button } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -18,26 +19,20 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Personal</h1>
-        <Link
-          href="/orgs/new"
-          className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-        >
-          New organization
-        </Link>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/orgs/new">New organization</Link>
+        </Button>
       </div>
 
       {!session.user.emailVerified ? (
-        <div
-          role="status"
-          className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
-        >
+        <Alert role="status" variant="warning">
           Please verify your email address. Check your inbox for the verification link.
-        </div>
+        </Alert>
       ) : null}
 
-      <p className="text-sm text-black/70 dark:text-white/70">
-        Signed in as <span className="font-medium">{session.user.email}</span>. Use the switcher
-        above to move between your personal account and organizations.
+      <p className="text-muted-foreground text-sm">
+        Signed in as <span className="text-foreground font-medium">{session.user.email}</span>. Use
+        the switcher above to move between your personal account and organizations.
       </p>
     </div>
   );

@@ -12,12 +12,7 @@ import { invitation, membership, organization } from "@/lib/db/schema";
 import { clientEnv } from "@/lib/env/client";
 import { requireOrgPermission } from "./context";
 import { getInvitationByTokenHash, getOrgById, isSlugTaken } from "./data";
-import {
-  createOrgSchema,
-  inviteMemberSchema,
-  slugSchema,
-  updateRoleSchema,
-} from "./schema";
+import { createOrgSchema, inviteMemberSchema, slugSchema, updateRoleSchema } from "./schema";
 import { resolveUniqueSlug } from "./slug";
 
 /**
@@ -239,7 +234,10 @@ export async function updateMemberRoleAction(
         .select()
         .from(membership)
         .where(
-          and(eq(membership.id, parsed.data.membershipId), eq(membership.organizationId, ctx.org.id)),
+          and(
+            eq(membership.id, parsed.data.membershipId),
+            eq(membership.organizationId, ctx.org.id),
+          ),
         )
         .for("update");
       if (!target) throw new LastOwnerError();

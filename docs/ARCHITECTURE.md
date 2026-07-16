@@ -8,7 +8,7 @@ code. The full product spec lives in [specyfikacja.md](specyfikacja.md).
 ## Stack
 
 - **App:** Next.js (App Router) + React + TypeScript (`strict`, `output: "standalone"`)
-- **Styling:** Tailwind CSS v4 (+ shadcn/ui-style primitives later)
+- **Styling:** Tailwind CSS v4 + shadcn/ui-style primitives on Radix (`src/components/ui`)
 - **Database:** PostgreSQL via Drizzle ORM, isolated behind `src/lib/db`
 - **Env:** validated with `@t3-oss/env-nextjs` + Zod, fail-fast at startup
 - **Package manager:** pnpm
@@ -83,12 +83,35 @@ implementation in code once the corresponding module is built (spec §17.2):
   carry an indexed `organizationId` and every read/write is scoped by it in the
   feature's data layer `src/features/organizations/data.ts` — copy that layer's
   shape (never query a tenant table without its owner filter).
+- **Add a UI primitive (design system, §7.1):** put it in `src/components/ui/<name>.tsx`
+  and export it from `src/components/ui/index.ts`. Rules: style only with the
+  semantic tokens (`bg-card`, `text-muted-foreground`, `border-border`…) — never
+  raw colors like `black/10` or `red-600`; compose classes with `cn()` from
+  `src/lib/utils.ts` so a caller's `className` can override defaults; express
+  variants with `cva`. Reference: `button.tsx` (`cva` + `asChild` via Radix `Slot`,
+  which is how a `<Link>` is rendered as a button — see the dashboard's "New
+  organization"). Interactive/overlay primitives wrap Radix so focus management
+  and ARIA come for free: `dialog.tsx`, `select.tsx`, `dropdown-menu.tsx`.
+- **Add/derive a design token (§7.1):** edit `src/app/globals.css` only. Tokens are
+  HSL triplets under `:root` with a `.dark` override, mapped to Tailwind utilities
+  in `@theme inline`. Dark mode is **class-based** (`@custom-variant dark`), driven
+  by next-themes via `ThemeProvider` in the root layout — never reintroduce
+  `prefers-color-scheme` in components, and never hard-code a color in a component.
+- **Confirm a destructive action (§7.1):** use `ConfirmDialog`. Because the dialog
+  is portaled outside the `<form>`, give the form an `id` (`useId()`) and pass it as
+  `confirmForm` — the HTML `form` attribute lets the portaled confirm button submit
+  it. Reference: `DeleteOrgButton`/`LeaveOrgButton` in
+  `src/features/organizations/components/org-settings.tsx`.
+- **Give feedback from a server action:** validation/permission **errors** render
+  inline via `FormMessage` (they must persist and be assertable); transient
+  **successes** fire a `toast(...)` from a `useEffect` keyed on the `useActionState`
+  state. Reference: `invite-member-form.tsx` and `org-settings.tsx`.
 - **Add a protected endpoint / server action:** resolve the session via
   `requireSession()` in `src/lib/auth/index.ts` before doing anything. Reference:
   the `src/app/(app)/dashboard/page.tsx` server component and the sign-out server
   action in `src/features/auth/actions.ts`.
 - **Add an org-scoped (RBAC) action or page:** call `requireOrgPermission(slug,
-  permission)` from `src/features/organizations/context.ts` as the FIRST line —
+permission)` from `src/features/organizations/context.ts` as the FIRST line —
   it resolves the active org from the URL slug, checks the centralized role→
   permission map in `src/features/rbac/index.ts`, and calls Next's `forbidden()`
   (a real 403) when the permission is missing (spec 4.2). Reference: every action

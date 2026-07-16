@@ -22,8 +22,12 @@ async function inviteFromMembers(
 ) {
   await page.goto(`/orgs/${slug}/members`);
   await page.getByLabel("Email").fill(inviteeEmail);
-  await page.getByLabel("Role").selectOption("member");
+  // The invite role control is a Radix Select; `exact` avoids also matching the
+  // per-member "Member role" selects in the team table.
+  await page.getByLabel("Role", { exact: true }).click();
+  await page.getByRole("option", { name: "Member" }).click();
   await page.getByRole("button", { name: /send invite/i }).click();
+  // Success is surfaced as a toast.
   await expect(page.getByText(/invitation sent to/i)).toBeVisible();
 }
 
