@@ -71,6 +71,18 @@ export async function seedOrg(
   return body.slug;
 }
 
+/**
+ * Promote an existing seeded user to super admin (spec 6.1) via the test-only
+ * route. Bootstrapping cannot go through `setSuperAdminAction` — that requires an
+ * existing super admin — so this mirrors the documented production SQL.
+ */
+export async function seedSuperAdmin(request: APIRequestContext, email: string): Promise<void> {
+  const res = await request.post("/api/dev/seed-super-admin", { data: { email } });
+  if (!res.ok()) {
+    throw new Error(`seedSuperAdmin failed (${res.status()}): ${await res.text()}`);
+  }
+}
+
 /** Fill and submit the login form. */
 export async function loginViaUi(page: Page, email: string, password: string): Promise<void> {
   await page.getByLabel("Email").fill(email);

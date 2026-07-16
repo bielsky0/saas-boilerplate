@@ -1,4 +1,4 @@
-import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 /**
  * Better Auth identity tables (spec 2 — authentication).
@@ -8,22 +8,59 @@ import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
  * match Better Auth's default schema exactly — do not rename without also
  * mapping them in the adapter config.
  *
+ * Two groups of columns here come from the engine's `admin` plugin (spec 6),
+ * whose shape is fixed by `better-auth/plugins/admin/schema.mjs`:
+ *   - `user.role` / `user.banned` / `user.banReason` / `user.banExpires`
+ *   - `session.impersonatedBy`
+ * `user.role` is the SINGLE source of truth for the system-level super-admin
+ * flag (spec 6.1). It is deliberately NOT a boolean `isSuperAdmin` column: the
+ * plugin's own authorization gate reads this string, so a second column could
+ * drift out of sync with the gate that actually decides. The vendor vocabulary
+ * ("superadmin") stops at the adapter — `SessionUser.isSuperAdmin` is derived
+ * there, and nothing outside `better-auth.ts` ever sees the string (§1.2).
+ * NOTE this is a SYSTEM role and has nothing to do with `membership.role`
+ * (§4, org-scoped); the two vocabularies are kept disjoint on purpose.
+ *
+ * `user.deletedAt` is the one column in this file that is OURS, not the
+ * engine's: it carries soft delete + retention (§11.3) for the identity record,
+ * mirroring `organization.deletedAt`. It is declared to the engine via
+ * `user.additionalFields` in the adapter so it rides along on the session user
+ * at no extra query cost — which is what lets `getSession` return null for a
+ * deleted account without a second round-trip.
+ *
  * TENANT-ISOLATION CARVE-OUT: unlike business entities, these identity tables
  * intentionally do NOT carry an `organization_id`/`account_id` owner column
  * (spec 11.2). They are the identity layer on top of which multi-tenancy (§3)
- * is later built — a user exists before any tenant does. This is the one
- * documented exception to the tenant-owner rule in `schema/index.ts`.
+ * is later built — a user exists before any tenant does. This is the first of
+ * the two documented exceptions to the tenant-owner rule in `schema/index.ts`.
  */
 
-export const user = pgTable("user", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("emailVerified").notNull().default(false),
-  image: text("image"),
-  createdAt: timestamp("createdAt").notNull().defaultNow(),
-  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
-});
+export const user = pgTable(
+  "user",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("emailVerified").notNull().default(false),
+    image: text("image"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+    // --- admin plugin (spec 6) ---
+    // Stored value must match `adminRoles` EXACTLY: the plugin's target-is-admin
+    // check does a case-sensitive `includes`, unlike its constructor validation.
+    role: text("role").notNull().default("user"),
+    banned: boolean("banned").notNull().default(false),
+    banReason: text("banReason"),
+    banExpires: timestamp("banExpires"),
+    // --- ours (spec 11.3) ---
+    deletedAt: timestamp("deletedAt"),
+  },
+  (t) => [
+    // Backs the admin user list's default ordering (spec 6.2).
+    index("user_created_idx").on(t.createdAt.desc()),
+    index("user_deleted_idx").on(t.deletedAt),
+  ],
+);
 
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
@@ -36,6 +73,10 @@ export const session = pgTable("session", {
   userId: text("userId")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
+  // Id of the admin who opened this session by impersonating `userId` (spec 6.2).
+  // No FK: the plugin's schema declares a plain string, and matching it exactly
+  // keeps the engine's own writes valid. A property of the SESSION, not the user.
+  impersonatedBy: text("impersonatedBy"),
 });
 
 export const account = pgTable("account", {

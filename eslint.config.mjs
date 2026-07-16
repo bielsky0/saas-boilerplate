@@ -16,6 +16,52 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  /**
+   * Super-admin containment (spec 6.3).
+   *
+   * Two things must not leak out of `src/features/admin`:
+   *   - `adminAuthAdapter`: every privileged operation has to be audit-logged,
+   *     and the audit write lives in `features/admin/actions.ts`. An import from
+   *     anywhere else is an unaudited privileged action by construction.
+   *   - `features/admin/data`: it queries business tables WITHOUT a tenant-owner
+   *     filter (the §6.2 carve-out). Its access boundary is `requireSuperAdmin()`,
+   *     which only its own callers apply — behind any other caller, the same
+   *     query is a tenant-isolation breach.
+   *
+   * The rule is the enforcement, not the file headers that explain it. Note
+   * `importNames`: plain `authAdapter` from the same module stays free.
+   *
+   * Exempt: the admin feature itself, the auth adapter that defines the export,
+   * and `src/app/(admin)/**` — the panel's own pages, which apply
+   * `requireSuperAdmin()` as their first line and are the intended consumers.
+   * Everything else in the app is denied by default.
+   */
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/features/admin/**", "src/lib/adapters/auth/**", "src/app/(admin)/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/lib/adapters/auth",
+              importNames: ["adminAuthAdapter"],
+              message:
+                "Super-admin engine calls must go through src/features/admin/actions.ts so they are audit-logged (spec 6.3).",
+            },
+          ],
+          patterns: [
+            {
+              group: ["@/features/admin/data", "**/features/admin/data"],
+              message:
+                "features/admin/data queries across tenants; it is only safe behind requireSuperAdmin() (spec 6.2 carve-out).",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

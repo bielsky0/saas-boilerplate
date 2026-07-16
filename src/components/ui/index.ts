@@ -34,4 +34,5 @@ export {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "./dropdown-menu";
+export { Pagination, PaginationLink } from "./pagination";
 export { Toaster, toast } from "./sonner";

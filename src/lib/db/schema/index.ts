@@ -7,9 +7,13 @@
  *
  * Business entities added by later modules MUST carry a tenant-owner column
  * (`organization_id` or `account_id`), indexed, per spec 11.2 (tenant isolation).
- * The Better Auth identity tables in `./auth` are the one documented exception —
- * they are the identity substrate multi-tenancy (§3) is built on top of, so they
- * have no tenant-owner column (see the header of `./auth`).
+ * There are exactly TWO documented exceptions, both justified in their own file
+ * headers — do not add a third without the same treatment:
+ *   - `./auth`: the Better Auth identity tables are the substrate multi-tenancy
+ *     (§3) is built on top of — a user exists before any tenant does.
+ *   - `./audit-logs`: a super-admin action log (§6.3) is cross-tenant by
+ *     definition and may concern no tenant at all. Its access boundary is
+ *     `requireSuperAdmin()` rather than an owner filter.
  *
  * §3 owner-scoped reference: `personal_account` / `organization` are the two
  * tenant owners; `membership` and `invitation` are scoped by `organizationId`.
@@ -28,3 +32,4 @@ export * from "./billing-customers";
 export * from "./subscriptions";
 export * from "./billing-payments";
 export * from "./webhook-events";
+export * from "./audit-logs";

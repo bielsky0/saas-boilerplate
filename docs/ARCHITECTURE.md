@@ -50,9 +50,17 @@ exports as modules are built.
 2. **Tenant isolation (§1.3, §11.2).** Every business record belongs to exactly
    one owner (`organization_id` **or** `account_id`). All queries are scoped by
    that key in the data-access layer — the UI is never a security boundary.
-   _Exception:_ the Better Auth identity tables (`user`, `session`, `account`,
-   `verification` in `src/lib/db/schema/auth.ts`) carry no owner column — they
-   are the identity substrate multi-tenancy is built on top of.
+   There are exactly **two** documented exceptions; do not add a third without
+   the same treatment (a header stating what replaces the owner filter):
+   - the Better Auth identity tables (`user`, `session`, `account`,
+     `verification` in `src/lib/db/schema/auth.ts`) carry no owner column — they
+     are the identity substrate multi-tenancy is built on top of;
+   - the super-admin panel (§6): `audit_log` has no tenant owner, and
+     `src/features/admin/data.ts` queries **across** tenants by design, because
+     §6.2 requires a global view. What replaces the owner filter there is
+     `requireSuperAdmin()`, called as the first line of every caller. Both are
+     fenced by `no-restricted-imports` in `eslint.config.mjs` so an unguarded
+     caller fails CI rather than silently breaching isolation.
 
 3. **Authorization on the backend (§4.2).** Every data-changing server action
    checks the required permission in the active-organization context and returns
@@ -80,6 +88,25 @@ implementation in code once the corresponding module is built (spec §17.2):
   construction, because the factory runs at module load and would break
   `next build` for anyone without that vendor configured — hence
   `EMAIL_PROVIDER=log` and `BILLING_PROVIDER=none`.
+  `AdminAuthAdapter` (same `contract.ts`) is a fourth, and shows what to do when
+  a vendor's shape does NOT match the spec's vocabulary. Three rules there:
+  1. **One source of truth, translated at the boundary.** Better Auth's `admin`
+     plugin stores the super-admin flag as a role string in `user.role`. The
+     contract exposes a plain `isSuperAdmin: boolean`, derived in the adapter.
+     A second `isSuperAdmin` column kept "in sync" would be a security defect,
+     not just duplication: the plugin's own gate reads `role`, so drift means the
+     UI and the engine disagree about who is an admin. The role vocabulary is
+     `superadmin`/`user` (never `admin`) so it cannot be confused with
+     `membership.role` — a system role is not an org role.
+  2. **`adminUserIds` must NEVER be set.** `has-permission.mjs` short-circuits
+     `if (adminUserIds.includes(userId)) return true` _before_ any permission
+     check, which silently grants `user:impersonate-admins`. One super admin
+     could then impersonate another, and that session would pass
+     `requireSuperAdmin`. Bootstrap with SQL instead (see below).
+  3. **Reads do not belong in the adapter.** The engine's own user list cannot
+     join our memberships/subscriptions or see our `deletedAt`. Only operations
+     that need the identity ENGINE (minting/revoking sessions) are in the
+     contract; everything else is a Drizzle query in `features/admin/data.ts`.
 - **Add a tenant-isolated entity:** add a table in `src/lib/db/schema/<entity>.ts`
   with an indexed owner column, re-export from `schema/index.ts`, run
   `pnpm db:generate` then `pnpm db:migrate`. The auth tables in
@@ -103,6 +130,16 @@ implementation in code once the corresponding module is built (spec §17.2):
   in `@theme inline`. Dark mode is **class-based** (`@custom-variant dark`), driven
   by next-themes via `ThemeProvider` in the root layout — never reintroduce
   `prefers-color-scheme` in components, and never hard-code a color in a component.
+- **⚠️ The root layout reads the session, so every route is dynamic.** The
+  impersonation banner (§6.2) lives in `src/app/layout.tsx` because it is a
+  disclosure control: it must also cover `forbidden.tsx`, `/login` and the
+  `(admin)` group, so there is nowhere to be in admin mode with no banner and no
+  way out. The cost was accepted knowingly — `getServerSession()` calls
+  `headers()`, which opted the landing page (the only static route) into dynamic
+  rendering. For an anonymous visitor there is no cookie and therefore no query.
+  **Revisit when §8/§9 land static blog/docs/SEO pages:** either move the banner
+  into a shared authenticated layout, or adopt PPR + `<Suspense>`. Do not
+  discover this while debugging blog cache misses.
 - **Confirm a destructive action (§7.1):** use `ConfirmDialog`. Because the dialog
   is portaled outside the `<form>`, give the form an `id` (`useId()`) and pass it as
   `confirmForm` — the HTML `form` attribute lets the portaled confirm button submit
@@ -116,6 +153,16 @@ implementation in code once the corresponding module is built (spec §17.2):
   `requireSession()` in `src/lib/auth/index.ts` before doing anything. Reference:
   the `src/app/(app)/dashboard/page.tsx` server component and the sign-out server
   action in `src/features/auth/actions.ts`.
+- **Soft delete + retention (§11.3):** set `deletedAt`; never hard-delete from
+  feature code. `organization`, `personal_account` and `user` carry the flag.
+  Policy and the retention window live in `src/features/admin/retention.ts`.
+  Access revocation is already structural and does not wait for a purge: a
+  soft-deleted user cannot sign in (a `session.create.before` hook in the auth
+  adapter) and their live sessions die on the next request (`getSession` returns
+  null on `deletedAt`). **The purge job itself is deferred to §12**, and
+  `retention.ts` records the hard blocker whoever builds it will hit —
+  `organization.createdByUserId` is `onDelete: "restrict"`, so hard-deleting any
+  user who ever created an org fails at the FK and needs its own migration.
 - **Receive a provider webhook (§5.4):** reference:
   `src/app/api/billing/webhook/route.ts` + `src/features/billing/webhooks.ts`.
   Four rules, in order of how badly they bite:
@@ -138,6 +185,39 @@ implementation in code once the corresponding module is built (spec §17.2):
      Carry the provider's event timestamp as a watermark and guard the upsert
      with `setWhere` (`lastEventAt <= occurredAt`), so an old event cannot
      overwrite newer state.
+- **Add a super-admin action or page (§6):** call `requireSuperAdmin()` from
+  `src/features/admin/context.ts` as the FIRST line — of the page **and** of the
+  action. The `(admin)` layout calls it too, but a layout guards neither server
+  actions nor a direct fetch, so it is shell decoration, not the boundary.
+  Reference: `src/features/admin/actions.ts` + `src/app/(admin)/admin/users/page.tsx`.
+  - **Why there is no super-admin middleware, despite §6.1's wording:** `proxy.ts`
+    is edge-safe with no DB and Next's own docs say proxy "should not be used as
+    a full session management or authorization solution". The only edge-available
+    alternative is a cookie claim, which impersonation actively invalidates — it
+    swaps the session cookie, so a cached flag is stale exactly when it matters.
+    §4.2 already settled the pattern (`requireOrgPermission` + `forbidden()`, with
+    `e2e/rbac-enforcement.spec.ts` asserting a real 403); §6 follows it. The proxy
+    still does its job: default-deny already redirects anonymous `/admin` to
+    `/login`, so no proxy change was needed.
+  - **Audit every privileged action (§6.3)**, following the two rules in
+    `src/features/admin/audit.ts`. Pick by asking who owns the DB connection:
+    **Rule A** (the effect is ours, e.g. a soft delete) — write the audit row in
+    the SAME transaction as the effect. **Rule B** (the effect is the auth
+    engine's, e.g. impersonate/suspend) — a shared transaction is impossible, so
+    audit FIRST in its own transaction, then call the engine, and fail closed. The
+    log records authorized intent: it over-logs rather than under-logs.
+  - **Never read the session after a cookie swap.** `headers()` returns the
+    REQUEST headers for the whole request; a `Set-Cookie` only lands on the
+    response. Calling `getSession()` after `impersonate`/`stopImpersonating`
+    re-reads a session the engine just deleted, and the engine answers by clearing
+    the cookie — silently logging the admin out. Resolve everything you need
+    (including audit attribution) BEFORE the swap.
+  - **Bootstrap the first super admin with SQL** — there is deliberately no
+    in-app path, because granting the flag requires an existing super admin:
+    ```sql
+    UPDATE "user" SET role = 'superadmin' WHERE email = 'you@example.com';
+    ```
+    (E2E uses `POST /api/dev/seed-super-admin`, which is 404 in production.)
 - **Add an org-scoped (RBAC) action or page:** call `requireOrgPermission(slug,
 permission)` from `src/features/organizations/context.ts` as the FIRST line —
   it resolves the active org from the URL slug, checks the centralized role→
@@ -182,7 +262,10 @@ once, ensure the DB is migrated, then `pnpm test:e2e`.
 > (`PORT=3100 NEXT_PUBLIC_APP_URL=http://localhost:3100 pnpm test:e2e`).
 > These specs also share one database with no teardown, so every test must mint
 > unique data (`uniqueEmail()`, a unique org slug) or parallel workers race onto
-> the same unique constraint.
+> the same unique constraint. This bites hardest on the **admin panel specs**:
+> `/admin/users` and `/admin/audit` are global by design, so they contain every
+> parallel worker's rows. Assert by filtering on a `uniqueEmail()` (`?q=…`) —
+> never by list position or "the first row".
 
 ### Billing webhooks locally (spec 5.4)
 

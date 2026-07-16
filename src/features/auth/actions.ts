@@ -77,6 +77,13 @@ export async function signInAction(_prev: FormState, formData: FormData): Promis
     if (result.code === "INVALID_CREDENTIALS") {
       return { error: "Invalid email or password." };
     }
+    // Suspended/deleted (spec 6.2): only reachable with CORRECT credentials, since
+    // the check runs after password verification — so naming the reason enumerates
+    // nothing, and a locked-out user otherwise sees "invalid password" forever and
+    // files a support ticket we already know the answer to.
+    if (result.code === "ACCOUNT_SUSPENDED") {
+      return { error: "This account has been suspended. Contact support for help." };
+    }
     return { error: GENERIC_ERROR };
   }
 
