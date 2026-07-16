@@ -13,6 +13,10 @@
  *
  * §3 owner-scoped reference: `personal_account` / `organization` are the two
  * tenant owners; `membership` and `invitation` are scoped by `organizationId`.
+ *
+ * §5 billing tables show the other owner shape: a record that may belong to
+ * EITHER tenant owner (spec 5.2), modelled as two nullable columns plus a CHECK
+ * enforcing exactly one — see `./billing-customers`.
  */
 
 export * from "./auth";
@@ -20,3 +24,7 @@ export * from "./personal-accounts";
 export * from "./organizations";
 export * from "./memberships";
 export * from "./invitations";
+export * from "./billing-customers";
+export * from "./subscriptions";
+export * from "./billing-payments";
+export * from "./webhook-events";

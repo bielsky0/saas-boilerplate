@@ -74,6 +74,12 @@ implementation in code once the corresponding module is built (spec §17.2):
   `better-auth.ts` = the only file importing the SDK, `index.ts` = the barrel
   exporting `authAdapter`). `src/lib/adapters/email/` is a second example, whose
   `index.ts` picks the concrete provider from an env var.
+  `src/lib/adapters/billing/` is a third (`stripe.ts` = the only file importing
+  the Stripe SDK; `none.ts` is the do-nothing default). Note the shape both
+  `email` and `billing` share: the default provider must NEVER throw at
+  construction, because the factory runs at module load and would break
+  `next build` for anyone without that vendor configured — hence
+  `EMAIL_PROVIDER=log` and `BILLING_PROVIDER=none`.
 - **Add a tenant-isolated entity:** add a table in `src/lib/db/schema/<entity>.ts`
   with an indexed owner column, re-export from `schema/index.ts`, run
   `pnpm db:generate` then `pnpm db:migrate`. The auth tables in
@@ -110,6 +116,28 @@ implementation in code once the corresponding module is built (spec §17.2):
   `requireSession()` in `src/lib/auth/index.ts` before doing anything. Reference:
   the `src/app/(app)/dashboard/page.tsx` server component and the sign-out server
   action in `src/features/auth/actions.ts`.
+- **Receive a provider webhook (§5.4):** reference:
+  `src/app/api/billing/webhook/route.ts` + `src/features/billing/webhooks.ts`.
+  Four rules, in order of how badly they bite:
+  1. **The signature is the authentication.** A webhook has no session, so the
+     route must be exempted in `src/proxy.ts` (`isPublicPath`) — otherwise the
+     guard answers 307 to `/login` and providers, which do not follow redirects,
+     retry forever. Verification lives in the ADAPTER, so the route never
+     imports a vendor SDK.
+  2. **Read the raw body with `request.text()`**, never `request.json()`: the
+     signature covers the exact bytes sent, so re-serializing invalidates it.
+     (Equally: any proxy that buffers or rewrites the body breaks it.)
+  3. **Idempotency = marker + effect in ONE transaction.** Insert into
+     `webhook_event` with `onConflictDoNothing().returning()`; an empty result
+     means "already processed", so return early. Keeping the effect in the same
+     transaction is what makes a failure retryable: the marker rolls back with
+     it, instead of permanently recording work that never happened. Write a
+     marker only on the processed path — never for an event you ignore, or a
+     later provider-side resend will hit the marker and skip.
+  4. **Order is not guaranteed**, and a retry landing late IS a stale event.
+     Carry the provider's event timestamp as a watermark and guard the upsert
+     with `setWhere` (`lastEventAt <= occurredAt`), so an old event cannot
+     overwrite newer state.
 - **Add an org-scoped (RBAC) action or page:** call `requireOrgPermission(slug,
 permission)` from `src/features/organizations/context.ts` as the FIRST line —
   it resolves the active org from the URL slug, checks the centralized role→
@@ -145,3 +173,32 @@ With `EMAIL_PROVIDER=log` (the default) no mail is sent — sign up and the
 verification link is printed to the server console (and captured in-process for
 the E2E tests via `/api/dev/emails`). E2E: `pnpm exec playwright install chromium`
 once, ensure the DB is migrated, then `pnpm test:e2e`.
+
+> **E2E footgun:** `playwright.config.ts` sets `reuseExistingServer` outside CI,
+> so an app you already have running on :3000 is reused — without the env
+> `webServer.env` would have supplied. The billing webhook tests then hit a
+> server with `BILLING_PROVIDER` unset and fail with a 404 that looks nothing
+> like the cause. Stop your dev server first, or run the suite on another port
+> (`PORT=3100 NEXT_PUBLIC_APP_URL=http://localhost:3100 pnpm test:e2e`).
+> These specs also share one database with no teardown, so every test must mint
+> unique data (`uniqueEmail()`, a unique org slug) or parallel workers race onto
+> the same unique constraint.
+
+### Billing webhooks locally (spec 5.4)
+
+The webhook test suite is fully offline — signature verification is a local
+HMAC, so no Stripe account, API key or CLI is involved. To exercise the endpoint
+against real Stripe events instead:
+
+```bash
+brew install stripe/stripe-cli/stripe   # not bundled; needs your Stripe login
+stripe login
+stripe listen --forward-to localhost:3000/api/billing/webhook
+# `stripe listen` prints a whsec_… — put it in .env as STRIPE_WEBHOOK_SECRET
+# and set BILLING_PROVIDER=stripe, then in another shell:
+stripe trigger customer.subscription.created
+```
+
+Events for customers with no `billing_customer` mapping are acknowledged and
+ignored (a warning is logged), so a shared test-mode account does not pollute
+your database. Nothing in CI depends on the CLI.

@@ -33,6 +33,24 @@ export const env = createEnv({
     // Only required when EMAIL_PROVIDER=resend; the resend adapter throws a
     // clear error at construction if it is selected without a key.
     RESEND_API_KEY: z.string().optional(),
+    // Selects the billing adapter implementation (spec 5.1). Defaults to "none"
+    // so the boilerplate builds and runs with zero payment configuration: the
+    // adapter factory runs at module load, so a default that could throw would
+    // break `next build` for everyone (same reason EMAIL_PROVIDER defaults to
+    // "log"). "none" makes the webhook route answer 404.
+    BILLING_PROVIDER: z.enum(["none", "stripe"]).default("none"),
+    // Only required when BILLING_PROVIDER=stripe; the stripe adapter throws a
+    // clear error at construction if it is selected without these.
+    STRIPE_SECRET_KEY: z.string().optional(),
+    // Webhook signing secret (spec 5.4). Verification is a local HMAC against
+    // this value — no network call — so tests can sign fixtures offline.
+    STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional(),
+    // Price IDs differ per environment (test vs live), so each paid plan gets
+    // its own variable rather than a JSON blob: a missing one then fails with a
+    // per-variable error, which is the point of fail-fast (spec 19.1). Unset =
+    // the plan is simply unmapped; see `planIdForPriceId` in features/billing.
+    STRIPE_PRICE_PRO: z.string().optional(),
+    STRIPE_PRICE_BUSINESS: z.string().optional(),
   },
   // Server vars are read straight from process.env in the Node runtime.
   experimental__runtimeEnv: {},

@@ -29,6 +29,21 @@ export async function ensurePersonalAccount(userId: string): Promise<void> {
   await db.insert(personalAccount).values({ userId }).onConflictDoNothing();
 }
 
+/**
+ * A user's non-deleted personal account, or null — the personal counterpart to
+ * `getOrgBySlug`. Needed wherever the personal tenant must be named by its own
+ * id rather than derived from the session's user id (e.g. a billing record
+ * owned by a personal account — spec 5.2).
+ */
+export async function getPersonalAccountByUserId(userId: string) {
+  const [row] = await db
+    .select()
+    .from(personalAccount)
+    .where(and(eq(personalAccount.userId, userId), isNull(personalAccount.deletedAt)))
+    .limit(1);
+  return row ?? null;
+}
+
 /** Load a non-deleted org by its URL slug, or null. */
 export async function getOrgBySlug(slug: string) {
   const [row] = await db

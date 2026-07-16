@@ -22,6 +22,13 @@
       "when": 1784142632886,
       "tag": "0002_steady_fabian_cortez",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784195165047,
+      "tag": "0003_loud_sentinels",
+      "breakpoints": true
     }
   ]
 }

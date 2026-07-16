@@ -20,6 +20,10 @@ function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/api/auth/")) return true;
   // Test-only email inspector (guarded internally by NODE_ENV, dev/CI only).
   if (pathname.startsWith("/api/dev/")) return true;
+  // Billing webhooks carry no session — the request SIGNATURE is the auth
+  // (spec 5.4), verified in the route. Payment providers do not follow
+  // redirects, so guarding this would look like a permanent delivery failure.
+  if (pathname.startsWith("/api/billing/webhook")) return true;
   // Invitation landing must be reachable before signing in (spec 3.3); the page
   // itself gates the Accept action behind a session.
   if (pathname.startsWith("/invitations/")) return true;

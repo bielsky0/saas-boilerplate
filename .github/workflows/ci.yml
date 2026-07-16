@@ -17,6 +17,12 @@ jobs:
       # dummy secrets. No real database or auth is needed to lint/typecheck/build.
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci
       BETTER_AUTH_SECRET: ci-dummy-secret-not-used-at-runtime
+      # Selecting stripe here makes the build a real check that the billing
+      # adapter factory constructs. Signature verification is a local HMAC, so
+      # these dummies never reach Stripe.
+      BILLING_PROVIDER: stripe
+      STRIPE_SECRET_KEY: sk_test_ciDummyKeyNotUsedAtRuntime
+      STRIPE_WEBHOOK_SECRET: whsec_ciDummySigningSecretNotReal
     steps:
       - name: Checkout
         uses: actions/checkout@v4

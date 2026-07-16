@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import { E2E_BILLING_ENV } from "./e2e/billing-fixtures";
+
 /**
  * Playwright E2E config (spec 14.1). Auth is critical, so these run on every PR
  * and block merge. The app boots with EMAIL_PROVIDER=log so tests read the
@@ -32,6 +34,10 @@ export default defineConfig({
     env: {
       NODE_ENV: "test",
       EMAIL_PROVIDER: "log",
+      // Selects the Stripe adapter and shares the signing secret with the tests
+      // that sign fixtures. Verification is a local HMAC, so these dummy values
+      // never reach Stripe and the suite needs no account (spec 5.4).
+      ...E2E_BILLING_ENV,
     },
   },
 });

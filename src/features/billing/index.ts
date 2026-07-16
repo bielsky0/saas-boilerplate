@@ -8,6 +8,11 @@
  *
  * Talks to payment providers ONLY through `src/lib/adapters/billing`
  * (Stripe reference; Lemon Squeezy / Paddle / … pluggable) — spec 1.2, 5.1.
+ *
+ * This barrel exports the isomorphic pieces only. Server-only modules
+ * (`./data`, `./webhooks`) are imported by path so they never reach a client
+ * bundle — the same split `features/organizations` uses.
  */
 
-export {};
+export { PLANS, PLAN_IDS, planIdForPriceId } from "./plans";
+export type { Plan, PlanId } from "./plans";
