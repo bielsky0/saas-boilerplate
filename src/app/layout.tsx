@@ -5,6 +5,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui";
 import { ImpersonationBanner } from "@/features/admin";
+import { site } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,9 +17,42 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/**
+ * Site-wide metadata defaults (spec §9.1).
+ *
+ * `metadataBase` is what lets every other page express `alternates.canonical`
+ * and og:image as a root-relative path — without it Next cannot absolutise them
+ * and silently drops the tags.
+ *
+ * The openGraph/twitter blocks here are DEFAULTS FOR NON-PUBLIC PAGES ONLY.
+ * Metadata resolution replaces `openGraph` wholesale rather than merging it, and
+ * Next only auto-fills a page's title into openGraph when the page declares an
+ * openGraph object of its own (`inheritFromMetadata` in
+ * next/dist/esm/lib/metadata/resolve-metadata.js). So a page that sets just
+ * `title`/`description` inherits THIS og:title verbatim — every share card would
+ * read "SaaS Boilerplate". Public pages must therefore go through
+ * `pageMetadata()` in src/features/content/seo.ts, which always emits a complete
+ * openGraph + twitter block. Never hand-write `export const metadata` on a page
+ * that is reachable without a session.
+ */
 export const metadata: Metadata = {
-  title: { default: "SaaS Boilerplate", template: "%s · SaaS Boilerplate" },
-  description: "Next.js SaaS boilerplate.",
+  metadataBase: new URL(site.url),
+  title: { default: site.name, template: `%s · ${site.name}` },
+  description: site.description,
+  openGraph: {
+    type: "website",
+    siteName: site.name,
+    locale: site.locale,
+    url: site.url,
+    title: site.name,
+    description: site.description,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: site.name,
+    description: site.description,
+    ...(site.twitterHandle ? { site: site.twitterHandle } : {}),
+  },
 };
 
 export default function RootLayout({

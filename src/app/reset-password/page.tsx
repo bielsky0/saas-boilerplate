@@ -2,8 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ResetPasswordForm } from "@/features/auth";
+import { pageMetadata } from "@/features/content";
 
-export const metadata: Metadata = { title: "Reset password" };
+export const metadata: Metadata = pageMetadata({
+  title: "Reset password",
+  description: "Choose a new password for your account.",
+  path: "/reset-password",
+  index: false,
+});
 
 /**
  * Landing page for the emailed reset link (spec 2.1).

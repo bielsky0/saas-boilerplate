@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 
 import { ForgotPasswordForm } from "@/features/auth";
+import { pageMetadata } from "@/features/content";
 
-export const metadata: Metadata = { title: "Forgot password" };
+export const metadata: Metadata = pageMetadata({
+  title: "Forgot password",
+  description: "Request a link to set a new password for your account.",
+  path: "/forgot-password",
+  index: false,
+});
 
 export default function ForgotPasswordPage() {
   return (

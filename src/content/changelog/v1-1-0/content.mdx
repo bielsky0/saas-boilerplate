@@ -1,0 +1,16 @@
+### Added
+
+- Billing behind a provider adapter, with hosted checkout and a customer portal.
+  Subscription state in the database is derived from webhooks, never guessed from
+  a redirect the user might never follow.
+- Signature-verified, idempotent webhook handling: a redelivered event cannot
+  double-charge or duplicate a row, and an out-of-order retry cannot overwrite
+  newer state.
+- A super-admin panel with global user and organization views, account
+  suspension, and soft deletion with a retention window.
+- Impersonation for support, disclosed by a banner on every page and recorded in
+  an audit log.
+
+### Fixed
+
+- The last Owner of an organization can no longer be demoted or removed.

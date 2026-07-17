@@ -1,0 +1,16 @@
+### Added
+
+- Transactional email behind a provider adapter, with Resend and a console
+  logger as the two implementations. Templates render to HTML and a plain-text
+  fallback from one component.
+- A PostgreSQL-backed job queue with retries and exponential backoff. Jobs are
+  enqueued in the same transaction as the write that triggers them, so a rolled
+  back change cannot leave a job behind.
+- The day 0 / day 3 / day 7 onboarding sequence, interruptible when a user
+  subscribes.
+- One-click unsubscribe, honoured at send time rather than at enqueue time.
+
+### Changed
+
+- Webhook processing moved onto the queue, so delivery latency no longer depends
+  on the mail provider.

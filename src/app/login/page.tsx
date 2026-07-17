@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
 
 import { SignInForm } from "@/features/auth";
+import { pageMetadata } from "@/features/content";
+import { site } from "@/lib/site";
 
-export const metadata: Metadata = { title: "Log in" };
+export const metadata: Metadata = pageMetadata({
+  title: "Log in",
+  description: `Sign in to your ${site.name} account.`,
+  path: "/login",
+  index: false,
+});
 
 /** Only same-origin relative paths are accepted (no open redirect). */
 function safeCallbackUrl(raw: string | string[] | undefined): string | undefined {

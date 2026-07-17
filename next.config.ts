@@ -1,3 +1,4 @@
+import createMDX from "@next/mdx";
 import type { NextConfig } from "next";
 
 // Validate environment variables at build/startup time (fail-fast).
@@ -18,4 +19,32 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/*
+ * MDX for blog/docs/changelog (spec 8).
+ *
+ * `pageExtensions` is deliberately NOT set. Content is imported as modules by
+ * the registries in src/content/, never routed to directly — a post is data
+ * rendered by one page, not a page of its own. Adding .mdx to pageExtensions
+ * would make every content file a candidate route and give us two URLs per post.
+ *
+ * Plugins MUST be named as strings with serializable options: Turbopack (the
+ * default bundler in Next 16) passes them to a Rust loader, and a JavaScript
+ * function cannot cross that boundary. That constraint is why there is no syntax
+ * highlighter here — rehype-pretty-code/@shikijs/rehype earn their keep through
+ * function options (`transformers`, `getHighlighter`), which are exactly what
+ * cannot be passed. Code blocks are styled with design tokens instead
+ * (src/features/content/components/mdx-elements.tsx). Highlighting is not a
+ * spec 8/9 requirement; revisit it only with a serializable-options plugin.
+ *
+ * - remark-gfm:  tables and strikethrough. The docs need tables.
+ * - rehype-slug: gives every heading an `id`, which is what lets the h2/h3
+ *                overrides render a self-link and lets /docs deep-link.
+ */
+const withMDX = createMDX({
+  options: {
+    remarkPlugins: ["remark-gfm"],
+    rehypePlugins: ["rehype-slug"],
+  },
+});
+
+export default withMDX(nextConfig);

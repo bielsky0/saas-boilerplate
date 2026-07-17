@@ -1,6 +1,8 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isMetadataImageRoute, isPublicPage } from "@/lib/public-routes";
+
 /**
  * Route guard (spec 2.5). Next 16's `proxy` convention (formerly `middleware`).
  *
@@ -14,23 +16,18 @@ import { NextResponse, type NextRequest } from "next/server";
 /**
  * Routes reachable without a session. Everything else requires one.
  *
- * The password-reset pair and the unsubscribe page are used BY DEFINITION without
- * a session — a user resetting a password cannot log in, and an unsubscribe link
- * is clicked from an inbox on a device that may never have logged in. Guarding
- * them would 307 to /login and make each flow dead on arrival.
+ * Public PAGES are declared in `src/lib/public-routes.ts`, because that list has
+ * two other consumers (sitemap.ts, robots.ts) and they must not drift apart. The
+ * `/api/*` exemptions below stay here: they are not pages, they are never
+ * sitemap candidates, and each is authenticated by something other than a
+ * session.
  */
-const PUBLIC_PATHS = [
-  "/",
-  "/login",
-  "/signup",
-  "/verify-email",
-  "/forgot-password",
-  "/reset-password",
-  "/unsubscribe",
-];
-
 function isPublicPath(pathname: string): boolean {
-  if (PUBLIC_PATHS.includes(pathname)) return true;
+  if (isPublicPage(pathname)) return true;
+  // Open Graph / icon routes (spec 9.1). The extension lives in the query, not
+  // the pathname, so the matcher below does NOT skip them — and an OG scraper
+  // has no session and does not follow redirects. See public-routes.ts.
+  if (isMetadataImageRoute(pathname)) return true;
   // Better Auth's HTTP surface (verification link, etc.) must stay open.
   if (pathname.startsWith("/api/auth/")) return true;
   // Test-only email inspector (guarded internally by NODE_ENV, dev/CI only).

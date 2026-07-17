@@ -1,0 +1,46 @@
+"No vendor lock-in" is easy to say and easy to get wrong. The usual failure is a
+wrapper so thin that the vendor's assumptions leak through it anyway: swap the
+provider and every caller changes too.
+
+## The contract comes first
+
+An adapter is defined by what the application needs, not by what the SDK offers.
+Each provider lives in its own directory with a `contract.ts` that imports no SDK
+at all:
+
+```ts
+export interface EmailAdapter {
+  send(message: OutgoingEmail): Promise<void>;
+}
+```
+
+Only the implementation imports the vendor. Feature code depends on the
+interface, so swapping providers touches exactly one file.
+
+## Translate at the boundary
+
+Where a vendor's vocabulary disagrees with ours, the adapter translates — and
+does so in one direction only. Our auth engine stores the super-admin flag as a
+role string; the contract exposes a boolean. Keeping a second copy of that flag
+"in sync" would not be duplication, it would be a security defect: the engine's
+own checks read its column, so any drift means the UI and the engine disagree
+about who is an administrator.
+
+## Pick the default that cannot fail
+
+Every adapter factory runs at module load, which means a provider that throws
+when it is misconfigured would break the build for anyone who has not signed up
+for it. So the default implementation never throws:
+
+- `EMAIL_PROVIDER=log` prints mail to the console.
+- `BILLING_PROVIDER=none` does nothing, successfully.
+
+Clone the repository and it runs. Add credentials and it ships.
+
+## Where the pattern stops
+
+An adapter is worth writing when the vendor is genuinely replaceable and the
+surface is small. It is not worth writing for a database: the query language _is_
+the interface, and pretending otherwise buys a lowest-common-denominator ORM and
+a false sense of portability. We isolate the database behind a data-access layer
+instead — a different tool for a different problem.

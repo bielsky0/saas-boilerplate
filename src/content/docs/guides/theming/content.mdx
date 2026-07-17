@@ -1,0 +1,43 @@
+Every colour, radius and font in the application resolves to a design token. A
+rebrand is an edit to one file, not a sweep through every component.
+
+## Where tokens live
+
+All of them are in `src/app/globals.css`, defined under `:root` with a `.dark`
+override:
+
+```css
+:root {
+  --primary: 0 0% 9%;
+  --primary-foreground: 0 0% 98%;
+  --radius: 0.625rem;
+}
+```
+
+Change `--primary` and every button, link and focus ring follows.
+
+## Why the values look unusual
+
+A token is stored as bare HSL channels — a triplet like `0 0% 9%` rather than a
+finished `hsl(0 0% 9%)`. That is what lets a utility add opacity to any token:
+`bg-ring/50` composes the channels with an alpha value. Wrapping the value in
+`hsl()` at the point of definition would make that impossible, so components
+apply `hsl(var(--token))` instead.
+
+## Light and dark
+
+Dark mode is class-based: the `.dark` class on `<html>` is toggled by the theme
+provider, and the tokens under it replace their light counterparts. Components
+never test the colour scheme themselves.
+
+This matters for one practical reason: the theme switcher offers light, dark and
+_system_. A component that hard-coded a `prefers-color-scheme` query would ignore
+a user who chose light while their OS is dark.
+
+## Rules
+
+1. Style with semantic tokens — `bg-card`, `text-muted-foreground`,
+   `border-border` — never a raw colour like `red-600`.
+2. Add a token by deriving it in the same file; do not invent one in a component.
+3. A component that needs a colour the tokens cannot express is usually a
+   component that needs a new token.

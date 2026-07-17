@@ -1,0 +1,50 @@
+This guide takes you from a fresh clone to a running application.
+
+## Prerequisites
+
+| Tool   | Version | Why                                        |
+| ------ | ------- | ------------------------------------------ |
+| Node   | ≥ 20.9  | The framework's minimum supported runtime  |
+| pnpm   | 10.x    | The package manager this repo is pinned to |
+| Docker | any     | Runs the local PostgreSQL instance         |
+
+## Install
+
+Copy the example environment file first — the app validates its configuration at
+startup and refuses to boot with a missing variable, which is deliberate:
+
+```bash
+cp .env.example .env
+pnpm install
+```
+
+Open `.env` and set `BETTER_AUTH_SECRET` to a real random value. Everything else
+has a working default for local development.
+
+## Start the database
+
+The database runs in Docker, and migrations are versioned rather than applied by
+hand:
+
+```bash
+pnpm db:up
+pnpm db:migrate
+```
+
+## Run the app
+
+```bash
+pnpm dev
+```
+
+The application is now on [http://localhost:3000](http://localhost:3000).
+
+With the default `EMAIL_PROVIDER=log` no mail is actually sent — sign up and the
+verification link is printed to your server console. That is what makes the whole
+sign-up flow testable with no third-party account.
+
+## Next steps
+
+Read the [quickstart](/docs/getting-started/quickstart) to create your first
+organization, or the [theming guide](/docs/guides/theming) to make it look like
+your product.

@@ -1,0 +1,40 @@
+With the app running, this walks you through the flows the boilerplate ships.
+
+## Create an account
+
+Go to `/signup` and register. Because email is set to log mode by default, the
+verification link appears in your terminal instead of an inbox. Click it, and you
+land on the dashboard with a verified account and a personal account already
+created for you.
+
+## Start an organization
+
+A personal account is a tenant of one. To collaborate, create an organization
+from the dashboard: pick a name, and a URL slug is derived from it.
+
+You become the Owner. An organization always keeps at least one Owner — the app
+refuses to remove or demote the last one, because an organization nobody can
+administer is unrecoverable.
+
+## Invite a teammate
+
+From the members page, invite an email address and choose a role:
+
+- **Owner** — full control, including billing and deletion.
+- **Admin** — manages members and settings, but not billing.
+- **Member** — uses the product without administering it.
+
+The invitation link is single-use and expires. It works whether or not the
+recipient already has an account: if they do not, they register first and join
+automatically afterwards.
+
+## Switch context
+
+The switcher in the navigation moves you between your personal account and each
+organization. The active tenant is always visible in the URL, so a link to a
+resource is a link to that resource in that organization — refreshing or sharing
+the page keeps the context.
+
+## What to read next
+
+The [theming guide](/docs/guides/theming) covers making it yours.

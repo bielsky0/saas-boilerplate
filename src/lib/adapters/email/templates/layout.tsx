@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { site } from "@/lib/site";
+
 /**
  * Shared email chrome (spec 10.2).
  *
@@ -16,7 +18,12 @@ import type { ReactNode } from "react";
  * tokens.
  */
 
-const BRAND = "SaaS Boilerplate";
+/*
+ * The brand shown in the footer. `site` is app config, not a provider SDK, so an
+ * adapter may read it — the no-lock-in rule (§1.2) fences vendor SDKs, not our
+ * own configuration.
+ */
+const BRAND = site.name;
 
 export function EmailLayout({ preview, children }: { preview?: string; children: ReactNode }) {
   return (

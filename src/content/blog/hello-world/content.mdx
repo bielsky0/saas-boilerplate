@@ -1,0 +1,40 @@
+Every SaaS starts by rebuilding the same foundations: sign-up, sessions, teams,
+roles, billing, transactional email. None of it is the product, all of it is
+load-bearing, and getting any of it subtly wrong is expensive later.
+
+This boilerplate is that foundation, built once and documented as it went.
+
+## What is already here
+
+The parts that every product needs and nobody wants to write twice:
+
+- **Authentication** — email and password with verification, password reset, and
+  rate-limited sign-in.
+- **Multi-tenancy** — personal accounts and organizations, with data isolation
+  enforced in the data layer rather than in the UI.
+- **RBAC** — Owner, Admin and Member roles, checked on the backend on every
+  mutation. The UI only hides buttons; the server is what says no.
+- **Billing** — plans, checkout and webhooks, with the subscription state in your
+  database derived from signed, idempotent webhook events.
+- **Email and background jobs** — one delivery path, retried with backoff.
+
+## No vendor lock-in
+
+Every external provider sits behind an adapter. The application talks to an
+internal contract, never to a vendor SDK:
+
+```ts
+// Feature code depends on the contract, not on Stripe or Resend.
+await enqueueEmail(tx, {
+  to: user.email,
+  template: "welcome",
+  props: { name: user.name },
+});
+```
+
+Swapping a provider means writing one adapter, not touching your business logic.
+
+## Where to go next
+
+Read the [documentation](/docs) to get running locally, or browse the
+[changelog](/changelog) to see what shipped recently.

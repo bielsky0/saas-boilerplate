@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@plugin "@tailwindcss/typography";
 
 /*
  * Design tokens (spec §7.1). A single source of truth for colors, radius, and
@@ -128,4 +129,64 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
   }
+}
+
+/*
+ * Long-form content (spec §8) — @tailwindcss/typography bound to our tokens.
+ *
+ * The plugin ships a hard-coded grey palette, which would be the one place in
+ * the app where colour is not a token. Mapping its variables here keeps the
+ * "style only with semantic tokens" rule structural rather than aspirational:
+ * one block governs every element MDX can emit, instead of ~15 overrides that
+ * each merely COULD be right.
+ *
+ * NEVER add `dark:prose-invert`. Our tokens already flip under `.dark`, so these
+ * mappings are correct in both themes by construction; adding invert would layer
+ * the plugin's own dark palette on top and break exactly that. The
+ * --tw-prose-invert-* set stays deliberately unused.
+ *
+ * `hsl(...)` is mandatory — the tokens are HSL channel triplets ("0 0% 9%"), so
+ * a bare var() here silently yields no colour at all.
+ */
+.prose {
+  --tw-prose-body: hsl(var(--foreground));
+  --tw-prose-headings: hsl(var(--foreground));
+  --tw-prose-lead: hsl(var(--muted-foreground));
+  --tw-prose-links: hsl(var(--foreground));
+  --tw-prose-bold: hsl(var(--foreground));
+  --tw-prose-counters: hsl(var(--muted-foreground));
+  --tw-prose-bullets: hsl(var(--border));
+  --tw-prose-hr: hsl(var(--border));
+  --tw-prose-quotes: hsl(var(--foreground));
+  --tw-prose-quote-borders: hsl(var(--border));
+  --tw-prose-captions: hsl(var(--muted-foreground));
+  --tw-prose-code: hsl(var(--foreground));
+  --tw-prose-pre-code: hsl(var(--secondary-foreground));
+  --tw-prose-pre-bg: hsl(var(--secondary));
+  --tw-prose-th-borders: hsl(var(--border));
+  --tw-prose-td-borders: hsl(var(--border));
+}
+
+/*
+ * The plugin decorates inline <code> with literal backticks via ::before/::after
+ * (`content: "`"`), which renders as `like this` on the page. It is a defensible
+ * default for unstyled markdown and wrong for us, because we give inline code a
+ * background instead — the two together read as a typo. The plugin already
+ * clears the pseudo-elements for `pre code`, so only the inline case needs it.
+ *
+ * Selectors match the plugin's own specificity and come later in the file, which
+ * is what makes them win.
+ */
+.prose :where(code):not(:where([class~="not-prose"], [class~="not-prose"] *))::before,
+.prose :where(code):not(:where([class~="not-prose"], [class~="not-prose"] *))::after {
+  content: none;
+}
+
+/* Inline code: a token-tinted chip. `pre code` opts out — the block is already styled. */
+.prose :where(code):not(:where(pre *)) {
+  background-color: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-sm);
+  padding: 0.125em 0.375em;
+  font-weight: 400;
 }

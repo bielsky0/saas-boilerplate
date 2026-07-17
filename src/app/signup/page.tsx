@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
 
 import { SignUpForm } from "@/features/auth";
+import { pageMetadata } from "@/features/content";
+import { site } from "@/lib/site";
 
-export const metadata: Metadata = { title: "Sign up" };
+export const metadata: Metadata = pageMetadata({
+  title: "Sign up",
+  description: `Create your ${site.name} account and start building.`,
+  path: "/signup",
+  index: false,
+});
 
 export default async function SignUpPage({
   searchParams,

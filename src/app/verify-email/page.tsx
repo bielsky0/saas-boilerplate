@@ -2,8 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Button } from "@/components/ui";
+import { pageMetadata } from "@/features/content";
 
-export const metadata: Metadata = { title: "Verify your email" };
+export const metadata: Metadata = pageMetadata({
+  title: "Verify your email",
+  description: "Confirm your email address to finish setting up your account.",
+  path: "/verify-email",
+  index: false,
+});
 
 export default async function VerifyEmailPage({
   searchParams,

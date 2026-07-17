@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
 
+import { pageMetadata } from "@/features/content";
 import { UnsubscribeForm } from "@/features/emails/components/unsubscribe-form";
 import { verifyUnsubscribeToken } from "@/features/emails/suppression";
 import type { SuppressibleCategory } from "@/features/emails/categories";
 
-export const metadata: Metadata = {
+// Never indexed — an unsubscribe link carries an address (index: false).
+export const metadata: Metadata = pageMetadata({
   title: "Unsubscribe",
-  // Never index an unsubscribe link — it carries an address.
-  robots: { index: false, follow: false },
-};
+  description: "Manage which emails you receive from us.",
+  path: "/unsubscribe",
+  index: false,
+});
 
 /**
  * Unsubscribe landing page (spec 10.3).

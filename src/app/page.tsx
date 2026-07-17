@@ -1,8 +1,13 @@
 import { KeyRound, LayoutDashboard, Palette, ShieldCheck, Users, Zap } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { pageMetadata } from "@/features/content";
+import { JsonLd } from "@/features/content/components/json-ld";
+import { organizationJsonLd, webSiteJsonLd } from "@/features/content/jsonld";
+import { site } from "@/lib/site";
 
 /**
  * Public landing page (spec §7.3). Server-rendered for SEO; sections: header,
@@ -10,6 +15,13 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/compo
  * config in Phase 5, spec §5.2), and a closing CTA. Built entirely from the
  * design-system primitives.
  */
+
+export const metadata: Metadata = pageMetadata({
+  title: `${site.name} — ship your SaaS faster`,
+  description: site.description,
+  path: "/",
+  titleAbsolute: true,
+});
 
 const features = [
   {
@@ -77,11 +89,27 @@ const plans = [
 export default function Home() {
   return (
     <div className="flex min-h-dvh flex-col">
+      {/* Identity + site search entry point for crawlers (spec §9.1). */}
+      <JsonLd data={[organizationJsonLd(), webSiteJsonLd()]} />
+
       <header className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 border-b backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-3">
-          <Link href="/" className="font-semibold">
-            SaaS Boilerplate
-          </Link>
+          <div className="flex items-center gap-6">
+            <Link href="/" className="font-semibold">
+              {site.name}
+            </Link>
+            <nav aria-label="Content" className="hidden items-center gap-4 text-sm sm:flex">
+              <Link href="/docs" className="text-muted-foreground hover:text-foreground">
+                Docs
+              </Link>
+              <Link href="/blog" className="text-muted-foreground hover:text-foreground">
+                Blog
+              </Link>
+              <Link href="/changelog" className="text-muted-foreground hover:text-foreground">
+                Changelog
+              </Link>
+            </nav>
+          </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <Button asChild variant="ghost" size="sm">
@@ -98,7 +126,7 @@ export default function Home() {
         {/* Hero */}
         <section className="mx-auto flex w-full max-w-5xl flex-col items-center gap-6 px-4 py-20 text-center sm:py-28">
           <Badge variant="outline" className="normal-case">
-            Next.js SaaS Boilerplate
+            Next.js {site.name}
           </Badge>
           <h1 className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
             Ship your SaaS faster, without the boilerplate
@@ -206,13 +234,21 @@ export default function Home() {
 
       <footer className="border-border border-t">
         <div className="text-muted-foreground mx-auto flex w-full max-w-5xl flex-col items-center justify-between gap-2 px-4 py-6 text-sm sm:flex-row">
-          <span>© {new Date().getFullYear()} SaaS Boilerplate</span>
-          <div className="flex items-center gap-4">
+          <span>
+            © {new Date().getFullYear()} {site.name}
+          </span>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <Link href="/docs" className="hover:text-foreground">
+              Docs
+            </Link>
+            <Link href="/blog" className="hover:text-foreground">
+              Blog
+            </Link>
+            <Link href="/changelog" className="hover:text-foreground">
+              Changelog
+            </Link>
             <Link href="/login" className="hover:text-foreground">
               Log in
-            </Link>
-            <Link href="/signup" className="hover:text-foreground">
-              Sign up
             </Link>
           </div>
         </div>
