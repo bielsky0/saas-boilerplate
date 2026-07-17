@@ -1,6 +1,8 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import type { Locale } from "@/lib/i18n/config";
+import { toLocale } from "@/lib/i18n/user-locale";
 import {
   billingCustomer,
   billingPayment,
@@ -72,6 +74,15 @@ export async function getSubscriptionByProviderId(providerSubscriptionId: string
 export interface Mailbox {
   email: string;
   name: string | null;
+  /**
+   * What language to write to THIS owner in (spec 16.1).
+   *
+   * Per-mailbox, not per-organization: an org can have a Polish owner and an
+   * English one, and a fan-out that picked one language for the whole org would
+   * be wrong for somebody by construction. The joins below already select the
+   * user row, so this costs no extra query.
+   */
+  locale: Locale;
 }
 
 export interface BillingRecipients {
@@ -106,6 +117,7 @@ export async function resolveBillingRecipients(
       .select({
         email: user.email,
         name: user.name,
+        locale: user.locale,
         orgName: organization.name,
         orgSlug: organization.slug,
       })
@@ -125,13 +137,13 @@ export async function resolveBillingRecipients(
     return {
       ownerName: rows[0]?.orgName ?? "your organization",
       orgSlug: rows[0]?.orgSlug ?? null,
-      mailboxes: rows.map((r) => ({ email: r.email, name: r.name })),
+      mailboxes: rows.map((r) => ({ email: r.email, name: r.name, locale: toLocale(r.locale) })),
     };
   }
 
   if (accountId) {
     const rows = await db
-      .select({ email: user.email, name: user.name })
+      .select({ email: user.email, name: user.name, locale: user.locale })
       .from(personalAccount)
       .innerJoin(user, eq(user.id, personalAccount.userId))
       .where(
@@ -145,7 +157,7 @@ export async function resolveBillingRecipients(
     return {
       ownerName: rows[0]?.name ?? "your account",
       orgSlug: null,
-      mailboxes: rows.map((r) => ({ email: r.email, name: r.name })),
+      mailboxes: rows.map((r) => ({ email: r.email, name: r.name, locale: toLocale(r.locale) })),
     };
   }
 

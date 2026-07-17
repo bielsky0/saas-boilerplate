@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 
 import { Button, FormMessage } from "@/components/ui";
@@ -16,11 +17,12 @@ const initial: ActionState = {};
  */
 export function AcceptInvitationForm({ token }: { token: string }) {
   const [state, action, pending] = useActionState(acceptInvitationAction, initial);
+  const t = useTranslations("organizations.accept");
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="token" value={token} />
       <Button type="submit" disabled={pending}>
-        {pending ? "Joining…" : "Accept invitation"}
+        {pending ? t("submitting") : t("submit")}
       </Button>
       {state.error ? <FormMessage>{state.error}</FormMessage> : null}
     </form>

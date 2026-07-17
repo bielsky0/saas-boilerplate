@@ -1,0 +1,338 @@
+{
+  "nav": {
+    "contentLabel": "Treści",
+    "docs": "Dokumentacja",
+    "blog": "Blog",
+    "changelog": "Zmiany",
+    "logIn": "Zaloguj się",
+    "getStarted": "Rozpocznij"
+  },
+  "common": {
+    "locale": {
+      "label": "Język",
+      "en": "English",
+      "pl": "Polski"
+    }
+  },
+  "emails": {
+    "shared": {
+      "fallbackLink": "Albo wklej ten link do przeglądarki:",
+      "unsubscribeQuestion": "Nie chcesz tych wiadomości?",
+      "unsubscribeAction": "Wypisz się"
+    },
+    "verify-email": {
+      "subject": "Potwierdź swój adres e-mail",
+      "preview": "Potwierdź adres e-mail, aby dokończyć zakładanie konta.",
+      "heading": "Potwierdź swój e-mail",
+      "body": "{named, select, yes {Cześć {name}, dzięki za rejestrację. Potwierdź swój adres e-mail, aby dokończyć zakładanie konta.} other {Cześć, dzięki za rejestrację. Potwierdź swój adres e-mail, aby dokończyć zakładanie konta.}}",
+      "cta": "Potwierdź e-mail",
+      "note": "Ten link wygasa po 24 godzinach."
+    },
+    "password-reset": {
+      "subject": "Zresetuj hasło",
+      "preview": "Zresetuj swoje hasło.",
+      "heading": "Zresetuj hasło",
+      "body": "{named, select, yes {Cześć {name}, otrzymaliśmy prośbę o zresetowanie hasła. Ustaw nowe, korzystając z poniższego linku.} other {Cześć, otrzymaliśmy prośbę o zresetowanie hasła. Ustaw nowe, korzystając z poniższego linku.}}",
+      "cta": "Zresetuj hasło",
+      "note": "Ten link wygasa po godzinie i można go użyć tylko raz. Jeśli to nie Ty prosiłeś o reset, zignoruj tę wiadomość — hasło pozostanie bez zmian."
+    },
+    "invitation": {
+      "subject": "Zaproszenie do organizacji {orgName}",
+      "preview": "{inviterName} zaprasza Cię do organizacji {orgName}.",
+      "heading": "Dołącz do {orgName}",
+      "body": "{inviterName} zaprasza Cię do organizacji <b>{orgName}</b> w roli {role}.",
+      "cta": "Przyjmij zaproszenie",
+      "note": "To zaproszenie wygasa po 7 dniach. Jeśli się go nie spodziewałeś, zignoruj tę wiadomość."
+    },
+    "payment-failed": {
+      "subject": "Płatność nie powiodła się",
+      "preview": "Nie udało się przetworzyć płatności dla {orgName}.",
+      "heading": "Płatność nie powiodła się",
+      "body": "Nie udało się przetworzyć płatności {amount} dla <b>{orgName}</b>. Zwykle oznacza to, że karta wygasła lub została odrzucona.",
+      "action": "Zaktualizuj metodę płatności, aby zachować aktywną subskrypcję.",
+      "cta": "Zaktualizuj metodę płatności",
+      "note": "Spróbujemy ponownie w ciągu najbliższych dni. Jeśli płatność nadal nie będzie przechodzić, subskrypcja może zostać anulowana."
+    },
+    "subscription-confirmed": {
+      "subject": "Twoja subskrypcja jest aktywna",
+      "preview": "Plan {planName} jest już aktywny dla {orgName}.",
+      "heading": "Twoja subskrypcja jest aktywna",
+      "body": "Plan <b>{planName}</b> jest już aktywny dla <b>{orgName}</b>. Dziękujemy za subskrypcję.",
+      "manage": "W każdej chwili możesz zarządzać planem, metodą płatności i fakturami.",
+      "cta": "Zarządzaj subskrypcją"
+    },
+    "welcome": {
+      "subject": "Witamy na pokładzie",
+      "preview": "Twoje konto jest gotowe.",
+      "heading": "{named, select, yes {Witaj, {name}!} other {Witaj!}}",
+      "body": "Twój e-mail został potwierdzony, a konto jest gotowe do użycia.",
+      "next": "Zacznij od utworzenia organizacji i zaproszenia zespołu — to tam znajduje się wspólna przestrzeń robocza.",
+      "cta": "Otwórz panel"
+    },
+    "onboarding-tips": {
+      "subject": "Trzy rzeczy warte poznania",
+      "preview": "Kilka rzeczy, dzięki którym produkt nabiera sensu.",
+      "heading": "Jak wycisnąć z tego najwięcej",
+      "body": "{named, select, yes {Cześć {name}, oto kilka rzeczy, które zwykle szybko okazują się przydatne:} other {Cześć, oto kilka rzeczy, które zwykle szybko okazują się przydatne:}}",
+      "inviteTitle": "Zaproś zespół.",
+      "inviteText": "Największa wartość pojawia się, gdy w przestrzeni roboczej jest więcej niż jedna osoba.",
+      "rolesTitle": "Korzystaj z ról.",
+      "rolesText": "Właściciele zarządzają płatnościami, administratorzy ludźmi, a członkowie wykonują pracę.",
+      "contextTitle": "Przełączaj kontekst.",
+      "contextText": "Twoja przestrzeń osobista i każda organizacja trzymają swoje dane całkowicie oddzielnie.",
+      "cta": "Przejdź do panelu"
+    },
+    "onboarding-features": {
+      "subject": "Gotowy na więcej?",
+      "preview": "Funkcje, których jeszcze nie wypróbowałeś.",
+      "heading": "Gotowy na więcej?",
+      "body": "{named, select, yes {Cześć {name}, jesteś z nami już tydzień. Oto, co daje płatny plan:} other {Cześć, jesteś z nami już tydzień. Oto, co daje płatny plan:}}",
+      "seats": "Więcej miejsc dla Twojego zespołu",
+      "limits": "Wyższe limity na wszystko, z czego już korzystasz",
+      "support": "Priorytetowe wsparcie, gdy coś przestanie działać",
+      "cta": "Zobacz, co jest dostępne"
+    }
+  },
+  "auth": {
+    "validation": {
+      "emailInvalid": "Podaj poprawny adres e-mail.",
+      "passwordMin": "Hasło musi mieć co najmniej 8 znaków.",
+      "passwordLetter": "Hasło musi zawierać co najmniej jedną literę.",
+      "passwordNumber": "Hasło musi zawierać co najmniej jedną cyfrę.",
+      "passwordRequired": "Podaj hasło.",
+      "resetTokenInvalid": "Ten link resetujący jest nieprawidłowy lub wygasł."
+    },
+    "errors": {
+      "generic": "Coś poszło nie tak. Spróbuj ponownie.",
+      "invalidCredentials": "Nieprawidłowy e-mail lub hasło.",
+      "weakPassword": "Hasło musi mieć co najmniej 8 znaków oraz zawierać literę i cyfrę.",
+      "accountSuspended": "To konto zostało zawieszone. Skontaktuj się ze wsparciem.",
+      "resetLinkExpired": "Ten link resetujący jest nieprawidłowy lub wygasł. Poproś o nowy."
+    },
+    "fields": {
+      "email": "E-mail",
+      "password": "Hasło",
+      "newPassword": "Nowe hasło",
+      "nameOptional": "Imię (opcjonalnie)"
+    },
+    "signIn": {
+      "submit": "Zaloguj się",
+      "submitting": "Logowanie…",
+      "forgot": "Nie pamiętasz hasła?",
+      "needAccount": "Nie masz konta?",
+      "signUpLink": "Zarejestruj się"
+    },
+    "signUp": {
+      "submit": "Utwórz konto",
+      "submitting": "Tworzenie konta…",
+      "haveAccount": "Masz już konto?"
+    },
+    "forgotPassword": {
+      "submit": "Wyślij link resetujący",
+      "submitting": "Wysyłanie…",
+      "sent": "Jeśli konto o tym adresie istnieje, wysłaliśmy link do zresetowania hasła. Sprawdź skrzynkę.",
+      "expiry": "Link wygasa po godzinie.",
+      "remembered": "Przypomniałeś sobie?"
+    },
+    "resetPassword": {
+      "submit": "Ustaw nowe hasło",
+      "submitting": "Zapisywanie…",
+      "signsYouOut": "Ustawienie nowego hasła wylogowuje Cię ze wszystkich innych urządzeń."
+    },
+    "shared": {
+      "logInLink": "Zaloguj się",
+      "backToLogin": "Wróć do logowania",
+      "passwordHint": "Co najmniej 8 znaków, w tym litera i cyfra."
+    }
+  },
+  "organizations": {
+    "validation": {
+      "slugMin": "Slug musi mieć co najmniej 2 znaki.",
+      "slugMax": "Slug może mieć najwyżej 48 znaków.",
+      "slugFormat": "Użyj małych liter, cyfr i myślników.",
+      "nameMin": "Nazwa musi mieć co najmniej 2 znaki.",
+      "emailInvalid": "Podaj poprawny adres e-mail."
+    },
+    "errors": {
+      "generic": "Coś poszło nie tak. Spróbuj ponownie.",
+      "invitationInvalid": "To zaproszenie jest już nieaktualne.",
+      "lastOwnerDemote": "Organizacja musi mieć co najmniej jednego właściciela.",
+      "lastOwnerRemove": "Nie możesz usunąć ostatniego właściciela organizacji.",
+      "lastOwnerLeave": "Przekaż własność przed odejściem — organizacja potrzebuje właściciela.",
+      "slugTaken": "Ten slug jest już zajęty."
+    },
+    "success": {
+      "invitationSent": "Zaproszenie wysłane na {email}.",
+      "invitationRevoked": "Zaproszenie cofnięte.",
+      "roleUpdated": "Rola zaktualizowana.",
+      "memberRemoved": "Członek usunięty.",
+      "organizationUpdated": "Organizacja zaktualizowana."
+    },
+    "roles": {
+      "owner": "Właściciel",
+      "admin": "Administrator",
+      "member": "Członek"
+    },
+    "fields": {
+      "orgName": "Nazwa organizacji",
+      "slug": "Slug",
+      "slugOptional": "Slug (opcjonalnie)",
+      "email": "E-mail",
+      "role": "Rola",
+      "slugPlaceholder": "generowany z nazwy"
+    },
+    "create": {
+      "submit": "Utwórz organizację",
+      "submitting": "Tworzenie…"
+    },
+    "invite": {
+      "submit": "Wyślij zaproszenie",
+      "submitting": "Wysyłanie…"
+    },
+    "invitationActions": {
+      "revoke": "Cofnij",
+      "revoking": "Cofanie…",
+      "confirmTitle": "Cofnąć to zaproszenie?",
+      "confirmBody": "Link z zaproszeniem przestanie działać natychmiast.",
+      "confirmAction": "Cofnij zaproszenie"
+    },
+    "accept": {
+      "submit": "Przyjmij zaproszenie",
+      "submitting": "Dołączanie…"
+    },
+    "switcher": {
+      "label": "Przełącz konto",
+      "organization": "Organizacja",
+      "personal": "Osobiste",
+      "organizations": "Organizacje",
+      "newOrg": "Nowa organizacja"
+    },
+    "members": {
+      "roleLabel": "Rola członka",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "remove": "Usuń",
+      "removing": "Usuwanie…",
+      "confirmRemoveTitle": "Usunąć tego członka?",
+      "confirmRemoveAction": "Usuń członka",
+      "confirmRemoveBody": "Natychmiast traci dostęp do tej organizacji. Jego konto użytkownika nie zostaje usunięte."
+    },
+    "settings": {
+      "save": "Zapisz zmiany",
+      "saving": "Zapisywanie…",
+      "delete": "Usuń organizację",
+      "deleting": "Usuwanie…",
+      "confirmDeleteTitle": "Usunąć tę organizację?",
+      "leave": "Opuść organizację",
+      "leaving": "Opuszczanie…",
+      "confirmDeleteBody": "Odbiera to dostęp wszystkim członkom. Nie da się tego cofnąć z poziomu aplikacji.",
+      "confirmDeleteAction": "Usuń organizację",
+      "confirmLeaveTitle": "Opuścić tę organizację?",
+      "confirmLeaveBody": "Stracisz dostęp do jej zasobów, dopóki ktoś nie zaprosi Cię ponownie.",
+      "confirmLeaveAction": "Opuść organizację"
+    }
+  },
+  "landing": {
+    "meta": {
+      "title": "{site} — twórz SaaS szybciej"
+    },
+    "hero": {
+      "badge": "Next.js {site}",
+      "title": "Twórz SaaS szybciej, bez pisania podstaw od zera",
+      "subtitle": "Uwierzytelnianie, wielodostępność, RBAC i system designu z motywami — gotowe na produkcję i bez uzależnienia od dostawcy.",
+      "getStarted": "Rozpocznij",
+      "logIn": "Zaloguj się"
+    },
+    "features": {
+      "heading": "Wszystko, czego potrzebujesz, by wystartować",
+      "subheading": "Fundamenty, które każdy SaaS buduje od nowa — zrobione raz i porządnie.",
+      "authTitle": "Uwierzytelnianie",
+      "authBody": "E-mail i hasło z weryfikacją, resetem hasła i logowaniem z limitem prób.",
+      "tenancyTitle": "Wielodostępność",
+      "tenancyBody": "Konta osobiste i organizacje z natychmiastowym przełącznikiem kontekstu.",
+      "rbacTitle": "RBAC",
+      "rbacBody": "Role Właściciel/Administrator/Członek egzekwowane po stronie serwera, w UI tylko kosmetycznie.",
+      "designTitle": "System designu",
+      "designBody": "Komponenty oparte na tokenach z motywem jasnym, ciemnym i systemowym.",
+      "shellTitle": "Szkielet panelu",
+      "shellBody": "Responsywny szkielet aplikacji podpięty do aktywnego kontekstu od razu.",
+      "lockinTitle": "Bez uzależnienia od dostawcy",
+      "lockinBody": "Każdy dostawca stoi za adapterem — wymieniasz jeden plik, nie całą aplikację."
+    },
+    "pricing": {
+      "heading": "Proste ceny",
+      "subheading": "Plany przykładowe — prawdziwy cennik generowany jest z konfiguracji płatności.",
+      "popular": "Popularny",
+      "perMonth": "/mies.",
+      "freeName": "Darmowy",
+      "freePrice": "0 zł",
+      "freeDesc": "Do wypróbowania.",
+      "freeF1": "1 organizacja",
+      "freeF2": "Do 3 członków",
+      "freeF3": "Wsparcie społeczności",
+      "freeCta": "Rozpocznij",
+      "proName": "Pro",
+      "proPrice": "129 zł",
+      "proDesc": "Dla rosnących zespołów.",
+      "proF1": "Nieograniczone organizacje",
+      "proF2": "Nieograniczeni członkowie",
+      "proF3": "Priorytetowe wsparcie",
+      "proCta": "Rozpocznij okres próbny",
+      "entName": "Enterprise",
+      "entPrice": "Wycena",
+      "entDesc": "Dla skali i zgodności.",
+      "entF1": "SSO i SAML",
+      "entF2": "Wymuszone MFA",
+      "entF3": "Dedykowane wsparcie",
+      "entCta": "Skontaktuj się"
+    },
+    "cta": {
+      "heading": "Gotowy, by budować?",
+      "body": "Załóż konto i zacznij od solidnych fundamentów.",
+      "button": "Załóż konto"
+    },
+    "header": {
+      "createAccount": "Załóż konto"
+    }
+  },
+  "dashboard": {
+    "meta": {
+      "dashboard": "Panel",
+      "newOrg": "Nowa organizacja"
+    },
+    "personal": {
+      "heading": "Osobiste",
+      "newOrg": "Nowa organizacja",
+      "verifyEmail": "Potwierdź swój adres e-mail. Sprawdź skrzynkę i kliknij link weryfikacyjny.",
+      "signedInAs": "Zalogowano jako <strong>{email}</strong>. Użyj przełącznika powyżej, aby przechodzić między kontem osobistym a organizacjami."
+    },
+    "org": {
+      "yourRole": "Twoja rola:",
+      "members": "Członkowie",
+      "settings": "Ustawienia"
+    },
+    "settings": {
+      "heading": "Ustawienia",
+      "general": "Ogólne",
+      "dangerZone": "Strefa niebezpieczna",
+      "dangerBody": "Usunięcie organizacji odbiera dostęp wszystkim członkom."
+    },
+    "newOrg": {
+      "heading": "Utwórz organizację",
+      "body": "Zostaniesz dodany jako właściciel i będziesz mógł zaprosić zespół."
+    },
+    "members": {
+      "heading": "Członkowie",
+      "inviteTitle": "Zaproś członka zespołu",
+      "team": "Zespół ({count})",
+      "colMember": "Członek",
+      "colRole": "Rola",
+      "colActions": "Akcje",
+      "colEmail": "E-mail",
+      "colExpires": "Wygasa",
+      "pending": "Oczekujące zaproszenia ({count})",
+      "statusInvited": "zaproszony",
+      "statusSuspended": "zawieszony"
+    }
+  }
+}

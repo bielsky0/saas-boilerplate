@@ -1,22 +1,26 @@
 import type { TemplateProps } from "../contract";
-import { Button, EmailLayout, FallbackLink, Heading, Text, greetingName } from "./layout";
+import {
+  Button,
+  EmailLayout,
+  FallbackLink,
+  Heading,
+  Text,
+  greetingArgs,
+  type EmailTranslator,
+} from "./layout";
 
-export const passwordResetSubject = "Reset your password";
+export function passwordResetSubject(_props: TemplateProps["password-reset"], t: EmailTranslator) {
+  return t("password-reset.subject");
+}
 
-export function PasswordReset({ url, name }: TemplateProps["password-reset"]) {
+export function PasswordReset({ url, name }: TemplateProps["password-reset"], t: EmailTranslator) {
   return (
-    <EmailLayout preview="Reset your password.">
-      <Heading>Reset your password</Heading>
-      <Text>
-        Hi {greetingName(name)}, we received a request to reset your password. Choose a new one
-        using the link below.
-      </Text>
-      <Button href={url}>Reset password</Button>
-      <FallbackLink href={url} />
-      <Text muted>
-        This link expires in 1 hour and can be used once. If you didn&apos;t request a reset, you
-        can safely ignore this email — your password will not change.
-      </Text>
+    <EmailLayout preview={t("password-reset.preview")}>
+      <Heading>{t("password-reset.heading")}</Heading>
+      <Text>{t("password-reset.body", greetingArgs(name))}</Text>
+      <Button href={url}>{t("password-reset.cta")}</Button>
+      <FallbackLink href={url} t={t} />
+      <Text muted>{t("password-reset.note")}</Text>
     </EmailLayout>
   );
 }

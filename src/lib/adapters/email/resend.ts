@@ -24,7 +24,7 @@ export function createResendEmailAdapter(): EmailAdapter {
       recipient: Recipient,
       options?: SendOptions,
     ): Promise<void> {
-      const rendered = await renderTemplate(template, data);
+      const rendered = await renderTemplate(template, data, recipient.locale);
       const { error } = await resend.emails.send({
         from: env.EMAIL_FROM,
         to: recipient.to,

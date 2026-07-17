@@ -1,8 +1,9 @@
 "use client";
 
 import { ChevronsUpDown, Plus } from "lucide-react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+
+import { Link, usePathname } from "@/lib/i18n/navigation";
 
 import {
   Button,
@@ -31,11 +32,12 @@ export function AccountSwitcher({
   personalLabel: string;
   orgs: SwitcherOrg[];
 }) {
+  const t = useTranslations("organizations.switcher");
   const pathname = usePathname();
   const activeSlug = pathname.startsWith("/orgs/") ? pathname.split("/")[2] : undefined;
   const onPersonal = !activeSlug;
   const current = activeSlug
-    ? (orgs.find((o) => o.slug === activeSlug)?.name ?? "Organization")
+    ? (orgs.find((o) => o.slug === activeSlug)?.name ?? t("organization"))
     : personalLabel;
 
   return (
@@ -44,7 +46,7 @@ export function AccountSwitcher({
         <Button
           variant="outline"
           size="sm"
-          aria-label="Switch account"
+          aria-label={t("label")}
           className="max-w-52 justify-between gap-2"
         >
           <span className="truncate">{current}</span>
@@ -52,7 +54,7 @@ export function AccountSwitcher({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56">
-        <DropdownMenuLabel>Personal</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("personal")}</DropdownMenuLabel>
         <DropdownMenuItem asChild>
           <Link href="/dashboard" className={cn(onPersonal && "font-medium")}>
             {personalLabel}
@@ -61,7 +63,7 @@ export function AccountSwitcher({
 
         {orgs.length > 0 ? (
           <>
-            <DropdownMenuLabel>Organizations</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("organizations")}</DropdownMenuLabel>
             {orgs.map((org) => (
               <DropdownMenuItem key={org.id} asChild>
                 <Link
@@ -78,7 +80,7 @@ export function AccountSwitcher({
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/orgs/new">
-            <Plus className="mr-2 size-4" /> New organization
+            <Plus className="mr-2 size-4" /> {t("newOrg")}
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>

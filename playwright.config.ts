@@ -24,6 +24,22 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "on-first-retry",
+    /**
+     * PIN THE BROWSER LOCALE (spec 16.1).
+     *
+     * Chromium otherwise inherits the HOST's locale, which it sends as
+     * `Accept-Language` — so once the proxy negotiates (§16), the language this
+     * suite runs in depends on the machine it runs on. A developer in Warsaw and
+     * a CI runner in us-east would exercise different languages, and the ~14
+     * specs that assert English copy would pass in one place and fail in the
+     * other, for a reason nothing in the failure message mentions.
+     *
+     * This is the same argument features/content/format.ts makes about pinning a
+     * date locale: unpinned is not neutral, it is "whatever the machine thinks".
+     * Pinned, the suite asserts English forever and locale behaviour is tested
+     * explicitly, by the specs that override this per-test.
+     */
+    locale: "en-US",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {

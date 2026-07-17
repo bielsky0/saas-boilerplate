@@ -2,6 +2,7 @@ import { and, eq, inArray, lte, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { job } from "@/lib/db/schema";
+import { createLogger, runWithLogContext } from "@/lib/logger";
 import type {
   DrainResult,
   EnqueueOptions,
@@ -34,6 +35,8 @@ const RETRY_MAX_MS = 60 * 60_000;
 const DEFAULT_BATCH_SIZE = 10;
 const DEFAULT_BUDGET_MS = 10_000;
 const MAX_ERROR_LENGTH = 2000;
+
+const log = createLogger("jobs");
 
 /**
  * Exponential backoff with FULL JITTER:
@@ -181,39 +184,43 @@ export const postgresJobsAdapter: JobsAdapter = {
         const handler = registry[row.name as JobName] as
           ((payload: unknown, ctx: unknown) => Promise<void>) | undefined;
 
-        try {
-          if (!handler) {
-            // A name with no handler is a deploy skew (a queued job from a newer
-            // version), not a transient fault. Let it retry and dead-letter: the
-            // row survives for diagnosis either way.
-            throw new Error(`No handler registered for job "${row.name}"`);
-          }
-          await handler(row.payload, {
-            id: row.id,
-            name: row.name as JobName,
-            attempt: row.attempts,
-            maxAttempts: row.maxAttempts,
-          });
-          await markDone(row);
-          result.succeeded += 1;
-        } catch (error) {
-          const { deadLettered } = await markFailed(row, error);
-          if (deadLettered) {
-            result.deadLettered += 1;
-            // §12.2 observability: dead-letter is the one transition nobody is
-            // watching for, so it gets the loud line.
-            console.error(
-              `[jobs] DEAD LETTER job=${row.id} name=${row.name} attempts=${row.attempts}`,
-              error,
-            );
-          } else {
-            result.retried += 1;
-            console.warn(
-              `[jobs] retry job=${row.id} name=${row.name} attempt=${row.attempts}/${row.maxAttempts}: ` +
-                (error instanceof Error ? error.message : String(error)),
-            );
-          }
-        }
+        // THE one place job log context is seeded (spec 15.3). Everything the
+        // handler logs — and everything IT calls — inherits job/name/attempt from
+        // here, so no handler has to thread an id through its own signature. A job
+        // has no request scope, so this ALS is what `requestLogger` is for a
+        // request: the same fields, arriving by the only route available.
+        await runWithLogContext(
+          { job: row.id, name: row.name, attempt: row.attempts },
+          async () => {
+            try {
+              if (!handler) {
+                // A name with no handler is a deploy skew (a queued job from a newer
+                // version), not a transient fault. Let it retry and dead-letter: the
+                // row survives for diagnosis either way.
+                throw new Error(`No handler registered for job "${row.name}"`);
+              }
+              await handler(row.payload, {
+                id: row.id,
+                name: row.name as JobName,
+                attempt: row.attempts,
+                maxAttempts: row.maxAttempts,
+              });
+              await markDone(row);
+              result.succeeded += 1;
+            } catch (error) {
+              const { deadLettered } = await markFailed(row, error);
+              if (deadLettered) {
+                result.deadLettered += 1;
+                // §12.2 observability: dead-letter is the one transition nobody is
+                // watching for, so it gets the loud line.
+                log.error("DEAD LETTER", { err: error });
+              } else {
+                result.retried += 1;
+                log.warn("retry", { maxAttempts: row.maxAttempts, err: error });
+              }
+            }
+          },
+        );
       }
     }
 

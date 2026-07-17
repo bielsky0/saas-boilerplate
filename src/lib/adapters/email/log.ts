@@ -88,7 +88,7 @@ export const logEmailAdapter: EmailAdapter = {
       throw new Error(`[email:log] simulated provider failure for ${recipient.to}`);
     }
 
-    const rendered = await renderTemplate(template, data);
+    const rendered = await renderTemplate(template, data, recipient.locale);
     const url = typeof data.url === "string" ? data.url : undefined;
     outbox.push({
       template,

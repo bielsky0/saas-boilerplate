@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState, useEffect, useId } from "react";
 
 import { Button, ConfirmDialog, FormField, FormMessage, Input, toast } from "@/components/ui";
@@ -15,6 +16,7 @@ const initial: ActionState = {};
 /** Edit org name + slug (spec §3.2). Re-checks `organization.update` server-side. */
 export function OrgSettingsForm({ slug, name }: { slug: string; name: string }) {
   const [state, action, pending] = useActionState(updateOrganizationAction, initial);
+  const t = useTranslations("organizations");
 
   useEffect(() => {
     if (state.success) toast.success(state.success);
@@ -23,10 +25,10 @@ export function OrgSettingsForm({ slug, name }: { slug: string; name: string }) 
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name="slug" value={slug} />
-      <FormField label="Organization name" htmlFor="org-name">
+      <FormField label={t("fields.orgName")} htmlFor="org-name">
         <Input id="org-name" name="name" defaultValue={name} required />
       </FormField>
-      <FormField label="Slug" htmlFor="org-slug">
+      <FormField label={t("fields.slug")} htmlFor="org-slug">
         <Input id="org-slug" name="newSlug" defaultValue={slug} />
       </FormField>
 
@@ -34,7 +36,7 @@ export function OrgSettingsForm({ slug, name }: { slug: string; name: string }) 
 
       <div>
         <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : "Save changes"}
+          {pending ? t("settings.saving") : t("settings.save")}
         </Button>
       </div>
     </form>
@@ -45,6 +47,7 @@ export function OrgSettingsForm({ slug, name }: { slug: string; name: string }) 
 export function DeleteOrgButton({ slug }: { slug: string }) {
   const [state, action, pending] = useActionState(deleteOrganizationAction, initial);
   const formId = useId();
+  const t = useTranslations("organizations.settings");
 
   return (
     <div className="flex flex-col gap-2">
@@ -55,12 +58,12 @@ export function DeleteOrgButton({ slug }: { slug: string }) {
         <ConfirmDialog
           trigger={
             <Button type="button" variant="destructive" disabled={pending}>
-              {pending ? "Deleting…" : "Delete organization"}
+              {pending ? t("deleting") : t("delete")}
             </Button>
           }
-          title="Delete this organization?"
-          description="This removes access for every member. You can't undo this from the UI."
-          confirmLabel="Delete organization"
+          title={t("confirmDeleteTitle")}
+          description={t("confirmDeleteBody")}
+          confirmLabel={t("confirmDeleteAction")}
           confirmForm={formId}
           disabled={pending}
         />
@@ -74,6 +77,7 @@ export function DeleteOrgButton({ slug }: { slug: string }) {
 export function LeaveOrgButton({ slug }: { slug: string }) {
   const [state, action, pending] = useActionState(leaveOrganizationAction, initial);
   const formId = useId();
+  const t = useTranslations("organizations.settings");
 
   return (
     <div className="flex flex-col gap-2">
@@ -84,12 +88,12 @@ export function LeaveOrgButton({ slug }: { slug: string }) {
         <ConfirmDialog
           trigger={
             <Button type="button" variant="outline" disabled={pending}>
-              {pending ? "Leaving…" : "Leave organization"}
+              {pending ? t("leaving") : t("leave")}
             </Button>
           }
-          title="Leave this organization?"
-          description="You'll lose access to its resources until someone invites you back."
-          confirmLabel="Leave organization"
+          title={t("confirmLeaveTitle")}
+          description={t("confirmLeaveBody")}
+          confirmLabel={t("confirmLeaveAction")}
           confirmForm={formId}
           disabled={pending}
         />

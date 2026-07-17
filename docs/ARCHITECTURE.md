@@ -20,7 +20,10 @@ code. The full product spec lives in [specyfikacja.md](specyfikacja.md).
 ```
 src/
   app/                     Next.js App Router routes (pages, layouts, route handlers)
-    (marketing)/           §8 public content chrome (blog, docs, changelog)
+    [locale]/              §16 EVERY page lives under a locale segment
+      layout.tsx           the root layout (<html lang>, NextIntlClientProvider)
+      (marketing)/         §8 public content chrome (blog, docs, changelog)
+    api/                   NOT localized — an endpoint is not a page
     sitemap.ts robots.ts   §9 generated from src/lib/public-routes.ts
     opengraph-image.tsx    §9 default social card (root, NOT in a route group)
   content/                 §8 the content itself: <collection>/<slug>/{meta.ts,content.mdx}
@@ -40,6 +43,7 @@ src/
     plugins/               §18 optional add-ons
   lib/                     Cross-cutting, non-feature code
     site.ts                §9 site identity (name, description, canonical base URL)
+    logger.ts              §15.3 structured logging + request-id correlation
     public-routes.ts       §2.5/§9.1 the public page surface (proxy + sitemap + robots)
     env/                   validated environment (server.ts / client.ts)
     db/                    Drizzle client + schema/ + migrations/
@@ -159,6 +163,78 @@ implementation in code once the corresponding module is built (spec §17.2):
      join our memberships/subscriptions or see our `deletedAt`. Only operations
      that need the identity ENGINE (minting/revoking sessions) are in the
      contract; everything else is a Drizzle query in `features/admin/data.ts`.
+- **Translate a string (§16):** add the key to **`src/lib/i18n/messages/en.json` and
+  `pl.json`**, then read it with `useTranslations("ns")` (client + sync server
+  components) or `await getTranslations("ns")` (async server components).
+  Namespaces mirror `src/features/*`, so "where does the string for X live?" has
+  the same answer as "where does the code for X live?". Rules:
+  1. **English is the shape.** `MESSAGES` is `Record<Locale, typeof en>`, so a key
+     in `en.json` and missing from `pl.json` is a COMPILE error, and a new locale
+     without a catalog is too. Verified, not assumed: delete a `pl.json` key and
+     `pnpm typecheck` fails.
+  2. **Outside a request, use `getTranslator(locale, ns)`** from `src/lib/i18n` —
+     NOT `getTranslations()`. Emails render in a cron drain a week after any
+     request (§10.3): there are no headers and no React cache there, so anything
+     request-scoped throws. `getTranslator` is a pure function of
+     (locale, messages).
+  3. **Branch the SENTENCE, not the noun, when a value may be absent.** English's
+     "Hi there" has no Polish equivalent (`Cześć {name},` with an empty name reads
+     "Cześć ,"), and no choice of fallback WORD fixes that. Use an ICU `select` so
+     each language writes its own variant — `greetingArgs()` in
+     `src/lib/adapters/email/templates/layout.tsx` is the reference. Same for
+     emphasis inside prose: `t.rich(...)` with a `<b>` tag in the message, never
+     `<strong>` hard-coded around an interpolation, because word order moves.
+  4. **Never hard-code a locale into a path.** Use `Link`/`redirect`/`usePathname`
+     from `src/lib/i18n/navigation` — they add the active prefix. `pageMetadata`
+     takes a BARE path and prefixes it itself.
+  5. **Keys, not strings, in module-scope data.** A `const NAV = [{label: "Docs"}]`
+     freezes one language at import time; `labelKey: "docs"` survives a switch.
+     Reference: `src/app/[locale]/(marketing)/layout.tsx`.
+
+  **Locale routing lives in `src/proxy.ts`, deliberately — next-intl's middleware
+  is never imported.** Two systems cannot both own the response: the proxy must
+  default-deny for auth (§2.5) and prefix for locale, and composing them by hand
+  means ONE ordering, written down, that both concerns read. The ordering is
+  load-bearing and its reasons are in that file — metadata images resolve before
+  anything can prefix them, `/api/*` skips the prefix but NOT the guard, and the
+  unprefixed→prefixed redirect must carry `search` or every `?token=` flow breaks.
+  `localePrefix: "always"` (so `/` → `/en`) keeps the proxy REDIRECT-only, which is
+  what guarantees the path the guard evaluated is the path the router serves; an
+  `as-needed` scheme needs a rewrite, and then those two strings differ.
+  Pure path helpers live in `src/lib/i18n/config.ts` — the proxy imports THAT, not
+  the barrel, so React navigation never enters the proxy bundle.
+
+- **Log something (§15.3):** `createLogger("<namespace>")` from `src/lib/logger.ts`,
+  then `log.info("message", { key: value })`. Never `console.*` — `no-console` in
+  `eslint.config.mjs` fails CI, with exactly two exemptions
+  (`src/lib/adapters/email/log.ts`, the dev outbox, whose console output IS the
+  feature; and `logger.ts` itself). Four rules:
+  1. **Message is a constant; everything variable is a field.** `log.warn("no
+recipients for payment-failed", { event: p.eventId })`, never a template
+     literal — an interpolated message cannot be grouped or filtered by a
+     collector, which is the whole point of §15.3.
+  2. **`err` is reserved.** Put the caught value there (`{ err: error }`) and the
+     renderer hands the Error to the console so its STACK survives. Stringifying
+     an error into a field throws the stack away, and the stack is the reason you
+     opened the log.
+  3. **Pick the context by what the work IS, not by preference.** A request →
+     `await requestLogger(ns)` (reads the proxy-minted `x-request-id` once). A job
+     → plain `createLogger(ns)`; `job`/`name`/`attempt` arrive on their own via the
+     ALS seeded in `src/lib/adapters/jobs/postgres.ts`'s claim loop. There is no
+     per-request hook to seed an ALS from in App Router — the proxy and the render
+     are separate invocations — which is why requests are explicit and jobs are not.
+  4. **`requestId` ADDS a field, it never replaces one.** `event.id` (billing) and
+     the job id are domain-scoped and stay authoritative; a line gains `requestId`
+     on top, so the fields nest into a tree: request → (event | job).
+
+  `LOG_FORMAT=pretty` (default) renders `[jobs] drain claimed=3 ok=3` for humans;
+  `LOG_FORMAT=json` renders one object per line for a collector. **Set
+  `LOG_FORMAT=json` in production** — same call sites, so a line cannot drift
+  between the two. Reference: `src/lib/adapters/jobs/postgres.ts` (ALS seam +
+  dead-letter/retry lines), `src/app/api/cron/jobs/route.ts` (`requestLogger`).
+  Deliberately NOT an adapter: a logger has no vendor to swap — stdout is the
+  interface — so a contract there would abstract over exactly one thing.
+
 - **Add a background job (§12):** add the name to `JobName` and its payload to
   `JobPayloads` in `src/lib/adapters/jobs/contract.ts`, write the handler in the
   owning feature, and register it in `src/features/jobs/registry.ts` (`JobRegistry`
@@ -289,8 +365,10 @@ postgres-for-multi-tenancy` is the fixture that proves it — deleting it
   5. **`source.ts` is the files-vs-database seam (§8.1).** It is the only module
      that imports `src/content/*`. Moving to a database is a rewrite of that one
      file; everything else already awaits.
-- **Add a public route (§9.1):** add it to `src/lib/public-routes.ts` and answer
-  `indexable`. That one entry drives three consumers — `src/proxy.ts` (reachable
+- **Add a public route (§9.1):** add it to `src/lib/public-routes.ts` with its BARE
+  path (`/pricing`, never `/en/pricing`) and answer `indexable`. `isPublicPage`
+  strips the locale itself, so one entry covers every language — never multiply the
+  table per locale. That one entry drives three consumers — `src/proxy.ts` (reachable
   without a session), `src/app/sitemap.ts` (listed) and `src/app/robots.ts`
   (disallowed) — so "reachable" and "indexed" cannot drift apart. `indexable` is
   mandatory, not optional: those are different questions that look like one, and

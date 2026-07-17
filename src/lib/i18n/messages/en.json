@@ -1,0 +1,338 @@
+{
+  "nav": {
+    "contentLabel": "Content",
+    "docs": "Docs",
+    "blog": "Blog",
+    "changelog": "Changelog",
+    "logIn": "Log in",
+    "getStarted": "Get started"
+  },
+  "common": {
+    "locale": {
+      "label": "Language",
+      "en": "English",
+      "pl": "Polski"
+    }
+  },
+  "emails": {
+    "shared": {
+      "fallbackLink": "Or paste this link into your browser:",
+      "unsubscribeQuestion": "Don't want these emails?",
+      "unsubscribeAction": "Unsubscribe"
+    },
+    "verify-email": {
+      "subject": "Verify your email address",
+      "preview": "Confirm your email address to finish setting up your account.",
+      "heading": "Confirm your email",
+      "body": "{named, select, yes {Hi {name}, thanks for signing up. Please confirm your email address to finish setting up your account.} other {Hi there, thanks for signing up. Please confirm your email address to finish setting up your account.}}",
+      "cta": "Verify email",
+      "note": "This link expires in 24 hours."
+    },
+    "password-reset": {
+      "subject": "Reset your password",
+      "preview": "Reset your password.",
+      "heading": "Reset your password",
+      "body": "{named, select, yes {Hi {name}, we received a request to reset your password. Choose a new one using the link below.} other {Hi there, we received a request to reset your password. Choose a new one using the link below.}}",
+      "cta": "Reset password",
+      "note": "This link expires in 1 hour and can be used once. If you didn't request a reset, you can safely ignore this email — your password will not change."
+    },
+    "invitation": {
+      "subject": "You've been invited to join {orgName}",
+      "preview": "{inviterName} invited you to join {orgName}.",
+      "heading": "Join {orgName}",
+      "body": "{inviterName} invited you to join <b>{orgName}</b> as {role}.",
+      "cta": "Accept invitation",
+      "note": "This invitation expires in 7 days. If you weren't expecting it, you can ignore this email."
+    },
+    "payment-failed": {
+      "subject": "Your payment didn't go through",
+      "preview": "We couldn't process the payment for {orgName}.",
+      "heading": "Your payment didn't go through",
+      "body": "We couldn't process the {amount} payment for <b>{orgName}</b>. This usually means the card expired or was declined.",
+      "action": "Update your payment method to keep your subscription active.",
+      "cta": "Update payment method",
+      "note": "We'll retry automatically over the next few days. If the payment keeps failing, your subscription may be cancelled."
+    },
+    "subscription-confirmed": {
+      "subject": "Your subscription is active",
+      "preview": "The {planName} plan is now active for {orgName}.",
+      "heading": "Your subscription is active",
+      "body": "The <b>{planName}</b> plan is now active for <b>{orgName}</b>. Thanks for subscribing.",
+      "manage": "You can manage your plan, payment method, and invoices any time.",
+      "cta": "Manage subscription"
+    },
+    "welcome": {
+      "subject": "Welcome aboard",
+      "preview": "Your account is ready.",
+      "heading": "{named, select, yes {Welcome, {name}!} other {Welcome!}}",
+      "body": "Your email is verified and your account is ready to use.",
+      "next": "Start by creating an organization and inviting your team — that's where the shared workspace lives.",
+      "cta": "Open your dashboard"
+    },
+    "onboarding-tips": {
+      "subject": "Three things worth knowing",
+      "preview": "A few things that make the product click.",
+      "heading": "Getting the most out of it",
+      "body": "{named, select, yes {Hi {name}, a few things that tend to click for people early on:} other {Hi there, a few things that tend to click for people early on:}}",
+      "inviteTitle": "Invite your team.",
+      "inviteText": "Most of the value shows up once more than one person is in the workspace.",
+      "rolesTitle": "Use roles.",
+      "rolesText": "Owners manage billing, admins manage people, members do the work.",
+      "contextTitle": "Switch context.",
+      "contextText": "Your personal space and each organization keep their data completely separate.",
+      "cta": "Go to your dashboard"
+    },
+    "onboarding-features": {
+      "subject": "Ready for more?",
+      "preview": "The features you haven't tried yet.",
+      "heading": "Ready for more?",
+      "body": "{named, select, yes {Hi {name}, you've been with us a week. Here's what a paid plan opens up:} other {Hi there, you've been with us a week. Here's what a paid plan opens up:}}",
+      "seats": "More seats for your team",
+      "limits": "Higher limits on everything you're already using",
+      "support": "Priority support when something breaks",
+      "cta": "See what's available"
+    }
+  },
+  "auth": {
+    "validation": {
+      "emailInvalid": "Enter a valid email address.",
+      "passwordMin": "Password must be at least 8 characters.",
+      "passwordLetter": "Password must include at least one letter.",
+      "passwordNumber": "Password must include at least one number.",
+      "passwordRequired": "Enter your password.",
+      "resetTokenInvalid": "This reset link is invalid or has expired."
+    },
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "invalidCredentials": "Invalid email or password.",
+      "weakPassword": "Password must be at least 8 characters and include a letter and a number.",
+      "accountSuspended": "This account has been suspended. Contact support for help.",
+      "resetLinkExpired": "This reset link is invalid or has expired. Request a new one."
+    },
+    "fields": {
+      "email": "Email",
+      "password": "Password",
+      "newPassword": "New password",
+      "nameOptional": "Name (optional)"
+    },
+    "signIn": {
+      "submit": "Log in",
+      "submitting": "Signing in…",
+      "forgot": "Forgot your password?",
+      "needAccount": "Need an account?",
+      "signUpLink": "Sign up"
+    },
+    "signUp": {
+      "submit": "Create account",
+      "submitting": "Creating account…",
+      "haveAccount": "Already have an account?"
+    },
+    "forgotPassword": {
+      "submit": "Send reset link",
+      "submitting": "Sending…",
+      "sent": "If an account exists for that address, we've sent a link to reset your password. Check your inbox.",
+      "expiry": "The link expires in 1 hour.",
+      "remembered": "Remembered it?"
+    },
+    "resetPassword": {
+      "submit": "Set new password",
+      "submitting": "Saving…",
+      "signsYouOut": "Setting a new password signs you out everywhere else."
+    },
+    "shared": {
+      "logInLink": "Log in",
+      "backToLogin": "Back to log in",
+      "passwordHint": "At least 8 characters, including a letter and a number."
+    }
+  },
+  "organizations": {
+    "validation": {
+      "slugMin": "Slug must be at least 2 characters.",
+      "slugMax": "Slug must be at most 48 characters.",
+      "slugFormat": "Use lowercase letters, numbers and hyphens.",
+      "nameMin": "Name must be at least 2 characters.",
+      "emailInvalid": "Enter a valid email address."
+    },
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "invitationInvalid": "This invitation is no longer valid.",
+      "lastOwnerDemote": "An organization must keep at least one owner.",
+      "lastOwnerRemove": "You can't remove the last owner of an organization.",
+      "lastOwnerLeave": "Transfer ownership before leaving — an org needs at least one owner.",
+      "slugTaken": "That slug is already taken."
+    },
+    "success": {
+      "invitationSent": "Invitation sent to {email}.",
+      "invitationRevoked": "Invitation revoked.",
+      "roleUpdated": "Role updated.",
+      "memberRemoved": "Member removed.",
+      "organizationUpdated": "Organization updated."
+    },
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "member": "Member"
+    },
+    "fields": {
+      "orgName": "Organization name",
+      "slug": "Slug",
+      "slugOptional": "Slug (optional)",
+      "email": "Email",
+      "role": "Role",
+      "slugPlaceholder": "auto-generated from name"
+    },
+    "create": {
+      "submit": "Create organization",
+      "submitting": "Creating…"
+    },
+    "invite": {
+      "submit": "Send invite",
+      "submitting": "Sending…"
+    },
+    "invitationActions": {
+      "revoke": "Revoke",
+      "revoking": "Revoking…",
+      "confirmTitle": "Revoke this invitation?",
+      "confirmBody": "The invitation link stops working immediately.",
+      "confirmAction": "Revoke invitation"
+    },
+    "accept": {
+      "submit": "Accept invitation",
+      "submitting": "Joining…"
+    },
+    "switcher": {
+      "label": "Switch account",
+      "organization": "Organization",
+      "personal": "Personal",
+      "organizations": "Organizations",
+      "newOrg": "New organization"
+    },
+    "members": {
+      "roleLabel": "Member role",
+      "save": "Save",
+      "saving": "Saving…",
+      "remove": "Remove",
+      "removing": "Removing…",
+      "confirmRemoveTitle": "Remove this member?",
+      "confirmRemoveAction": "Remove member",
+      "confirmRemoveBody": "They lose access to this organization immediately. Their user account is not deleted."
+    },
+    "settings": {
+      "save": "Save changes",
+      "saving": "Saving…",
+      "delete": "Delete organization",
+      "deleting": "Deleting…",
+      "confirmDeleteTitle": "Delete this organization?",
+      "leave": "Leave organization",
+      "leaving": "Leaving…",
+      "confirmDeleteBody": "This removes access for every member. You can't undo this from the UI.",
+      "confirmDeleteAction": "Delete organization",
+      "confirmLeaveTitle": "Leave this organization?",
+      "confirmLeaveBody": "You'll lose access to its resources until someone invites you back.",
+      "confirmLeaveAction": "Leave organization"
+    }
+  },
+  "landing": {
+    "meta": {
+      "title": "{site} — ship your SaaS faster"
+    },
+    "hero": {
+      "badge": "Next.js {site}",
+      "title": "Ship your SaaS faster, without the boilerplate",
+      "subtitle": "Authentication, multi-tenancy, RBAC, and a themed design system — production-ready and free of vendor lock-in.",
+      "getStarted": "Get started",
+      "logIn": "Log in"
+    },
+    "features": {
+      "heading": "Everything you need to launch",
+      "subheading": "The foundations every SaaS rebuilds — done once, done right.",
+      "authTitle": "Authentication",
+      "authBody": "Email/password with verification, password reset, and rate-limited sign-in.",
+      "tenancyTitle": "Multi-tenancy",
+      "tenancyBody": "Personal accounts and organizations with an instant context switcher.",
+      "rbacTitle": "RBAC",
+      "rbacBody": "Owner/Admin/Member roles enforced on the backend, cosmetic in the UI.",
+      "designTitle": "Design system",
+      "designBody": "Token-driven components with light, dark, and system themes.",
+      "shellTitle": "Dashboard shell",
+      "shellBody": "A responsive app shell wired to your active tenant out of the box.",
+      "lockinTitle": "No vendor lock-in",
+      "lockinBody": "Every provider sits behind an adapter — swap one file, not your app."
+    },
+    "pricing": {
+      "heading": "Simple pricing",
+      "subheading": "Placeholder plans — real pricing is generated from the billing configuration.",
+      "popular": "Popular",
+      "perMonth": "/mo",
+      "freeName": "Free",
+      "freePrice": "$0",
+      "freeDesc": "For trying things out.",
+      "freeF1": "1 organization",
+      "freeF2": "Up to 3 members",
+      "freeF3": "Community support",
+      "freeCta": "Get started",
+      "proName": "Pro",
+      "proPrice": "$29",
+      "proDesc": "For growing teams.",
+      "proF1": "Unlimited organizations",
+      "proF2": "Unlimited members",
+      "proF3": "Priority support",
+      "proCta": "Start free trial",
+      "entName": "Enterprise",
+      "entPrice": "Custom",
+      "entDesc": "For scale and compliance.",
+      "entF1": "SSO & SAML",
+      "entF2": "Enforced MFA",
+      "entF3": "Dedicated support",
+      "entCta": "Contact sales"
+    },
+    "cta": {
+      "heading": "Ready to build?",
+      "body": "Create an account and start from a solid foundation.",
+      "button": "Create your account"
+    },
+    "header": {
+      "createAccount": "Create account"
+    }
+  },
+  "dashboard": {
+    "meta": {
+      "dashboard": "Dashboard",
+      "newOrg": "New organization"
+    },
+    "personal": {
+      "heading": "Personal",
+      "newOrg": "New organization",
+      "verifyEmail": "Please verify your email address. Check your inbox for the verification link.",
+      "signedInAs": "Signed in as <strong>{email}</strong>. Use the switcher above to move between your personal account and organizations."
+    },
+    "org": {
+      "yourRole": "Your role:",
+      "members": "Members",
+      "settings": "Settings"
+    },
+    "settings": {
+      "heading": "Settings",
+      "general": "General",
+      "dangerZone": "Danger zone",
+      "dangerBody": "Deleting an organization removes access for all members."
+    },
+    "newOrg": {
+      "heading": "Create an organization",
+      "body": "You'll be added as the owner and can invite teammates next."
+    },
+    "members": {
+      "heading": "Members",
+      "inviteTitle": "Invite a teammate",
+      "team": "Team ({count})",
+      "colMember": "Member",
+      "colRole": "Role",
+      "colActions": "Actions",
+      "colEmail": "Email",
+      "colExpires": "Expires",
+      "pending": "Pending invitations ({count})",
+      "statusInvited": "invited",
+      "statusSuspended": "suspended"
+    }
+  }
+}

@@ -31,6 +31,48 @@ test("failed login does not reveal whether the email exists", async ({ page, req
   expect(noUserError).toBe(wrongPwError);
 });
 
+/**
+ * The same guarantee, in another language (spec 2.1 + 16.1).
+ *
+ * The English test above cannot catch the failure that §16 introduces. Once the
+ * message is a translation, "wrong password" and "no such account" could diverge
+ * in ANY language — and the suite is pinned to en-US (playwright.config.ts), so a
+ * Polish-only divergence would ship silently.
+ *
+ * The real defence is structural: both branches reference ONE key,
+ * `auth.errors.invalidCredentials`, so there is a single string to translate and
+ * nothing to pull apart (see features/auth/actions.ts's header). This test does
+ * not add safety so much as make that invariant VISIBLE — if someone "helpfully"
+ * splits the key into two, this fails and says why.
+ */
+test("the neutral login error holds in every language, not just English", async ({
+  page,
+  request,
+}) => {
+  const realEmail = uniqueEmail("enum-pl");
+  await registerViaApi(request, realEmail);
+  const formError = page.locator('p[role="alert"]');
+
+  // Filled via the POLISH labels rather than `loginViaUi`, which is hard-coded to
+  // the English ones. That is not a workaround — it means this test also fails if
+  // the form itself stops being translated, which is the other half of the claim.
+  async function failedLogin(email: string) {
+    await page.goto("/pl/login");
+    await page.getByLabel("E-mail").fill(email);
+    await page.getByLabel("Hasło").fill("WrongPassword9");
+    await page.getByRole("button", { name: "Zaloguj się" }).click();
+    return formError.textContent();
+  }
+
+  const wrongPwError = await failedLogin(realEmail);
+  const noUserError = await failedLogin(uniqueEmail("enum-pl-ghost"));
+
+  // Actually Polish — otherwise this would pass trivially against two English
+  // strings and prove nothing about translations.
+  expect(wrongPwError).toBe("Nieprawidłowy e-mail lub hasło.");
+  expect(noUserError, "the two branches must stay indistinguishable in pl too").toBe(wrongPwError);
+});
+
 test("signing up an existing email looks identical to a fresh signup", async ({
   page,
   request,

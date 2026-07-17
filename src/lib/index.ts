@@ -6,4 +6,15 @@
  * code belongs in `./adapters`; database in `./db`; environment in `./env`.
  */
 
-export {};
+export {
+  createLogger,
+  getRequestId,
+  normalizeRequestId,
+  requestLogger,
+  runWithLogContext,
+  REQUEST_ID_HEADER,
+  type LogContext,
+  type LogFields,
+  type LogLevel,
+  type Logger,
+} from "./logger";

@@ -13,8 +13,13 @@ test("protected route redirects to login and returns after sign-in", async ({ pa
   await registerViaApi(request, email);
 
   // Fresh browser context (this `page`) has no session.
+  //
+  // Two hops, both asserted by the final URL: `/dashboard` first gains the
+  // negotiated locale prefix (§16), then the guard sends it to login. The
+  // callbackUrl KEEPS the prefix, which is what makes redirect-back return the
+  // user to the language they were reading.
   await page.goto("/dashboard");
-  await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fdashboard$/);
+  await expect(page).toHaveURL(/\/en\/login\?callbackUrl=%2Fen%2Fdashboard$/);
 
   await loginViaUi(page, email, TEST_PASSWORD);
 

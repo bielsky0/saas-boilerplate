@@ -42,8 +42,11 @@ test("the last owner cannot be demoted or removed", async ({ page, request }) =>
     .click();
   await expect(row.getByText(/can't remove the last owner/i)).toBeVisible();
 
-  // Still an owner after both attempts (the role badge, not the select value).
+  // Still an owner after both attempts. §16 translated the role label, so the
+  // badge now reads "Owner" — and so do the role SELECT's value and option, which
+  // is why this scopes to the read-only badge CELL (accessible name exactly
+  // "Owner") rather than the row: "Owner" appears three times in the row now.
   await page.reload();
   const rowAfter = page.getByRole("row").filter({ hasText: owner });
-  await expect(rowAfter.getByText("owner", { exact: true })).toBeVisible();
+  await expect(rowAfter.getByRole("cell", { name: "Owner", exact: true })).toBeVisible();
 });

@@ -64,6 +64,10 @@ export async function enqueueEmail<N extends TemplateName>(
       data: data as Record<string, unknown>,
       to: recipient.to,
       ...(recipient.name ? { name: recipient.name } : {}),
+      // Captured NOW, because now is the last moment anyone knows. The drain that
+      // renders this has no request to ask, and for a §10.3 step it runs a week
+      // from here. See JobPayloads["email.send"].
+      locale: recipient.locale,
     },
     options,
   );

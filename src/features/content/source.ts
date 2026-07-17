@@ -1,6 +1,7 @@
 import { BLOG_ENTRIES } from "@/content/blog";
 import { CHANGELOG_ENTRIES } from "@/content/changelog";
 import { DOC_CATEGORIES, DOC_ENTRIES, type DocCategoryId } from "@/content/docs";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
 
 import type { BlogMeta, ChangelogMeta, DocMeta } from "./schema";
 import type { ContentEntry } from "./types";
@@ -20,6 +21,27 @@ import type { ContentEntry } from "./types";
  * caller. `get*` returns drafts, because the PAGE is the one place that needs to
  * tell "unpublished" from "does not exist" — and it answers with notFound().
  */
+
+/**
+ * The language every document is WRITTEN in (spec 8.1 + 16.1).
+ *
+ * §16 localizes the app's chrome, not its prose: `/pl/blog/x` renders Polish
+ * navigation around an English post. This constant is the one place that says so,
+ * and it exists so the claim is stated rather than assumed — `seo.ts` reads it to
+ * point `/pl/blog/x`'s canonical at `/en/blog/x`, and `sitemap.ts` reads it to
+ * avoid advertising an hreflang cluster for prose that has no translations.
+ *
+ * It is a MODULE constant, not a per-entry field, because it is currently true of
+ * every document without exception — a `contentLocale: "en"` repeated on every
+ * post would be fake precision, and the first reviewer would rightly ask why it
+ * never varies.
+ *
+ * When per-locale content lands (§8.1's extension point), this becomes a field on
+ * the summaries below and the registry key gains a locale (`pl/hello-world`, or a
+ * nested map). The consumers already ask this module the question, so they change
+ * from reading a constant to reading a field — and nothing else moves.
+ */
+export const CONTENT_LOCALE: Locale = DEFAULT_LOCALE;
 
 export interface BlogSummary {
   slug: string;

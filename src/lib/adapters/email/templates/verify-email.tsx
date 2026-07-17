@@ -1,19 +1,26 @@
 import type { TemplateProps } from "../contract";
-import { Button, EmailLayout, FallbackLink, Heading, Text, greetingName } from "./layout";
+import {
+  Button,
+  EmailLayout,
+  FallbackLink,
+  Heading,
+  Text,
+  greetingArgs,
+  type EmailTranslator,
+} from "./layout";
 
-export const verifyEmailSubject = "Verify your email address";
+export function verifyEmailSubject(_props: TemplateProps["verify-email"], t: EmailTranslator) {
+  return t("verify-email.subject");
+}
 
-export function VerifyEmail({ url, name }: TemplateProps["verify-email"]) {
+export function VerifyEmail({ url, name }: TemplateProps["verify-email"], t: EmailTranslator) {
   return (
-    <EmailLayout preview="Confirm your email address to finish setting up your account.">
-      <Heading>Confirm your email</Heading>
-      <Text>
-        Hi {greetingName(name)}, thanks for signing up. Please confirm your email address to finish
-        setting up your account.
-      </Text>
-      <Button href={url}>Verify email</Button>
-      <FallbackLink href={url} />
-      <Text muted>This link expires in 24 hours.</Text>
+    <EmailLayout preview={t("verify-email.preview")}>
+      <Heading>{t("verify-email.heading")}</Heading>
+      <Text>{t("verify-email.body", greetingArgs(name))}</Text>
+      <Button href={url}>{t("verify-email.cta")}</Button>
+      <FallbackLink href={url} t={t} />
+      <Text muted>{t("verify-email.note")}</Text>
     </EmailLayout>
   );
 }

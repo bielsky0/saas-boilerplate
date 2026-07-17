@@ -1,6 +1,21 @@
 import type { ReactNode } from "react";
 
+import { getTranslator } from "@/lib/i18n";
 import { site } from "@/lib/site";
+
+/**
+ * The translator handed to every template (spec 16.1), scoped to `emails`.
+ *
+ * Derived from `getTranslator` rather than hand-written, so the message keys stay
+ * checked: `t("verify-email.subject")` compiles, `t("verify-email.subjekt")` does
+ * not.
+ *
+ * Templates receive this as an ARGUMENT and never build their own. A template that
+ * called `getTranslator()` itself would have to know the locale, and the whole
+ * point of §16's email design is that the locale arrives from the job payload —
+ * one place, resolved at enqueue, where it could still be known.
+ */
+export type EmailTranslator = ReturnType<typeof getTranslator<"emails">>;
 
 /**
  * Shared email chrome (spec 10.2).
@@ -132,10 +147,10 @@ export function Button({ href, children }: { href: string; children: ReactNode }
  * Not optional garnish: corporate mail gateways rewrite or strip <a href>, and a
  * button is then a dead end with no way for the user to recover.
  */
-export function FallbackLink({ href }: { href: string }) {
+export function FallbackLink({ href, t }: { href: string; t: EmailTranslator }) {
   return (
     <p style={{ margin: "0 0 16px", fontSize: "13px", color: "#6b7280", wordBreak: "break-all" }}>
-      Or paste this link into your browser:
+      {t("shared.fallbackLink")}
       <br />
       <a href={href} style={{ color: "#2563eb" }}>
         {href}
@@ -145,13 +160,13 @@ export function FallbackLink({ href }: { href: string }) {
 }
 
 /** Unsubscribe footer — required on every non-transactional email (spec 10.3). */
-export function UnsubscribeFooter({ url }: { url: string }) {
+export function UnsubscribeFooter({ url, t }: { url: string; t: EmailTranslator }) {
   return (
     <div style={{ marginTop: "32px", borderTop: "1px solid #e5e7eb", paddingTop: "16px" }}>
       <p style={{ margin: 0, fontSize: "12px", color: "#6b7280" }}>
-        Don&apos;t want these emails?{" "}
+        {t("shared.unsubscribeQuestion")}{" "}
         <a href={url} style={{ color: "#6b7280", textDecoration: "underline" }}>
-          Unsubscribe
+          {t("shared.unsubscribeAction")}
         </a>
         .
       </p>
@@ -159,6 +174,21 @@ export function UnsubscribeFooter({ url }: { url: string }) {
   );
 }
 
-export function greetingName(name?: string | null): string {
-  return name && name.trim() ? name : "there";
+/**
+ * ICU `select` arguments for a greeting that may not know the recipient's name.
+ *
+ * This replaced a `greetingName()` that returned the literal `"there"` for an
+ * unknown name, so the message could just interpolate `Hi {name},`. That works in
+ * English and ONLY in English: Polish has no "hi there" — it says "Cześć!" — and
+ * interpolating an empty string yields "Cześć ,". No choice of fallback WORD fixes
+ * it, because the difference is in the sentence, not the noun.
+ *
+ * So the sentence branches instead, in the catalog, where a translator can see
+ * both variants and write each naturally. This is exactly what ICU `select` is
+ * for, and it is the concrete reason §16 chose a real ICU library over a
+ * dictionary of strings.
+ */
+export function greetingArgs(name?: string | null): { named: "yes" | "no"; name: string } {
+  const trimmed = name?.trim();
+  return trimmed ? { named: "yes", name: trimmed } : { named: "no", name: "" };
 }

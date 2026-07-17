@@ -26,6 +26,14 @@ export interface SessionUser {
   isSuperAdmin: boolean;
   /** Suspended by an admin (spec 6.2). A suspended account cannot sign in. */
   suspended: boolean;
+  /**
+   * The language this user CHOSE (spec 16.1), or null if they never have.
+   *
+   * `null` is not "English" — it means "no preference on record", so the request
+   * should keep negotiating from the browser. Collapsing the two would let a
+   * default we invented outrank a browser setting the user actually changed.
+   */
+  locale: string | null;
 }
 
 export interface Session {

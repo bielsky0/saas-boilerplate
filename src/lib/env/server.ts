@@ -18,6 +18,14 @@ export const env = createEnv({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     // Postgres connection string used by the Drizzle client (spec 11).
     DATABASE_URL: z.url(),
+    // Structured logging (spec 15.3). Two renderers over ONE call site, for the
+    // same reason EMAIL_PROVIDER defaults to "log": dev-readable, prod-real.
+    // "pretty" reproduces the `[namespace] message key=value` line a human reads
+    // in `pnpm dev` and in E2E output; "json" emits one object per line for a
+    // collector to index. Neither is a different call site, so a log line cannot
+    // drift between the two.
+    LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+    LOG_FORMAT: z.enum(["pretty", "json"]).default("pretty"),
     // Signing secret for Better Auth sessions/tokens (spec 2.5). Required — CI
     // provides a dummy value in its env block, mirroring DATABASE_URL, so build
     // stays honest without weakening validation. Generate: openssl rand -base64 32.

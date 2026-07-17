@@ -1,3 +1,5 @@
+import type { Locale } from "@/lib/i18n/config";
+
 /**
  * Email provider contract (spec 1.2, 10.1 — pluggable transactional email).
  *
@@ -56,6 +58,20 @@ export type TemplateData = Record<string, unknown>;
 export interface Recipient {
   to: string;
   name?: string;
+  /**
+   * The language to write to this person in (spec 16.1).
+   *
+   * A property of the RECIPIENT, not of the message: you cannot address a human
+   * without knowing what language they read, and the same template goes out in
+   * different languages to different people.
+   *
+   * REQUIRED, not optional, and that is the whole point — it applies the
+   * `indexable` precedent from lib/public-routes.ts. Optional would mean every
+   * caller who forgets silently sends English to a Polish user, and nothing
+   * anywhere records that it happened. Required makes "in what language?" a
+   * question the compiler asks at each of the eight enqueue sites.
+   */
+  locale: Locale;
 }
 
 export interface SendOptions {

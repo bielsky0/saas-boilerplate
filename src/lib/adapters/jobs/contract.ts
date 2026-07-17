@@ -81,6 +81,22 @@ export interface JobPayloads {
     data: Record<string, unknown>;
     to: string;
     name?: string;
+    /**
+     * The language to render in (spec 16.1), captured at ENQUEUE time.
+     *
+     * It has to travel in the payload because it cannot be recovered later: this
+     * job is drained by cron, with no request, no cookie and no `Accept-Language`
+     * — and for the §10.3 sequence, a week after the moment anyone knew who this
+     * was for. By then the payload is the only witness.
+     *
+     * `string`, not the i18n `Locale`, for the same reason `template` is not
+     * `TemplateName`: a payload is jsonb and is re-validated on the way out.
+     *
+     * NOTE the handler's zod schema deliberately treats this as OPTIONAL even
+     * though it is required here — see features/emails/handler.ts. Rows enqueued
+     * by an older deploy have no `locale`, and they must still send.
+     */
+    locale: string;
   };
   "onboarding.step": { userId: string; step: string };
   /**

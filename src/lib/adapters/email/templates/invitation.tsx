@@ -1,23 +1,34 @@
 import type { TemplateProps } from "../contract";
-import { Button, EmailLayout, FallbackLink, Heading, Text } from "./layout";
+import { Button, EmailLayout, FallbackLink, Heading, Text, type EmailTranslator } from "./layout";
 
-export function invitationSubject({ orgName }: TemplateProps["invitation"]): string {
-  return `You've been invited to join ${orgName}`;
+export function invitationSubject({ orgName }: TemplateProps["invitation"], t: EmailTranslator) {
+  return t("invitation.subject", { orgName });
 }
 
-export function Invitation({ url, orgName, inviterName, role }: TemplateProps["invitation"]) {
+export function Invitation(
+  { url, orgName, inviterName, role }: TemplateProps["invitation"],
+  t: EmailTranslator,
+) {
   return (
-    <EmailLayout preview={`${inviterName} invited you to join ${orgName}.`}>
-      <Heading>Join {orgName}</Heading>
+    <EmailLayout preview={t("invitation.preview", { inviterName, orgName })}>
+      <Heading>{t("invitation.heading", { orgName })}</Heading>
       <Text>
-        {inviterName} invited you to join <strong>{orgName}</strong> as {role}.
+        {/*
+          `t.rich`, not `t`: the emphasis is part of the sentence, so it belongs in
+          the message where a translator can move it. Polish word order differs
+          from English, and a template that hard-codes <strong> around the second
+          interpolation would bold the wrong word in half the languages.
+        */}
+        {t.rich("invitation.body", {
+          inviterName,
+          orgName,
+          role,
+          b: (chunks) => <strong>{chunks}</strong>,
+        })}
       </Text>
-      <Button href={url}>Accept invitation</Button>
-      <FallbackLink href={url} />
-      <Text muted>
-        This invitation expires in 7 days. If you weren&apos;t expecting it, you can ignore this
-        email.
-      </Text>
+      <Button href={url}>{t("invitation.cta")}</Button>
+      <FallbackLink href={url} t={t} />
+      <Text muted>{t("invitation.note")}</Text>
     </EmailLayout>
   );
 }

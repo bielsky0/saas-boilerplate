@@ -1,19 +1,31 @@
-import Link from "next/link";
+import { useLocale } from "next-intl";
 
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { Link } from "@/lib/i18n/navigation";
+import type { Locale } from "@/lib/i18n/config";
 import { authorFor } from "../authors";
 import { formatContentDate } from "../format";
 import type { BlogSummary } from "../source";
 
-/** One post in the blog index (spec 8.2). */
+/**
+ * One post in the blog index (spec 8.2).
+ *
+ * The locale is read here rather than passed down: this is a Server Component,
+ * so `useLocale()` resolves from the request the layout already established.
+ * Threading a `locale` prop through every card would put the same fact in two
+ * places and let them disagree.
+ */
 export function PostCard({ post }: { post: BlogSummary }) {
+  const locale = useLocale() as Locale;
   const author = authorFor(post.meta.author);
   return (
     // `relative` anchors the title link's ::after overlay to the card.
     <Card className="relative transition-shadow hover:shadow-md">
       <CardHeader>
         <div className="text-muted-foreground flex items-center gap-2 text-xs">
-          <time dateTime={post.meta.publishedAt}>{formatContentDate(post.meta.publishedAt)}</time>
+          <time dateTime={post.meta.publishedAt}>
+            {formatContentDate(post.meta.publishedAt, locale)}
+          </time>
           <span aria-hidden="true">·</span>
           <span>{author.name}</span>
         </div>

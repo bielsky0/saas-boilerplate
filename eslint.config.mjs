@@ -30,6 +30,29 @@ const eslintConfig = defineConfig([
     },
   },
   /**
+   * Structured logging is the only logging (spec 15.3).
+   *
+   * `console.*` and `src/lib/logger.ts` produce the same bytes under
+   * LOG_FORMAT=pretty, which is exactly why this rule has to exist: nothing about
+   * a stray `console.log` LOOKS wrong in a dev terminal. It only fails in
+   * production, where it lands as an unindexed line with no requestId, no job id,
+   * and no level for a collector to filter on — invisible precisely when it is
+   * the line you went looking for.
+   *
+   * Two exemptions, both of which ARE the product rather than an oversight:
+   *   - `src/lib/logger.ts` — the one module allowed to reach the console.
+   *   - `src/lib/adapters/email/log.ts` — EMAIL_PROVIDER=log's dev outbox. Its
+   *     console output is the feature (it is how you read a verification link in
+   *     `pnpm dev`), not a diagnostic.
+   */
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/lib/logger.ts", "src/lib/adapters/email/log.ts"],
+    rules: {
+      "no-console": "error",
+    },
+  },
+  /**
    * Super-admin containment (spec 6.3).
    *
    * Two things must not leak out of `src/features/admin`:
@@ -45,13 +68,21 @@ const eslintConfig = defineConfig([
    * `importNames`: plain `authAdapter` from the same module stays free.
    *
    * Exempt: the admin feature itself, the auth adapter that defines the export,
-   * and `src/app/(admin)/**` — the panel's own pages, which apply
+   * and the `(admin)` route group — the panel's own pages, which apply
    * `requireSuperAdmin()` as their first line and are the intended consumers.
    * Everything else in the app is denied by default.
+   *
+   * The group is matched as `src/app/**\/(admin)/**` rather than a fixed
+   * `src/app/(admin)/**` so it survives a segment being added above it — §16 put
+   * the whole page tree under `[locale]`, which silently un-exempted the panel and
+   * failed CI until this pattern stopped hard-coding the depth. (A literal
+   * `src/app/[locale]/...` would be worse than the depth: `[locale]` is a glob
+   * CHARACTER CLASS, so it would match `/l/`, `/o/`, `/c/` … and not the directory
+   * actually named `[locale]`.)
    */
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/features/admin/**", "src/lib/adapters/auth/**", "src/app/(admin)/**"],
+    ignores: ["src/features/admin/**", "src/lib/adapters/auth/**", "src/app/**/(admin)/**"],
     rules: {
       "no-restricted-imports": [
         "error",

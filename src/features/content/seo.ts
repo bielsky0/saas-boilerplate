@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { LOCALES, type Locale, OG_LOCALE, withLocale } from "@/lib/i18n/config";
 import { absoluteUrl, site } from "@/lib/site";
 
 /**
@@ -25,8 +26,29 @@ import { absoluteUrl, site } from "@/lib/site";
 export interface PageMetadataInput {
   title: string;
   description: string;
-  /** Root-relative, e.g. "/blog/hello-world". Becomes the canonical URL. */
+  /**
+   * Root-relative and BARE — "/blog/hello-world", never "/en/blog/hello-world".
+   * The locale prefix is added here, so a caller cannot bake one language into a
+   * path that is supposed to exist in all of them.
+   */
   path: string;
+  /** The request's locale. Drives og:locale, hreflang and the canonical prefix. */
+  locale: Locale;
+  /**
+   * The language the page's BODY is actually written in, when that is fixed
+   * regardless of the reader's locale — i.e. every MDX document today (§8).
+   *
+   * Set it and two things change, both deliberate:
+   *   - the canonical points at the body's own language, so `/pl/blog/x` declares
+   *     `/en/blog/x` canonical rather than competing with it;
+   *   - no hreflang cluster is emitted, because there are no translations to
+   *     advertise. Claiming `/pl/blog/x` as the Polish version of English prose
+   *     is a lie a crawler will punish.
+   *
+   * Leave it undefined for chrome pages (landing, auth, listings), which really
+   * do exist in every language.
+   */
+  contentLocale?: Locale;
   /** Root-relative or absolute; defaults to the route's generated OG image. */
   image?: string;
   type?: "website" | "article";
@@ -55,14 +77,31 @@ export interface PageMetadataInput {
 }
 
 export function pageMetadata(input: PageMetadataInput): Metadata {
-  const { title, description, path, image, type = "website", index = true } = input;
-  const url = absoluteUrl(path);
+  const { title, description, path, locale, contentLocale, image, type = "website" } = input;
+  const { index = true } = input;
+
+  // A translated page is canonical in its own language; a page whose body is
+  // fixed-language is canonical in THAT language, whatever locale is rendering it.
+  const canonicalPath = withLocale(path, contentLocale ?? locale);
+  const url = absoluteUrl(canonicalPath);
 
   return {
     title: input.titleAbsolute ? { absolute: title } : title,
     description,
     // Resolved against metadataBase from the root layout (spec 9.1).
-    alternates: { canonical: path },
+    alternates: {
+      canonical: canonicalPath,
+      // Only for pages that genuinely exist per language — see `contentLocale`.
+      ...(contentLocale
+        ? {}
+        : {
+            languages: {
+              ...Object.fromEntries(LOCALES.map((l) => [l, withLocale(path, l)])),
+              // The URL that negotiates, which is precisely what x-default means.
+              "x-default": path,
+            },
+          }),
+    },
     ...(index ? {} : { robots: { index: false, follow: false } }),
     openGraph: {
       type,
@@ -70,7 +109,10 @@ export function pageMetadata(input: PageMetadataInput): Metadata {
       title,
       description,
       siteName: site.name,
-      locale: site.locale,
+      locale: OG_LOCALE[contentLocale ?? locale],
+      ...(contentLocale
+        ? {}
+        : { alternateLocale: LOCALES.filter((l) => l !== locale).map((l) => OG_LOCALE[l]) }),
       ...(image ? { images: [{ url: image, alt: title }] } : {}),
       ...(type === "article"
         ? {

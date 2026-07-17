@@ -1,23 +1,30 @@
 import type { TemplateProps } from "../contract";
-import { Button, EmailLayout, FallbackLink, Heading, Text } from "./layout";
+import { Button, EmailLayout, FallbackLink, Heading, Text, type EmailTranslator } from "./layout";
 
-export const subscriptionConfirmedSubject = "Your subscription is active";
+export function subscriptionConfirmedSubject(
+  _props: TemplateProps["subscription-confirmed"],
+  t: EmailTranslator,
+) {
+  return t("subscription-confirmed.subject");
+}
 
-export function SubscriptionConfirmed({
-  orgName,
-  planName,
-  manageUrl,
-}: TemplateProps["subscription-confirmed"]) {
+export function SubscriptionConfirmed(
+  { orgName, planName, manageUrl }: TemplateProps["subscription-confirmed"],
+  t: EmailTranslator,
+) {
   return (
-    <EmailLayout preview={`The ${planName} plan is now active for ${orgName}.`}>
-      <Heading>Your subscription is active</Heading>
+    <EmailLayout preview={t("subscription-confirmed.preview", { planName, orgName })}>
+      <Heading>{t("subscription-confirmed.heading")}</Heading>
       <Text>
-        The <strong>{planName}</strong> plan is now active for <strong>{orgName}</strong>. Thanks
-        for subscribing.
+        {t.rich("subscription-confirmed.body", {
+          planName,
+          orgName,
+          b: (chunks) => <strong>{chunks}</strong>,
+        })}
       </Text>
-      <Text>You can manage your plan, payment method, and invoices any time.</Text>
-      <Button href={manageUrl}>Manage subscription</Button>
-      <FallbackLink href={manageUrl} />
+      <Text>{t("subscription-confirmed.manage")}</Text>
+      <Button href={manageUrl}>{t("subscription-confirmed.cta")}</Button>
+      <FallbackLink href={manageUrl} t={t} />
     </EmailLayout>
   );
 }

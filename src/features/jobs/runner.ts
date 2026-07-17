@@ -1,6 +1,9 @@
 import { after } from "next/server";
 
 import { jobs } from "@/lib/adapters/jobs";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("jobs");
 
 /**
  * Job runner triggers (spec 12).
@@ -44,7 +47,7 @@ export function kickDrain(): void {
       } catch (error) {
         // A drain failure must never surface to the user: their request already
         // succeeded, and the work is durably queued. Cron will retry it.
-        console.error("[jobs] post-response drain failed", error);
+        log.error("post-response drain failed", { err: error });
       } finally {
         draining = false;
       }

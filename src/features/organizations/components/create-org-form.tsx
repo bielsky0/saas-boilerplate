@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState } from "react";
 
 import { Button, FormField, FormMessage, Input } from "@/components/ui";
@@ -15,20 +16,21 @@ const initialState: ActionState = {};
  */
 export function CreateOrgForm() {
   const [state, formAction, pending] = useActionState(createOrganizationAction, initialState);
+  const t = useTranslations("organizations");
 
   return (
     <form action={formAction} className="flex flex-col gap-4" noValidate>
-      <FormField label="Organization name" htmlFor="name">
+      <FormField label={t("fields.orgName")} htmlFor="name">
         <Input id="name" name="name" required autoComplete="organization" />
       </FormField>
-      <FormField label="Slug (optional)" htmlFor="slug">
-        <Input id="slug" name="slug" placeholder="auto-generated from name" />
+      <FormField label={t("fields.slugOptional")} htmlFor="slug">
+        <Input id="slug" name="slug" placeholder={t("fields.slugPlaceholder")} />
       </FormField>
 
       {state.error ? <FormMessage>{state.error}</FormMessage> : null}
 
       <Button type="submit" disabled={pending}>
-        {pending ? "Creating…" : "Create organization"}
+        {pending ? t("create.submitting") : t("create.submit")}
       </Button>
     </form>
   );

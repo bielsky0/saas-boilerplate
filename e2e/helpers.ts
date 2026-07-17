@@ -11,13 +11,27 @@ export const TEST_PASSWORD = "Password123";
  * Seed an account via the test-only in-process route (no UI, no browser
  * session). Uses the same adapter path as the sign-up server action.
  */
+export interface RegisterOptions {
+  /**
+   * Register as someone who has chosen this language (spec 16.1).
+   *
+   * Sent as the locale COOKIE rather than a field, because that is the only signal
+   * that actually reaches this path: `/api/*` is exempt from locale prefixing, so
+   * there is no `x-app-locale` header on a seed request. It is the same thing a
+   * real user's browser carries after they use the language switcher.
+   */
+  locale?: string;
+}
+
 export async function registerViaApi(
   request: APIRequestContext,
   email: string,
   password = TEST_PASSWORD,
+  options?: RegisterOptions,
 ): Promise<void> {
   const res = await request.post("/api/dev/seed-user", {
     data: { email, password, name: "E2E User" },
+    ...(options?.locale ? { headers: { cookie: `app-locale=${options.locale}` } } : {}),
   });
   if (!res.ok()) {
     throw new Error(`registerViaApi failed (${res.status()}): ${await res.text()}`);
@@ -266,8 +280,9 @@ export async function getUserId(request: APIRequestContext, email: string): Prom
 export async function registerAndVerify(
   request: APIRequestContext,
   email: string,
+  options?: RegisterOptions,
 ): Promise<string> {
-  await registerViaApi(request, email);
+  await registerViaApi(request, email, TEST_PASSWORD, options);
   const link = await getVerificationLink(request, email);
   await request.get(link);
   return getUserId(request, email);

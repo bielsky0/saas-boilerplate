@@ -8,6 +8,7 @@ import type {
 import { jobs } from "@/lib/adapters/jobs";
 import { db } from "@/lib/db";
 import { billingPayment, subscription, webhookEvent } from "@/lib/db/schema";
+import { createLogger } from "@/lib/logger";
 import { findBillingCustomer } from "./data";
 import { planIdForPriceId } from "./plans";
 
@@ -159,6 +160,8 @@ async function applyPaymentEvent(
  * The enqueue has none of these and inherits the marker's exactly-once guarantee
  * for free. The drain happens after the response, from the route.
  */
+const log = createLogger("billing:webhook");
+
 export async function processBillingEvent(event: BillingEvent): Promise<ProcessResult> {
   const customer = await findBillingCustomer(event.provider, event.customerId);
   if (!customer) {
@@ -169,10 +172,12 @@ export async function processBillingEvent(event: BillingEvent): Promise<ProcessR
     // (spec 5.3) persists the mapping BEFORE creating the session, so a real
     // customer of ours is always resolvable by the time its events arrive.
     // No marker is written, so fixing a mapping + resending still works.
-    console.warn(
-      `[billing:webhook] ignoring event for unknown customer ` +
-        `provider=${event.provider} event=${event.id} type=${event.type} customer=${event.customerId}`,
-    );
+    log.warn("ignoring event for unknown customer", {
+      provider: event.provider,
+      event: event.id,
+      type: event.type,
+      customer: event.customerId,
+    });
     return { status: "unknown_customer" };
   }
 

@@ -3,6 +3,7 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { createHash, randomUUID } from "node:crypto";
 
 import { enqueueEmail } from "@/features/emails/send";
@@ -10,6 +11,7 @@ import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { invitation, membership, organization } from "@/lib/db/schema";
 import { clientEnv } from "@/lib/env/client";
+import { storedLocaleForEmail, toLocale } from "@/lib/i18n/user-locale";
 import { requireOrgPermission } from "./context";
 import { getInvitationByTokenHash, getOrgById, isSlugTaken } from "./data";
 import { createOrgSchema, inviteMemberSchema, slugSchema, updateRoleSchema } from "./schema";
@@ -25,7 +27,6 @@ import { resolveUniqueSlug } from "./slug";
 
 export type ActionState = { error?: string; success?: string };
 
-const GENERIC_ERROR = "Something went wrong. Please try again.";
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (spec 3.3)
 
 /** Thrown inside a transaction to abort it and surface a form error instead of a 403. */
@@ -65,12 +66,16 @@ export async function createOrganizationAction(
   formData: FormData,
 ): Promise<ActionState> {
   const session = await requireSession("/orgs/new");
-  const parsed = createOrgSchema.safeParse({
+  const [t, tv] = await Promise.all([
+    getTranslations("organizations.errors"),
+    getTranslations("organizations.validation"),
+  ]);
+  const parsed = createOrgSchema(tv).safeParse({
     name: str(formData.get("name")),
     slug: str(formData.get("slug")) || undefined,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? GENERIC_ERROR };
+    return { error: parsed.error.issues[0]?.message ?? t("generic") };
   }
 
   const slug = await resolveUniqueSlug(parsed.data.slug ?? parsed.data.name, isSlugTaken);
@@ -100,16 +105,41 @@ export async function inviteMemberAction(
   const slug = str(formData.get("slug"));
   const ctx = await requireOrgPermission(slug, "members.invite");
 
-  const parsed = inviteMemberSchema.safeParse({
+  const [t, tv, ts] = await Promise.all([
+    getTranslations("organizations.errors"),
+    getTranslations("organizations.validation"),
+    getTranslations("organizations.success"),
+  ]);
+  const parsed = inviteMemberSchema(tv).safeParse({
     email: str(formData.get("email")),
     role: str(formData.get("role")) || undefined,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? GENERIC_ERROR };
+    return { error: parsed.error.issues[0]?.message ?? t("generic") };
   }
 
   const rawToken = `${randomUUID()}${randomUUID()}`.replace(/-/g, "");
   const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
+
+  /**
+   * What language to invite them in (spec 16.1).
+   *
+   * Their own choice if they already have an account; otherwise the INVITER's,
+   * because an invitation is a message from this org and an org that works in
+   * Polish invites in Polish. There is no third option — an invitee with no
+   * account has told us nothing.
+   *
+   * RESOLVED BEFORE THE TRANSACTION OPENS, deliberately. Inside, this would take a
+   * SECOND pooled connection while `tx` holds the first — the exact deadlock
+   * features/admin/audit.ts documents. It reads nothing the transaction writes, so
+   * there is no reason for it to be in there.
+   *
+   * §3.3 anti-enumeration is intact: the language varies with whether the invitee
+   * has an account, but only the INVITEE ever sees the email — the inviter gets
+   * the same "Invitation sent" either way, which is what the rule is about.
+   */
+  const inviteeLocale =
+    (await storedLocaleForEmail(parsed.data.email)) ?? toLocale(ctx.session.user.locale);
 
   await db.transaction(async (tx) => {
     // Supersede any prior pending invite for this email so only one link is live.
@@ -149,7 +179,7 @@ export async function inviteMemberAction(
         inviterName: ctx.session.user.name ?? ctx.session.user.email,
         role: parsed.data.role,
       },
-      { to: parsed.data.email },
+      { to: parsed.data.email, locale: inviteeLocale },
       // The invitation row's own id: re-inviting mints a NEW row (the update above
       // revokes the old one), so a genuine re-invite gets a genuinely new key and
       // is not swallowed as a duplicate.
@@ -158,7 +188,7 @@ export async function inviteMemberAction(
   });
 
   revalidatePath(`/orgs/${slug}/members`);
-  return { success: `Invitation sent to ${parsed.data.email}.` };
+  return { success: ts("invitationSent", { email: parsed.data.email }) };
 }
 
 export async function revokeInvitationAction(
@@ -168,6 +198,7 @@ export async function revokeInvitationAction(
   const slug = str(formData.get("slug"));
   const invitationId = str(formData.get("invitationId"));
   const ctx = await requireOrgPermission(slug, "invitations.revoke");
+  const ts = await getTranslations("organizations.success");
 
   await db
     .update(invitation)
@@ -181,7 +212,7 @@ export async function revokeInvitationAction(
     );
 
   revalidatePath(`/orgs/${slug}/members`);
-  return { success: "Invitation revoked." };
+  return { success: ts("invitationRevoked") };
 }
 
 export async function acceptInvitationAction(
@@ -190,14 +221,15 @@ export async function acceptInvitationAction(
 ): Promise<ActionState> {
   const rawToken = str(formData.get("token"));
   const session = await requireSession(`/invitations/${rawToken}`);
+  const t = await getTranslations("organizations.errors");
 
   const invite = await getInvitationByTokenHash(hashToken(rawToken));
   if (!invite || invite.status !== "pending" || invite.expiresAt.getTime() < Date.now()) {
-    return { error: "This invitation is no longer valid." };
+    return { error: t("invitationInvalid") };
   }
 
   const org = await getOrgById(invite.organizationId);
-  if (!org) return { error: "This invitation is no longer valid." };
+  if (!org) return { error: t("invitationInvalid") };
 
   await db.transaction(async (tx) => {
     // Bearer-token accept by the authenticated session holder (documented policy).
@@ -230,13 +262,17 @@ export async function updateMemberRoleAction(
 ): Promise<ActionState> {
   const slug = str(formData.get("slug"));
   const ctx = await requireOrgPermission(slug, "members.update_role");
+  const [t, ts] = await Promise.all([
+    getTranslations("organizations.errors"),
+    getTranslations("organizations.success"),
+  ]);
 
-  const parsed = updateRoleSchema.safeParse({
+  const parsed = updateRoleSchema().safeParse({
     membershipId: str(formData.get("membershipId")),
     role: str(formData.get("role")),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? GENERIC_ERROR };
+    return { error: parsed.error.issues[0]?.message ?? t("generic") };
   }
 
   try {
@@ -264,13 +300,13 @@ export async function updateMemberRoleAction(
     });
   } catch (error) {
     if (error instanceof LastOwnerError) {
-      return { error: "An organization must keep at least one owner." };
+      return { error: t("lastOwnerDemote") };
     }
     throw error;
   }
 
   revalidatePath(`/orgs/${slug}/members`);
-  return { success: "Role updated." };
+  return { success: ts("roleUpdated") };
 }
 
 export async function removeMemberAction(
@@ -279,6 +315,10 @@ export async function removeMemberAction(
 ): Promise<ActionState> {
   const slug = str(formData.get("slug"));
   const ctx = await requireOrgPermission(slug, "members.remove");
+  const [t, ts] = await Promise.all([
+    getTranslations("organizations.errors"),
+    getTranslations("organizations.success"),
+  ]);
   const membershipId = str(formData.get("membershipId"));
 
   try {
@@ -297,13 +337,13 @@ export async function removeMemberAction(
     });
   } catch (error) {
     if (error instanceof LastOwnerError) {
-      return { error: "You can't remove the last owner of an organization." };
+      return { error: t("lastOwnerRemove") };
     }
     throw error;
   }
 
   revalidatePath(`/orgs/${slug}/members`);
-  return { success: "Member removed." };
+  return { success: ts("memberRemoved") };
 }
 
 export async function leaveOrganizationAction(
@@ -312,6 +352,7 @@ export async function leaveOrganizationAction(
 ): Promise<ActionState> {
   const slug = str(formData.get("slug"));
   const ctx = await requireOrgPermission(slug, "organization.leave");
+  const t = await getTranslations("organizations.errors");
 
   try {
     await db.transaction(async (tx) => {
@@ -322,7 +363,7 @@ export async function leaveOrganizationAction(
     });
   } catch (error) {
     if (error instanceof LastOwnerError) {
-      return { error: "Transfer ownership before leaving — an org needs at least one owner." };
+      return { error: t("lastOwnerLeave") };
     }
     throw error;
   }
@@ -339,20 +380,25 @@ export async function updateOrganizationAction(
   const slug = str(formData.get("slug"));
   const ctx = await requireOrgPermission(slug, "organization.update");
 
-  const parsedName = createOrgSchema.shape.name.safeParse(str(formData.get("name")));
+  const [t, tv, ts] = await Promise.all([
+    getTranslations("organizations.errors"),
+    getTranslations("organizations.validation"),
+    getTranslations("organizations.success"),
+  ]);
+  const parsedName = createOrgSchema(tv).shape.name.safeParse(str(formData.get("name")));
   if (!parsedName.success) {
-    return { error: parsedName.error.issues[0]?.message ?? GENERIC_ERROR };
+    return { error: parsedName.error.issues[0]?.message ?? t("generic") };
   }
 
   const rawNewSlug = str(formData.get("newSlug")).trim();
   let nextSlug = ctx.org.slug;
   if (rawNewSlug && rawNewSlug !== ctx.org.slug) {
-    const parsedSlug = slugSchema.safeParse(rawNewSlug);
+    const parsedSlug = slugSchema(tv).safeParse(rawNewSlug);
     if (!parsedSlug.success) {
-      return { error: parsedSlug.error.issues[0]?.message ?? GENERIC_ERROR };
+      return { error: parsedSlug.error.issues[0]?.message ?? t("generic") };
     }
     if (await isSlugTaken(parsedSlug.data)) {
-      return { error: "That slug is already taken." };
+      return { error: t("slugTaken") };
     }
     nextSlug = parsedSlug.data;
   }
@@ -366,7 +412,7 @@ export async function updateOrganizationAction(
     redirect(`/orgs/${nextSlug}/settings`);
   }
   revalidatePath(`/orgs/${slug}/settings`);
-  return { success: "Organization updated." };
+  return { success: ts("organizationUpdated") };
 }
 
 export async function deleteOrganizationAction(

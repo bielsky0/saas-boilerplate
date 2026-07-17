@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState, useEffect, useId } from "react";
 
 import { Button, ConfirmDialog, FormMessage, toast } from "@/components/ui";
@@ -12,6 +13,7 @@ const initial: ActionState = {};
 export function RevokeInviteButton({ slug, invitationId }: { slug: string; invitationId: string }) {
   const [state, action, pending] = useActionState(revokeInvitationAction, initial);
   const formId = useId();
+  const t = useTranslations("organizations.invitationActions");
 
   useEffect(() => {
     if (state.success) toast.success(state.success);
@@ -26,12 +28,12 @@ export function RevokeInviteButton({ slug, invitationId }: { slug: string; invit
       <ConfirmDialog
         trigger={
           <Button type="button" variant="ghost" size="sm" disabled={pending}>
-            {pending ? "Revoking…" : "Revoke"}
+            {pending ? t("revoking") : t("revoke")}
           </Button>
         }
-        title="Revoke this invitation?"
-        description="The invitation link stops working immediately."
-        confirmLabel="Revoke invitation"
+        title={t("confirmTitle")}
+        description={t("confirmBody")}
+        confirmLabel={t("confirmAction")}
         confirmForm={formId}
         disabled={pending}
       />

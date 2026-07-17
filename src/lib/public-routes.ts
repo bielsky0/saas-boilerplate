@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+import { stripLocale } from "@/lib/i18n/config";
+
 /**
  * The public page surface (spec §2.5, §9.1).
  *
@@ -75,11 +77,23 @@ export type PublicPagePath = keyof typeof PUBLIC_PAGE_ROUTES;
 
 const ROUTE_ENTRIES = Object.entries(PUBLIC_PAGE_ROUTES) as [PublicPagePath, PublicPageRoute][];
 
-/** True when `pathname` is a public PAGE (api exemptions live in proxy.ts). */
+/**
+ * True when `pathname` is a public PAGE (api exemptions live in proxy.ts).
+ *
+ * NORMALIZES the locale prefix rather than multiplying the table above (§16).
+ * `/pl/blog` and `/blog` are the same page in two languages, not two entries —
+ * a per-locale table would double every time a locale is added, and the failure
+ * mode of forgetting a row is a public page that 307s to /login in Polish only.
+ *
+ * `stripLocale` is idempotent, so the bare paths `sitemap.ts` and `robots.ts`
+ * pass in are unaffected, and doing it HERE rather than at each call site makes
+ * the function total: no future consumer can forget to strip first.
+ */
 export function isPublicPage(pathname: string): boolean {
+  const bare = stripLocale(pathname);
   for (const [path, route] of ROUTE_ENTRIES) {
-    if (pathname === path) return true;
-    if (route.prefix && pathname.startsWith(`${path}/`)) return true;
+    if (bare === path) return true;
+    if (route.prefix && bare.startsWith(`${path}/`)) return true;
   }
   return false;
 }

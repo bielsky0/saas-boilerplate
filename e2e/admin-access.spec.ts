@@ -59,7 +59,9 @@ test("a super admin reaches the admin panel", async ({ page, request }) => {
 
 test("an anonymous request to the admin panel is redirected to login", async ({ page }) => {
   await page.goto("/admin/users");
-  await page.waitForURL("**/login?callbackUrl=%2Fadmin%2Fusers");
+  // The panel lives under `[locale]` like every other page, so the guard's
+  // redirect carries the prefix on both the destination and the callback.
+  await page.waitForURL("**/en/login?callbackUrl=%2Fen%2Fadmin%2Fusers");
 });
 
 /**

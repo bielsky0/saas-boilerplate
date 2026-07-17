@@ -6,6 +6,7 @@ import { registry } from "@/features/jobs/registry";
 import { jobStats } from "@/features/jobs/data";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env/server";
+import { requestLogger } from "@/lib/logger";
 
 /**
  * Job drain endpoint (spec 12) — THE DELIVERY GUARANTEE.
@@ -65,11 +66,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // §12.2 observability: one structured line per drain is the "przynajmniej w
   // logach" floor, and it is what makes a growing backlog visible without a UI.
-  console.log(
-    `[jobs] drain claimed=${result.claimed} ok=${result.succeeded} ` +
-      `retried=${result.retried} dead=${result.deadLettered} ` +
-      `queue=${JSON.stringify(stats)}`,
-  );
+  const log = await requestLogger("jobs");
+  log.info("drain", {
+    claimed: result.claimed,
+    ok: result.succeeded,
+    retried: result.retried,
+    dead: result.deadLettered,
+    queue: stats,
+  });
 
   return NextResponse.json({ ...result, queue: stats });
 }

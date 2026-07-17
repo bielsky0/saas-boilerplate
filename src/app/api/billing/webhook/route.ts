@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { processBillingEvent } from "@/features/billing/webhooks";
 import { kickDrain } from "@/features/jobs/runner";
 import { billing } from "@/lib/adapters/billing";
+import { requestLogger } from "@/lib/logger";
 
 /**
  * Billing webhook endpoint (spec 5.4 — the source of truth for subscriptions).
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (result.code === "MALFORMED_PAYLOAD") {
       // Authentic but unrecognizable — usually provider API-version skew.
       // Retries give us a window to deploy a fix and have them redelivered.
-      console.error("[billing:webhook] rejected malformed payload");
+      (await requestLogger("billing:webhook")).error("rejected malformed payload");
       return NextResponse.json({ error: "Malformed payload" }, { status: 400 });
     }
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });

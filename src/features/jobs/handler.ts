@@ -1,5 +1,8 @@
 import type { JobHandler } from "@/lib/adapters/jobs";
+import { createLogger } from "@/lib/logger";
 import { JOB_RETENTION_DAYS, pruneTerminalJobs } from "./data";
+
+const log = createLogger("jobs");
 
 /**
  * Housekeeping job (spec 12.1 — "czyszczenie danych po okresie retencji").
@@ -14,5 +17,5 @@ import { JOB_RETENTION_DAYS, pruneTerminalJobs } from "./data";
  */
 export const jobPruneHandler: JobHandler<"job.prune"> = async () => {
   const deleted = await pruneTerminalJobs();
-  console.log(`[jobs] pruned ${deleted} terminal job(s) older than ${JOB_RETENTION_DAYS}d`);
+  log.info("pruned terminal jobs", { deleted, olderThanDays: JOB_RETENTION_DAYS });
 };

@@ -1,5 +1,6 @@
 import createMDX from "@next/mdx";
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 
 // Validate environment variables at build/startup time (fail-fast).
 // Importing the env module runs the Zod schema against process.env, so a
@@ -47,4 +48,18 @@ const withMDX = createMDX({
   },
 });
 
-export default withMDX(nextConfig);
+/*
+ * next-intl (spec 16).
+ *
+ * The plugin's ONLY job here is to point the runtime at our request config; the
+ * path is non-default because `src/lib/i18n/` is where this codebase keeps
+ * cross-cutting concerns (see docs/ARCHITECTURE.md), not `src/i18n/`.
+ *
+ * Note what is NOT wired: `next-intl/middleware`. Locale routing lives in
+ * `src/proxy.ts` so that the default-deny auth guard and the locale rules are one
+ * decision in one file, rather than two systems negotiating over the same
+ * response. See src/lib/i18n/navigation.ts.
+ */
+const withNextIntl = createNextIntlPlugin("./src/lib/i18n/request.ts");
+
+export default withNextIntl(withMDX(nextConfig));

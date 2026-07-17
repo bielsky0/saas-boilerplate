@@ -21,12 +21,12 @@ import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
  * NOTE this is a SYSTEM role and has nothing to do with `membership.role`
  * (§4, org-scoped); the two vocabularies are kept disjoint on purpose.
  *
- * `user.deletedAt` is the one column in this file that is OURS, not the
- * engine's: it carries soft delete + retention (§11.3) for the identity record,
- * mirroring `organization.deletedAt`. It is declared to the engine via
- * `user.additionalFields` in the adapter so it rides along on the session user
- * at no extra query cost — which is what lets `getSession` return null for a
- * deleted account without a second round-trip.
+ * `user.deletedAt` and `user.locale` are the two columns in this file that are
+ * OURS, not the engine's. `deletedAt` carries soft delete + retention (§11.3) for
+ * the identity record, mirroring `organization.deletedAt`. Both are declared to
+ * the engine via `user.additionalFields` in the adapter so they ride along on the
+ * session user at no extra query cost — which is what lets `getSession` return
+ * null for a deleted account without a second round-trip.
  *
  * TENANT-ISOLATION CARVE-OUT: unlike business entities, these identity tables
  * intentionally do NOT carry an `organization_id`/`account_id` owner column
@@ -54,6 +54,26 @@ export const user = pgTable(
     banExpires: timestamp("banExpires"),
     // --- ours (spec 11.3) ---
     deletedAt: timestamp("deletedAt"),
+    /**
+     * The user's chosen language (spec 16.1) — the DURABLE store behind the
+     * request-time locale cookie.
+     *
+     * NULLABLE WITH NO DEFAULT, and both halves are deliberate. `NULL` means "this
+     * person has never told us", which is a different fact from "this person chose
+     * English" — and the two must stay different, because only the second may
+     * override what their browser asks for. A `.default('en')` would assert a
+     * preference we were never given, and would silently pin every existing user
+     * to English at migration time.
+     *
+     * Not an enum: locales are an application concern (`LOCALES` in
+     * src/lib/i18n/config.ts), and adding a language should not need a migration.
+     * The column is only ever written through `setLocaleAction`, which validates
+     * against that list; readers narrow with `isLocale` and fall back.
+     *
+     * This is what lets a §10.3 email sent a week from now be written in the right
+     * language: the cookie is gone by then, but the row is not.
+     */
+    locale: text("locale"),
   },
   (t) => [
     // Backs the admin user list's default ordering (spec 6.2).

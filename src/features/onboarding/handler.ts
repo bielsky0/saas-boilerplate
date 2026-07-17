@@ -2,9 +2,12 @@ import { z } from "zod";
 
 import { db } from "@/lib/db";
 import type { JobHandler } from "@/lib/adapters/jobs";
+import { createLogger } from "@/lib/logger";
 import { enqueueEmail } from "@/features/emails/send";
 import { getOnboardingUser, hasPaidSubscription } from "./data";
 import { ONBOARDING_STEPS } from "./sequence";
+
+const log = createLogger("onboarding");
 
 /**
  * One step of the onboarding sequence (spec 10.3).
@@ -27,7 +30,7 @@ export const onboardingStepHandler: JobHandler<"onboarding.step"> = async (paylo
   if (!definition) {
     // A step that no longer exists is deploy skew, not a transient fault. Treat it
     // as done: retrying can never make an removed step reappear.
-    console.warn(`[onboarding] unknown step="${step}" user=${userId} — skipping`);
+    log.warn("unknown step — skipping", { step, user: userId });
     return;
   }
 
@@ -40,7 +43,7 @@ export const onboardingStepHandler: JobHandler<"onboarding.step"> = async (paylo
   // reason the sequence is not cancelled by deleting rows: a delete would race the
   // claim, and this cannot.
   if (await hasPaidSubscription(userId)) {
-    console.log(`[onboarding] skip user=${userId} step=${step} reason=subscribed`);
+    log.info("skip", { user: userId, step, reason: "subscribed" });
     return;
   }
 
@@ -48,7 +51,13 @@ export const onboardingStepHandler: JobHandler<"onboarding.step"> = async (paylo
     db,
     definition.template,
     { name: recipient.name },
-    { to: recipient.email, ...(recipient.name ? { name: recipient.name } : {}) },
+    {
+      to: recipient.email,
+      ...(recipient.name ? { name: recipient.name } : {}),
+      // Resolved NOW, at enqueue — this handler is itself a day-3/day-7 job, and
+      // the child `email.send` it queues will be drained later still.
+      locale: recipient.locale,
+    },
     // The parent can be re-claimed after a visibility timeout (the queue is
     // at-least-once). This key is what makes that re-run not re-mail.
     { dedupeKey: `email:onboarding:${userId}:${step}` },

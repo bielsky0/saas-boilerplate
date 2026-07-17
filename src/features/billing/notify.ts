@@ -3,9 +3,12 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import type { JobHandler } from "@/lib/adapters/jobs";
 import { clientEnv } from "@/lib/env/client";
+import { createLogger } from "@/lib/logger";
 import { enqueueEmail } from "@/features/emails/send";
 import { getSubscriptionByProviderId, resolveBillingRecipients } from "./data";
 import { PLANS, type PlanId } from "./plans";
+
+const log = createLogger("billing:notify");
 
 /**
  * Billing notifications (spec 10.2 — payment failure, subscription confirmation).
@@ -71,10 +74,10 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
      */
     const sub = await getSubscriptionByProviderId(p.providerSubscriptionId);
     if (!sub || !LIVE_STATUSES.includes(sub.status)) {
-      console.log(
-        `[billing:notify] skip subscription-confirmed event=${p.eventId} ` +
-          `reason=${sub ? `status=${sub.status}` : "subscription-missing"}`,
-      );
+      log.info("skip subscription-confirmed", {
+        event: p.eventId,
+        reason: sub ? `status=${sub.status}` : "subscription-missing",
+      });
       return;
     }
 
@@ -87,7 +90,7 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
         db,
         "subscription-confirmed",
         { orgName: ownerName, planName: planName(sub.planId), manageUrl: manageUrl(orgSlug) },
-        { to: box.email, ...(box.name ? { name: box.name } : {}) },
+        { to: box.email, ...(box.name ? { name: box.name } : {}), locale: box.locale },
         // Per-CHILD key, including the address: this parent can be re-claimed
         // after a visibility timeout, and re-running the fan-out must not re-mail
         // anyone who already received it.
@@ -104,7 +107,7 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
   if (mailboxes.length === 0) {
     // Nobody left to tell (every Owner soft-deleted, or the org itself). Not a
     // failure: retrying cannot conjure a recipient.
-    console.warn(`[billing:notify] no recipients for payment-failed event=${p.eventId}`);
+    log.warn("no recipients for payment-failed", { event: p.eventId });
     return;
   }
   for (const box of mailboxes) {
@@ -112,7 +115,7 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
       db,
       "payment-failed",
       { orgName: ownerName, amount: p.amount, currency: p.currency, manageUrl: manageUrl(orgSlug) },
-      { to: box.email, ...(box.name ? { name: box.name } : {}) },
+      { to: box.email, ...(box.name ? { name: box.name } : {}), locale: box.locale },
       { dedupeKey: `email:${p.kind}:${p.eventId}:${box.email.toLowerCase()}` },
     );
   }

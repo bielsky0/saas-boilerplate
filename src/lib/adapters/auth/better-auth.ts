@@ -10,6 +10,9 @@ import { enqueueEmail } from "@/features/emails/send";
 import { startOnboardingSequence } from "@/features/onboarding/sequence";
 import { db, schema } from "@/lib/db";
 import { env } from "@/lib/env/server";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
+import { requestLocale } from "@/lib/i18n/request-locale";
+import { storedLocaleForUser } from "@/lib/i18n/user-locale";
 import type {
   AdminAuthAdapter,
   AuthAdapter,
@@ -59,6 +62,28 @@ function isSuperAdminRole(role: string | null | undefined): boolean {
   return (role ?? DEFAULT_ROLE).split(",").includes(SUPER_ADMIN_ROLE);
 }
 
+/**
+ * What language to write to this user in (spec 16.1), best evidence first.
+ *
+ * 1. What they CHOSE (`user.locale`).
+ * 2. Failing that, the language of the request in flight. Someone clicking "reset
+ *    password" on `/pl/forgot-password` is reading Polish right now, and that is
+ *    real evidence even though they never set a preference.
+ * 3. Failing that, the default. An email has to be in some language.
+ *
+ * TAKES AN ID AND QUERIES, rather than reading `user.locale` off the argument:
+ * `sendVerificationEmail`/`sendResetPassword` receive the engine's BASE user
+ * shape, which does not include `additionalFields` — so the column rides on the
+ * SESSION user (see getSession) but not on these hook params. One extra SELECT on
+ * a path that is already sending an email is a fair price for not guessing.
+ *
+ * Note this reads but never WRITES: recording a preference from a guess is what
+ * `signInAction` deliberately refuses to do, and the same reasoning applies here.
+ */
+async function recipientLocale(userId: string): Promise<Locale> {
+  return (await storedLocaleForUser(userId)) ?? (await requestLocale()) ?? DEFAULT_LOCALE;
+}
+
 export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
@@ -78,6 +103,20 @@ export const auth = betterAuth({
       // lets `getSession` reject a soft-deleted account with no extra query.
       // `input: false` keeps it out of every user-facing update endpoint.
       deletedAt: { type: "date", required: false, input: false },
+      /**
+       * The user's language (spec 16.1). Also ours, same reasoning: declared so it
+       * rides on the session user, which is what lets sign-in seed the locale
+       * cookie without a second query.
+       *
+       * `required: false` because NULL is meaningful — "never chose" is not "chose
+       * English" (see the column's header in db/schema/auth.ts).
+       *
+       * `input: false` is the security-relevant half: without it the engine would
+       * accept `locale` on its own update-user endpoint, giving the browser a
+       * second, UNVALIDATED door to a value the proxy trusts on every request.
+       * `setLocaleAction` is the one door, and it validates against LOCALES.
+       */
+      locale: { type: "string", required: false, input: false },
     },
   },
   emailAndPassword: {
@@ -97,14 +136,24 @@ export const auth = betterAuth({
     // alongside it, or the two mechanisms will disagree.
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
-      await enqueueEmail(db, "password-reset", { url, name: user.name }, { to: user.email });
+      await enqueueEmail(
+        db,
+        "password-reset",
+        { url, name: user.name },
+        { to: user.email, locale: await recipientLocale(user.id) },
+      );
     },
   },
   emailVerification: {
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
-      await enqueueEmail(db, "verify-email", { url, name: user.name }, { to: user.email });
+      await enqueueEmail(
+        db,
+        "verify-email",
+        { url, name: user.name },
+        { to: user.email, locale: await recipientLocale(user.id) },
+      );
     },
     /**
      * Start the onboarding sequence (spec 10.3). Day 0 IS the welcome, so this one
@@ -127,6 +176,30 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
+        /**
+         * Stamp the registration-time language onto the new row (spec 16.1).
+         *
+         * WHY HERE AND NOT IN `signUpAction`: that action returns `ok: true` for a
+         * fresh email AND for one that is already registered — deliberately, so it
+         * reveals nothing (§2.1, asserted by e2e/login-enumeration.spec.ts). A
+         * write there could not tell the two apart, so signing up with someone
+         * else's address would silently overwrite THEIR language. This hook fires
+         * only on a genuine creation, which is exactly the distinction needed.
+         *
+         * A DELIBERATE ASYMMETRY WITH SIGN-IN, which does not backfill. Sign-in has
+         * an alternative — keep negotiating from the browser, every request, for
+         * free. Email has none: a §10.3 message going out on day 7 has no browser
+         * to ask, and "the language they registered in" is the best evidence that
+         * will ever exist. An explicit switch overwrites it immediately.
+         *
+         * Users created outside a request (the engine's own endpoints,
+         * /api/dev/seed-user) get NULL and fall back to the default. Correct and
+         * honest: nobody told us anything.
+         */
+        before: async (userData) => {
+          const locale = await requestLocale();
+          return locale ? { data: { ...userData, locale } } : undefined;
+        },
         // Every user owns exactly one personal account (spec 3.1), created here at
         // registration. Idempotent (unique userId + onConflictDoNothing) so seed
         // paths and retries never duplicate; a read-side `ensurePersonalAccount`
@@ -324,6 +397,11 @@ export const betterAuthAdapter: AuthAdapter = {
         name: result.user.name ?? null,
         isSuperAdmin: isSuperAdminRole(result.user.role),
         suspended: result.user.banned ?? false,
+        // Free — rides along via `user.additionalFields`, same as `deletedAt`.
+        // Left as the raw column value: `null` means "never chose", and narrowing
+        // to a valid locale is the caller's job (`isLocale`), not a decision to
+        // launder into a default here.
+        locale: result.user.locale ?? null,
       },
       expiresAt: new Date(result.session.expiresAt),
       impersonatedBy: result.session.impersonatedBy ?? null,

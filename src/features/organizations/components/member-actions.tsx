@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useActionState, useEffect, useId } from "react";
 
 import {
@@ -40,6 +41,7 @@ export function MemberActions({
   const [roleState, roleAction, rolePending] = useActionState(updateMemberRoleAction, initial);
   const [removeState, removeAction, removePending] = useActionState(removeMemberAction, initial);
   const removeFormId = useId();
+  const t = useTranslations("organizations");
 
   useEffect(() => {
     if (roleState.success) toast.success(roleState.success);
@@ -57,17 +59,17 @@ export function MemberActions({
             <input type="hidden" name="slug" value={slug} />
             <input type="hidden" name="membershipId" value={membershipId} />
             <Select name="role" defaultValue={currentRole}>
-              <SelectTrigger className="h-8 w-32" aria-label="Member role">
+              <SelectTrigger className="h-8 w-32" aria-label={t("members.roleLabel")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="owner">Owner</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="member">Member</SelectItem>
+                <SelectItem value="owner">{t("roles.owner")}</SelectItem>
+                <SelectItem value="admin">{t("roles.admin")}</SelectItem>
+                <SelectItem value="member">{t("roles.member")}</SelectItem>
               </SelectContent>
             </Select>
             <Button type="submit" variant="ghost" size="sm" disabled={rolePending}>
-              {rolePending ? "Saving…" : "Save"}
+              {rolePending ? t("members.saving") : t("members.save")}
             </Button>
           </form>
         ) : null}
@@ -81,12 +83,12 @@ export function MemberActions({
             <ConfirmDialog
               trigger={
                 <Button type="button" variant="ghost" size="sm" disabled={removePending}>
-                  {removePending ? "Removing…" : "Remove"}
+                  {removePending ? t("members.removing") : t("members.remove")}
                 </Button>
               }
-              title="Remove this member?"
-              description="They lose access to this organization immediately. Their user account is not deleted."
-              confirmLabel="Remove member"
+              title={t("members.confirmRemoveTitle")}
+              description={t("members.confirmRemoveBody")}
+              confirmLabel={t("members.confirmRemoveAction")}
               confirmForm={removeFormId}
               disabled={removePending}
             />

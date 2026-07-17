@@ -2,6 +2,8 @@ import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import { membership, personalAccount, subscription, user } from "@/lib/db/schema";
+import type { Locale } from "@/lib/i18n/config";
+import { toLocale } from "@/lib/i18n/user-locale";
 
 /**
  * Onboarding data-access layer (spec 10.3).
@@ -18,16 +20,20 @@ export interface OnboardingUser {
   id: string;
   email: string;
   name: string | null;
+  /** What language to write to them in (spec 16.1). Null = they never chose. */
+  locale: Locale;
 }
 
 /** The recipient, or null if the account is gone (spec 11.3 soft delete). */
 export async function getOnboardingUser(userId: string): Promise<OnboardingUser | null> {
   const [row] = await db
-    .select({ id: user.id, email: user.email, name: user.name })
+    // `locale` comes along in the query that was already fetching the recipient,
+    // so knowing which language to write in costs nothing extra (spec 16.1).
+    .select({ id: user.id, email: user.email, name: user.name, locale: user.locale })
     .from(user)
     .where(and(eq(user.id, userId), isNull(user.deletedAt)))
     .limit(1);
-  return row ?? null;
+  return row ? { ...row, locale: toLocale(row.locale) } : null;
 }
 
 /**
