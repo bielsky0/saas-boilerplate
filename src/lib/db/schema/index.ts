@@ -49,3 +49,4 @@ export * from "./webhook-events";
 export * from "./audit-logs";
 export * from "./jobs";
 export * from "./email-suppressions";
+export * from "./files";

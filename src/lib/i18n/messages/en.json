@@ -309,7 +309,8 @@
     "org": {
       "yourRole": "Your role:",
       "members": "Members",
-      "settings": "Settings"
+      "settings": "Settings",
+      "files": "Files"
     },
     "settings": {
       "heading": "Settings",
@@ -333,6 +334,38 @@
       "pending": "Pending invitations ({count})",
       "statusInvited": "invited",
       "statusSuspended": "suspended"
+    }
+  },
+  "storage": {
+    "title": "Files",
+    "subtitle": "Upload and manage files for this organization.",
+    "uploadTitle": "Upload a file",
+    "uploadHint": "Images or PDF, up to 10 MB. Private files are reachable only through a short-lived signed link.",
+    "choose": "Choose file",
+    "uploading": "Uploading…",
+    "uploaded": "File uploaded",
+    "deleted": "File deleted",
+    "empty": "No files yet.",
+    "open": "Open",
+    "delete": "Delete",
+    "visibility": {
+      "label": "Visibility",
+      "private": "Private",
+      "public": "Public"
+    },
+    "columns": {
+      "name": "Name",
+      "visibility": "Visibility",
+      "actions": "Actions"
+    },
+    "errors": {
+      "type": "That file type is not allowed.",
+      "size": "That file is too large.",
+      "presign": "Could not start the upload.",
+      "upload": "Upload failed.",
+      "confirm": "Could not confirm the upload.",
+      "open": "Could not open the file.",
+      "delete": "Could not delete the file."
     }
   }
 }

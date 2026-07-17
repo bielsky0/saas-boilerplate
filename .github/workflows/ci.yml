@@ -97,6 +97,30 @@ jobs:
       - name: Apply database migrations
         run: pnpm db:migrate
 
+      # MinIO can't be a GitHub `services:` container — the minio/minio image
+      # needs a `server /data` command that service containers can't set. Start it
+      # by hand instead, mirroring docker-compose.yml's `minio` + `minio_init`.
+      - name: Start MinIO (S3-compatible storage)
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:9000/minio/health/ready; then echo "minio ready"; break; fi
+            sleep 1
+          done
+
+      - name: Create S3 bucket
+        # Create the bucket and grant anonymous read ONLY on the `public/` prefix,
+        # so private files stay unreachable by bare URL (spec 21.3) — the exact
+        # policy the private-URL acceptance test depends on.
+        run: |
+          docker run --rm --network host --entrypoint /bin/sh minio/mc:latest -c "
+            mc alias set local http://localhost:9000 minioadmin minioadmin &&
+            mc mb --ignore-existing local/saas-boilerplate &&
+            mc anonymous set download local/saas-boilerplate/public
+          "
+
       - name: Run E2E tests
         run: pnpm test:e2e
 

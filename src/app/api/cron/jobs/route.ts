@@ -60,6 +60,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // line in this list, not another platform-specific schedule to configure.
   const today = new Date().toISOString().slice(0, 10);
   await jobs.enqueue(db, "job.prune", {}, { dedupeKey: `job.prune:${today}` });
+  // File retention purge (spec 21.4) — same once-per-day dedupe as job.prune.
+  await jobs.enqueue(db, "storage.purge", {}, { dedupeKey: `storage.purge:${today}` });
 
   const result = await jobs.drain(registry, { budgetMs: BATCH_BUDGET_MS });
   const stats = await jobStats();

@@ -27,7 +27,9 @@ export type Permission =
   | "invitations.revoke"
   | "organization.update"
   | "organization.delete"
-  | "organization.leave";
+  | "organization.leave"
+  | "storage.upload"
+  | "storage.delete";
 
 /** role → permissions. Owner is a superset; Admin manages members; Member reads. */
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
@@ -39,6 +41,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "organization.update",
     "organization.delete",
     "organization.leave",
+    "storage.upload",
+    "storage.delete",
   ],
   admin: [
     "members.invite",
@@ -47,8 +51,11 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "invitations.revoke",
     "organization.update",
     "organization.leave",
+    "storage.upload",
+    "storage.delete",
   ],
-  member: ["organization.leave"],
+  // Members may upload content, but not delete other people's files.
+  member: ["organization.leave", "storage.upload"],
 };
 
 /** True if `role` grants `permission`. Pure — safe for both UI and backend use. */

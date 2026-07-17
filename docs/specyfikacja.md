@@ -27,6 +27,16 @@ Aplikacja musi wspierać dwa konteksty pracy użytkownika:
 
 Użytkownik może należeć do wielu organizacji jednocześnie i przełączać się między nimi (context switcher). Każdy rekord danych biznesowych (nie tylko systemowych) musi być przypisany do dokładnie jednego „właściciela kontekstu" (personal account ID lub organization ID) — to jest klucz izolacji danych (tenant isolation). Wszystkie zapytania do bazy muszą być filtrowane po tym kluczu na poziomie warstwy dostępu do danych (nie tylko w UI), najlepiej wspierane dodatkowo politykami bezpieczeństwa na poziomie wiersza (row-level security), jeśli baza to obsługuje.
 
+### 1.4 Konfigurowalne wyłączenie multi-tenancy
+**Cel:** pozwolić produktom budowanym na tym boilerplate, które nie potrzebują organizacji (czyste B2C), wyłączyć tę warstwę bez przepisywania fundamentu.
+
+- Flaga konfiguracyjna na poziomie aplikacji (np. zmienna środowiskowa `MULTI_TENANCY_MODE` z wartościami `required` / `optional` / `disabled`), czytana raz przy starcie aplikacji
+- **`required`** (domyślne dla tego boilerplate'u): zachowanie zgodne z sekcjami 3-4 w całości — user musi mieć dostęp przez organizację albo personal account, oba konteksty widoczne
+- **`optional`**: organizacje istnieją i działają, ale UI nie zmusza użytkownika do wyboru — personal account jest domyślnym kontekstem, tworzenie organizacji jest dostępne, ale nieeksponowane w głównym flow
+- **`disabled`**: UI tworzenia/zarządzania organizacjami jest całkowicie ukryte (nawigacja, przełącznik kontekstu, zaproszenia), personal account staje się jedynym kontekstem dla każdego użytkownika
+
+**Ważne ograniczenie architektoniczne:** ta flaga jest **wyłącznie kosmetyczna/UI**, nie zmienia modelu danych. Każdy rekord biznesowy nadal ma `organization_id` lub `account_id` zgodnie z sekcją 1.3 — `disabled` oznacza tylko, że aplikacja nigdy nie tworzy organizacji ani nie pokazuje ich w interfejsie, nie że warstwa dostępu do danych przestaje wspierać ten model. Dzięki temu przełączenie trybu w przyszłości (np. produkt czysto B2C zaczyna jednak potrzebować zespołów) nie wymaga migracji danych, tylko odkrycia już istniejącego UI.
+
 ---
 
 ## 2. Autentykacja
@@ -62,6 +72,15 @@ Użytkownik może należeć do wielu organizacji jednocześnie i przełączać s
 - Użytkownik musi mieć widok „aktywne sesje/urządzenia" z możliwością wylogowania zdalnego
 - Middleware chroniący trasy: każda trasa aplikacji (poza jawnie publicznymi) wymaga ważnej sesji; przekierowanie do logowania z zachowaniem docelowego URL (redirect-back po zalogowaniu)
 - Ochrona API routes tym samym middlewarem — nie tylko stron
+
+### 2.7 Passkeys (WebAuthn/FIDO2)
+**Cel:** metoda logowania odporna na phishing, bez hasła i bez zależności od dostępu do skrzynki e-mail (w przeciwieństwie do magic linka).
+
+- Rozszerzenie istniejącego adaptera auth (sekcja 2, cała reszta specyfikacji trzyma się zasady braku vendor lock-in z sekcji 1.2) — passkeys implementowane jako kolejna metoda logowania za tym samym kontraktem, nie osobny, równoległy system
+- Rejestracja passkey: użytkownik (zalogowany już inną metodą, np. e-mail/hasło) w ustawieniach konta inicjuje dodanie klucza — przeglądarka/system operacyjny prosi o biometrię/PIN urządzenia, publiczny klucz zapisywany po stronie serwera, prywatny nigdy nie opuszcza urządzenia użytkownika
+- Logowanie przez passkey: użytkownik wybiera tę opcję na ekranie logowania zamiast podawać e-mail/hasło, przeglądarka komunikuje się z uwierzytelnionym urządzeniem, serwer weryfikuje podpis kryptograficzny
+- Użytkownik może mieć wiele zarejestrowanych passkeys (np. telefon + laptop), z widokiem zarządzania w ustawieniach (nazwa urządzenia, data dodania, data ostatniego użycia, możliwość odwołania pojedynczego klucza)
+- Passkeys współistnieją z innymi metodami logowania z sekcji 2 (nie zastępują ich) — użytkownik może mieć jednocześnie hasło, OAuth i passkey podpięte do tego samego konta
 
 ---
 
@@ -168,6 +187,24 @@ Użytkownik może należeć do wielu organizacji jednocześnie i przełączać s
 
 ### 6.3 Audit log
 - Rejestrowanie krytycznych akcji administracyjnych (impersonacja, zmiana roli, usunięcie konta, zmiana planu z poziomu admina) z timestampem, wykonawcą i celem akcji
+
+### 6.4 Pełny audit trail systemowy (rozszerzenie 6.3)
+**Cel:** rozszerzenie audytu z „akcje super admina" na „wszystkie istotne zmiany danych w systemie" — bezpośrednio wzmacnia wymogi RODO (kto zmienił dane klienta i kiedy) i daje podstawę do rozliczalności poza samym panelem admina.
+
+**Zakres zmian objętych audytem:**
+- Każda operacja tworzenia/edycji/usunięcia rekordu w encjach uznanych za wrażliwe biznesowo (dane klientów/uczniów, dokumenty/umowy z sekcji o RODO, zmiany ról i uprawnień, zmiany planu/billingu) — nie każda operacja w systemie, tylko te jawnie oznaczone jako podlegające audytowi
+- Zapis na poziomie pola: stara wartość → nowa wartość, nie tylko fakt „rekord X został zmieniony"
+
+**Model wykonawcy (actor):**
+- Rozróżnienie typu wykonawcy zmiany: `User` (zwykły użytkownik/pracownik organizacji), `SuperAdmin` (akcja z panelu administracyjnego, sekcja 6.3), `System` (zmiana wykonana automatycznie, np. przez background job albo webhook płatności), `AIAgent` (zmiana wykonana przez asystenta AI, jeśli moduł z sekcji 26 jest aktywny)
+- Każdy wpis audytu zawiera: kto (typ wykonawcy + identyfikator), co (encja + pole), kiedy, z jakiego kontekstu (organizacja/tenant)
+
+**Miejsce implementacji — jeden punkt, nie rozproszone wywołania:**
+- Hook audytu musi siedzieć w warstwie dostępu do danych (ten sam punkt, który już egzekwuje tenant isolation z sekcji 11.2), nie być ręcznie wywoływany w każdym endpoincie osobno — to gwarantuje, że żadna nowa funkcja nie „zapomni" zalogować zmiany, bo mechanizm jest częścią samej warstwy zapisu, nie opt-in po stronie każdego dewelopera
+
+**Eksport i retencja:**
+- Eksport do CSV dla wybranej organizacji/zakresu czasowego, dostępny dla Ownera organizacji (nie tylko super admina) — przydatne przy audytach compliance po stronie klienta
+- Retencja wpisów audytu zgodna z politykami retencji z sekcji 11.3, z uwzględnieniem, że sam log audytu może podlegać innym (zwykle dłuższym) wymogom przechowywania niż dane, których dotyczy
 
 ---
 
@@ -372,7 +409,153 @@ Sugerowana kolejność implementacji dla zespołu (od fundamentu do dodatków):
 8. SEO + blog/CMS (sekcje 8, 9)
 9. i18n, monitoring, testy (sekcje 14, 15, 16)
 10. AI SDK + pluginy dodatkowe (sekcje 13, 18)
+11. Rozszerzenia dodane po pierwszej wersji fundamentu (sekcje 21-27) — realizować pojedynczo, nie jako jedna faza, każde z osobną weryfikacją względem testów E2E fundamentu (fazy 2-3). Kolejność wg rosnącego ryzyka konfliktu z istniejącym kodem: (a) Storage, Notification center, AI Agent MCP, środowisko developerskie offline, Backup i przywracanie danych — nowe, izolowane moduły; (b) Passkeys, limity budżetowe — rozszerzenia istniejących adapterów za kontraktem; (c) Security headers/CSP, rate limiting całego API, walidacja jako warstwa — dotykają współdzielonej infrastruktury (middleware), rób pojedynczo; (d) Pełny audit trail, onboarding flow, konfigurowalne wyłączenie multi-tenancy — dotykają fundamentu z faz 1-3, wymagają osobnego namysłu architektonicznego przed implementacją
 
 ---
 
-*Dokument stanowi bazę do estymacji i implementacji. Każda sekcja powinna zostać doprecyzowana o konkretne makiety UI (Figma) przed startem developmentu danego modułu.*
+## 21. Storage / przechowywanie plików
+
+**Referencja przy implementacji:** ta sekcja jest fundamentem dla dokumentów/umów (RODO), avatarów, logo organizacji, obrazów bloga (sekcja 8) i wszelkich przyszłych załączników — inne sekcje powinny odwoływać się do tej warstwy, nie implementować własnego uploadu.
+
+### 21.1 Warstwa abstrakcji nad dostawcą
+- Wspólny interfejs S3-compatible (działa z AWS S3, Cloudflare R2, Backblaze B2, MinIO lokalnie — sekcja 25) — ten sam wzorzec adaptera co billing (5.1) i e-mail (10.1)
+- Operacje: upload, pobranie URL do odczytu (podpisany, czasowo ograniczony dla plików prywatnych), usunięcie, listowanie plików per właściciel
+
+### 21.2 Upload
+- Upload przez presigned URL — klient wysyła plik bezpośrednio do storage, nie przez serwer aplikacji (unika przeciążenia serwera dużymi plikami i limitów rozmiaru requestu)
+- Backend generuje podpisany URL uploadu tylko po zweryfikowaniu uprawnień (RBAC, sekcja 4.2) i typu/rozmiaru pliku deklarowanego przez klienta
+- Walidacja: dozwolone typy MIME per kontekst (np. tylko obrazy dla avatara, PDF/obrazy dla dokumentów), maksymalny rozmiar pliku, skanowanie w tle pod kątem złośliwej zawartości tam, gdzie ryzyko jest istotne (upload publicznie dostępnych plików)
+
+### 21.3 Model danych
+- Każdy plik przypisany do `organization_id`/`account_id` (tenant isolation z sekcji 11.2) oraz opcjonalnie do konkretnego rekordu biznesowego (np. dokument przypisany do klienta)
+- Metadane: nazwa oryginalna, typ MIME, rozmiar, kto wgrał, kiedy, widoczność (public/private)
+- Pliki publiczne (np. logo organizacji na stronie publicznej) dostępne przez stały URL; pliki prywatne wyłącznie przez podpisany, czasowo ograniczony URL generowany na żądanie
+
+### 21.4 Usuwanie i retencja
+- Soft delete zgodny z sekcją 11.3 — plik oznaczony jako usunięty nie jest natychmiast kasowany z bucketa, dopiero po okresie retencji (zadanie cykliczne w tle, sekcja 12)
+
+---
+
+## 22. Bezpieczeństwo warstwy aplikacji
+
+Zbiór wymogów niepokrywających się z żadną istniejącą sekcją wprost, ale dotykających wspólnej infrastruktury (middleware/routing) — patrz uwaga w sekcji 20 o kolejności wdrażania tych punktów pojedynczo.
+
+### 22.1 Security headers i Content Security Policy
+- Middleware/response headers ustawiane globalnie dla każdej odpowiedzi: `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Strict-Transport-Security`
+- CSP skonfigurowane restrykcyjnie (domyślnie odmowa), z jawną listą dozwolonych źródeł skryptów/stylów/obrazów — każda nowa zewnętrzna integracja (analytics, widget czatu) wymaga świadomego dopisania do listy, nie automatycznego zezwolenia
+- **Ważne przy implementacji:** ten mechanizm musi komponować się z istniejącym strażnikiem dostępu (middleware egzekwujący sesję/RBAC/routing i18n), nie może przejmować odpowiedzi ani z nim rywalizować — analogicznie do zasady ustalonej przy integracji next-intl (sekcja 16)
+
+### 22.2 Walidacja danych jako nazwana warstwa architektoniczna
+- Zasada: każdy input pochodzący spoza zaufanej granicy (formularz, API request, webhook) przechodzi przez schemat walidacji (np. Zod) **zanim** dotknie logiki biznesowej — walidacja nie jest opcjonalnym dodatkiem, tylko obowiązkowym punktem wejścia
+- Schemat walidacji współdzielony między frontendem (walidacja formularza, UX) a backendem (walidacja właściwa, źródło prawdy) — ten sam schemat, nie duplikowana logika
+- Błędy walidacji zwracane w spójnym, przewidywalnym formacie (pole → komunikat), konsumowanym jednolicie przez UI
+
+### 22.3 Rate limiting na całym API
+- Rozszerzenie mechanizmu z sekcji 2.1 (rate limiting logowania) na wszystkie endpointy API, nie tylko autentykację
+- Limity zróżnicowane per typ endpointu (np. bardziej restrykcyjne dla operacji kosztownych obliczeniowo/finansowo, luźniejsze dla odczytu danych)
+- Odpowiedź przy przekroczeniu limitu: standardowy kod 429 z nagłówkiem informującym, kiedy można spróbować ponownie
+
+### 22.4 Limity budżetowe dla zewnętrznych API (ochrona operatora)
+**Różnica względem quota z sekcji 5.6:** quota chroni przed nadużyciem przez pojedynczego użytkownika w ramach jego planu; limity budżetowe chronią **operatora aplikacji** (Ciebie) przed przypadkowym przepaleniem budżetu niezależnie od limitów per-plan (np. błąd w pętli generującej wywołania AI, obejście quota przez lukę w logice).
+
+- Twardy, globalny limit miesięcznych wydatków na wywołania AI (sekcja 13/26) — po przekroczeniu: nowe wywołania są odrzucane z czytelnym komunikatem, nie cichym printem błędu, z powiadomieniem operatora (e-mail/webhook)
+- Analogiczny twardy limit na liczbę/koszt wysyłek e-mail (ochrona przed pętlą wysyłkową lub nadużyciem formularzy)
+- Limity konfigurowalne, nie zahardkodowane — łatwe do dostosowania bez zmiany kodu
+
+---
+
+## 23. System powiadomień (Notification center)
+
+**Różnica względem e-maili transakcyjnych (sekcja 10):** to jest osobny, dodatkowy kanał w aplikacji (in-app), nie zamiennik e-maili — użytkownik może dostawać to samo zdarzenie oboma kanałami albo wybrać tylko jeden.
+
+### 23.1 Model danych
+- Powiadomienie: odbiorca (user w kontekście organizacji), typ zdarzenia, treść, link docelowy, status (nieprzeczytane/przeczytane), timestamp
+- Powiązane z tym samym mechanizmem zdarzeniowym, który wyzwala e-maile transakcyjne (sekcja 10.2) — jedno zdarzenie biznesowe może wygenerować i e-mail, i powiadomienie in-app, zależnie od preferencji użytkownika
+
+### 23.2 UI
+- Ikona z licznikiem nieprzeczytanych powiadomień, dostępna globalnie (analogicznie do przełącznika kontekstu z sekcji 3.5)
+- Lista powiadomień z możliwością oznaczenia jako przeczytane (pojedynczo/zbiorczo), kliknięcie przenosi do powiązanego zasobu
+
+### 23.3 Preferencje powiadomień
+- Użytkownik w ustawieniach konta wybiera per typ zdarzenia, którym kanałem chce być powiadamiany (in-app / e-mail / oba / żaden, tam gdzie zdarzenie nie jest krytyczne — zdarzenia bezpieczeństwa typu „nowe logowanie" nie powinny być możliwe do całkowitego wyłączenia)
+
+### 23.4 Dostarczanie w czasie rzeczywistym
+- Nowe powiadomienia pojawiają się w UI bez odświeżania strony (WebSocket albo polling jako prostszy fallback na start)
+- **Uwaga architektoniczna:** WebSocket wymaga długo działającego połączenia, co nie zawsze jest trywialne w czysto serverless środowisku (Vercel) — jeśli wybrany hosting tego nie wspiera dobrze, polling w rozsądnym interwale jest akceptowalnym uproszczeniem na start, zgodnie z zasadą „nie buduj ponad bieżącą potrzebę"
+
+---
+
+## 24. Onboarding — wieloetapowy flow po pierwszej rejestracji
+
+**Ważne rozróżnienie:** to jest warstwa UX nad istniejącymi krokami z sekcji 2 (rejestracja) i 3.2 (tworzenie organizacji), **nie** ich zastąpienie. Kroki onboardingu wywołują te same, niezmienione akcje co dotychczas — wizard porządkuje kolejność i prowadzi użytkownika, nie duplikuje logiki rejestracji/tworzenia organizacji.
+
+### 24.1 Struktura
+- Sekwencja kroków po pierwszym zalogowaniu (nowo zarejestrowany użytkownik): powitanie → uzupełnienie profilu (imię, opcjonalnie zdjęcie — wykorzystuje storage z sekcji 21) → (jeśli ścieżka „właściciel" z sekcji 3.2) utworzenie organizacji → wybór planu (może być Free, sekcja 5.2) → zakończenie
+- Kroki konfigurowalne (możliwość pominięcia niektórych, kolejność dostosowana per produkt budowany na boilerplacie)
+- Postęp zapisywany, żeby przerwanie onboardingu (np. zamknięcie karty) pozwalało wrócić do właściwego kroku przy następnym logowaniu, nie zaczynać od nowa
+
+### 24.2 Zakres
+- Onboarding dotyczy wyłącznie ścieżki „właściciel"/pierwsza rejestracja — użytkownik dołączający przez zaproszenie (sekcja 3.3) ma osobny, krótszy flow (od razu trafia do organizacji, do której został zaproszony, bez kroku tworzenia organizacji)
+
+---
+
+## 25. Środowisko developerskie offline
+
+**Cel:** umożliwić pracę nad aplikacją (w tym z Claude Code) bez kont w zewnętrznych usługach i bez połączenia z produkcyjną infrastrukturą — czysto lokalny setup, odtwarzalny od zera.
+
+### 25.1 Docker Compose
+- Lokalny Postgres (ten sam silnik co produkcja, żeby uniknąć niespójności zachowania)
+- Lokalny emulator S3-compatible storage (np. MinIO) — warstwa z sekcji 21.1 wskazuje na niego zamiast na prawdziwy S3/R2 w środowisku lokalnym, bez zmiany kodu aplikacji (to jest bezpośrednia korzyść z trzymania storage za adapterem)
+- Lokalny "przechwytywacz" wysyłanych e-maili (np. Mailpit/Mailcatcher) — e-maile transakcyjne (sekcja 10) trafiają do lokalnego podglądu w przeglądarce zamiast do prawdziwych skrzynek, bez potrzeby konta u dostawcy e-mail podczas developmentu
+
+### 25.2 Zgodność z resztą specyfikacji
+- To środowisko nie zmienia żadnego kontraktu adaptera z sekcji 1.2 — działa dokładnie dlatego, że billing, e-mail i storage są już schowane za wspólnymi interfejsami; zmiana dostawcy między local/produkcją to wyłącznie zmiana zmiennej środowiskowej wskazującej, którego adaptera użyć
+
+---
+
+## 26. AI Agent (MCP)
+
+**Różnica względem sekcji 13 (AI SDK):** sekcja 13 dotyczy funkcji AI używanych *przez* użytkownika końcowego w produkcie (chat, generowanie treści). Ta sekcja dotyczy wystawienia **danych własnej aplikacji** asystentom AI (np. Claude, przez Model Context Protocol) do zapytań/modyfikacji w naturalnym języku.
+
+### 26.1 Zakres i ryzyko
+- Serwer MCP wystawiający wybrane operacje aplikacji (odczyt danych, wybrane akcje zapisu) jako narzędzia dostępne dla podłączonego asystenta AI
+- **Krytyczny wymóg bezpieczeństwa:** każde wywołanie przez agenta AI przechodzi przez **dokładnie ten sam** mechanizm RBAC co zwykły użytkownik (sekcja 4.2) — agent działa w imieniu konkretnego użytkownika/organizacji i nie ma żadnych uprawnień ponad to, co miałby ten użytkownik w standardowym UI
+- Każda akcja wykonana przez agenta AI jest rejestrowana w audit trail (sekcja 6.4) z typem wykonawcy `AIAgent`, identycznie jak akcje użytkownika i systemu
+
+### 26.2 Przykładowe zastosowanie
+- Zapytania odczytowe w naturalnym języku (np. „ile mam aktywnych uczniów w grupach popołudniowych") tłumaczone na operacje na danych organizacji, z automatycznym filtrowaniem po tenant isolation (sekcja 11.2) — agent fizycznie nie ma dostępu do danych spoza kontekstu, w którym działa
+
+### 26.3 Status w tym boilerplate
+- Ten moduł jest bardziej zaawansowanym rozszerzeniem niż fundament — wdrażać dopiero po ustabilizowaniu reszty aplikacji i tylko jeśli konkretny produkt budowany na boilerplacie tego wymaga (zgodnie z kolejnością ryzyka w sekcji 20, punkt 11a)
+
+---
+
+## 27. Backup i przywracanie danych per organizacja
+
+**Kontekst:** sensowne przede wszystkim wtedy, gdy operator boilerplate'u faktycznie hostuje dane wielu organizacji (nie gdy boilerplate jest przekazywany deweloperom do samodzielnego wdrożenia, gdzie odpowiedzialność za backup leży po ich stronie/stronie ich hostingu). Wdrażać przy realnej potrzebie, nie na start pierwszego wertykału.
+
+### 27.1 Zakres kopii zapasowej
+- Kopia zapasowa obejmuje dane jednej organizacji (nie całej bazy na raz) — zgodnie z modelem tenant isolation z sekcji 11.2, backup i restore operują w tych samych granicach co reszta systemu
+- Konfigurowalny zakres: które moduły/tabele wchodzą w skład kopii (np. dane biznesowe tak, logi audytu sekcji 6.4 opcjonalnie osobno, ze względu na potencjalnie inny wymagany okres retencji)
+- Pliki ze storage (sekcja 21) należące do organizacji objęte kopią jako referencje albo pełna kopia — do ustalenia per produkt, zależnie od kosztu duplikowania dużych plików
+
+### 27.2 Szyfrowanie i przechowywanie
+- Kopie zapasowe szyfrowane w spoczynku (encryption at rest), osobnym kluczem niż bieżąca baza produkcyjna — kompromitacja jednego nie powinna automatycznie kompromitować drugiego
+- Przechowywane w warstwie storage z sekcji 21 (ten sam adapter S3-compatible), w osobnej, niepublicznej przestrzeni niedostępnej przez standardowe ścieżki uploadu/pobierania plików użytkownika
+
+### 27.3 Harmonogram i retencja
+- Automatyczny harmonogram kopii (np. codziennie/tygodniowo, konfigurowalne per plan — częstsze kopie jako funkcja planów wyższego poziomu, zgodnie z modelem planów z sekcji 5.2)
+- Polityka retencji: liczba/wiek przechowywanych kopii, z automatycznym usuwaniem najstarszych po przekroczeniu limitu (zadanie cykliczne w tle, sekcja 12)
+- Możliwość ręcznego wykonania kopii na żądanie przez Ownera organizacji (np. przed dużą, ryzykowną zmianą danych), niezależnie od harmonogramu automatycznego
+
+### 27.4 Przywracanie (restore)
+- Przywracanie inicjowane przez Ownera organizacji (z odpowiednim uprawnieniem RBAC, sekcja 4.2) albo przez super admina w imieniu organizacji (z audytem, sekcja 6.4)
+- Dwa scenariusze docelowe: przywrócenie do **tej samej** organizacji (np. cofnięcie błędnej masowej operacji) i przywrócenie do **innej/nowej** organizacji (np. duplikacja danych do środowiska testowego)
+- **Obsługa konfliktów** przy przywracaniu do organizacji, która od czasu wykonania kopii zmieniła dane: strategia do wyboru przez inicjującego — pomiń rekordy konfliktowe (zachowaj bieżący stan), nadpisz bieżący stan danymi z kopii, albo przerwij całą operację i wymagaj ręcznej decyzji
+- Przywracanie jest operacją nieodwracalną bez dodatkowej kopii — przed wykonaniem restore system automatycznie tworzy kopię bieżącego stanu (backup przed restore), żeby błędna decyzja o przywróceniu też dała się cofnąć
+
+### 27.5 Widoczność i kontrola
+- Lista dostępnych kopii zapasowych z metadanymi (data utworzenia, rozmiar, zakres, czy automatyczna czy ręczna) widoczna dla Ownera organizacji w ustawieniach
+- Status trwającej operacji backup/restore (w toku/zakończona/nieudana) widoczny w UI, nie tylko w logach — obie operacje mogą trwać dłużej niż typowy request i powinny być realizowane jako zadanie w tle (sekcja 12), z powiadomieniem po zakończeniu (sekcja 23)
+
+---

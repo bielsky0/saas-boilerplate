@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 import { E2E_BILLING_ENV } from "./e2e/billing-fixtures";
+import { E2E_STORAGE_ENV } from "./e2e/storage-fixtures";
 
 /**
  * Playwright E2E config (spec 14.1). Auth is critical, so these run on every PR
@@ -8,8 +9,11 @@ import { E2E_BILLING_ENV } from "./e2e/billing-fixtures";
  * verification link from the in-memory outbox via /api/dev/emails — no SMTP.
  *
  * The DB must be migrated before the web server starts (CI runs `pnpm db:migrate`;
- * locally run it once). We build + start a production server so there is no
- * first-request cold-compile in the middle of a test.
+ * locally run it once). The storage suite needs MinIO reachable at
+ * localhost:9000 with its bucket created — `pnpm db:up` starts it locally (the
+ * `minio` + `minio_init` compose services); CI runs it as a service + a bucket
+ * step. We build + start a production server so there is no first-request
+ * cold-compile in the middle of a test.
  */
 const PORT = 3000;
 const baseURL = process.env.NEXT_PUBLIC_APP_URL ?? `http://localhost:${PORT}`;
@@ -54,6 +58,8 @@ export default defineConfig({
       // that sign fixtures. Verification is a local HMAC, so these dummy values
       // never reach Stripe and the suite needs no account (spec 5.4).
       ...E2E_BILLING_ENV,
+      // Selects the S3 adapter against local MinIO (spec 21 / 25).
+      ...E2E_STORAGE_ENV,
     },
   },
 });

@@ -30,6 +30,9 @@ export default async function OrganizationPage({ params }: { params: Promise<{ s
           <Link href={`/orgs/${slug}/members`}>{t("members")}</Link>
         </Button>
         <Button asChild variant="outline" size="sm">
+          <Link href={`/orgs/${slug}/files`}>{t("files")}</Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
           <Link href={`/orgs/${slug}/settings`}>{t("settings")}</Link>
         </Button>
       </nav>

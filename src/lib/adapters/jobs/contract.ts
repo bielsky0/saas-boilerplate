@@ -53,7 +53,8 @@ import type { db } from "@/lib/db";
  */
 export type JobWriter = Pick<typeof db, "insert">;
 
-export type JobName = "email.send" | "onboarding.step" | "billing.notify" | "job.prune";
+export type JobName =
+  "email.send" | "onboarding.step" | "billing.notify" | "job.prune" | "storage.purge";
 
 /**
  * `email.send`'s `template` is `string`, not the email adapter's `TemplateName`:
@@ -110,6 +111,8 @@ export interface JobPayloads {
       | { kind: "subscription-confirmed"; providerSubscriptionId: string }
     );
   "job.prune": Record<string, never>;
+  /** Retention purge of soft-deleted files + their objects (spec 21.4). Cron-shaped. */
+  "storage.purge": Record<string, never>;
 }
 
 export interface EnqueueOptions {

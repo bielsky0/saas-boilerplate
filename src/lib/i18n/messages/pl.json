@@ -309,7 +309,8 @@
     "org": {
       "yourRole": "Twoja rola:",
       "members": "Członkowie",
-      "settings": "Ustawienia"
+      "settings": "Ustawienia",
+      "files": "Pliki"
     },
     "settings": {
       "heading": "Ustawienia",
@@ -333,6 +334,38 @@
       "pending": "Oczekujące zaproszenia ({count})",
       "statusInvited": "zaproszony",
       "statusSuspended": "zawieszony"
+    }
+  },
+  "storage": {
+    "title": "Pliki",
+    "subtitle": "Przesyłaj plikami tej organizacji i nimi zarządzaj.",
+    "uploadTitle": "Prześlij plik",
+    "uploadHint": "Obrazy lub PDF, do 10 MB. Pliki prywatne są dostępne wyłącznie przez krótkotrwały podpisany link.",
+    "choose": "Wybierz plik",
+    "uploading": "Przesyłanie…",
+    "uploaded": "Plik przesłany",
+    "deleted": "Plik usunięty",
+    "empty": "Brak plików.",
+    "open": "Otwórz",
+    "delete": "Usuń",
+    "visibility": {
+      "label": "Widoczność",
+      "private": "Prywatny",
+      "public": "Publiczny"
+    },
+    "columns": {
+      "name": "Nazwa",
+      "visibility": "Widoczność",
+      "actions": "Akcje"
+    },
+    "errors": {
+      "type": "Ten typ pliku jest niedozwolony.",
+      "size": "Ten plik jest za duży.",
+      "presign": "Nie udało się rozpocząć przesyłania.",
+      "upload": "Przesyłanie nie powiodło się.",
+      "confirm": "Nie udało się potwierdzić przesyłania.",
+      "open": "Nie udało się otworzyć pliku.",
+      "delete": "Nie udało się usunąć pliku."
     }
   }
 }

@@ -85,6 +85,36 @@ export const env = createEnv({
     // the plan is simply unmapped; see `planIdForPriceId` in features/billing.
     STRIPE_PRICE_PRO: z.string().optional(),
     STRIPE_PRICE_BUSINESS: z.string().optional(),
+    // Selects the storage adapter implementation (spec 21.1). Defaults to "none"
+    // so the boilerplate builds and runs with zero object-storage configuration:
+    // the adapter factory runs at module load, so a default that could throw would
+    // break `next build` for everyone (same reason BILLING_PROVIDER defaults to
+    // "none"). "none" makes the upload/file routes answer 404.
+    STORAGE_PROVIDER: z.enum(["none", "s3"]).default("none"),
+    // Only required when STORAGE_PROVIDER=s3; the s3 adapter throws a clear error
+    // at construction if selected without S3_BUCKET / credentials. The interface
+    // is S3-compatible, so ONE adapter serves AWS S3, Cloudflare R2, Backblaze B2
+    // and MinIO (spec 21.1 / 25) — the differences are entirely in these vars.
+    //
+    // S3_ENDPOINT: custom endpoint for non-AWS S3 (MinIO "http://localhost:9000",
+    // R2, B2). Unset = real AWS S3 for the given region.
+    S3_ENDPOINT: z.string().optional(),
+    // Region. AWS needs the real region; MinIO ignores it but the SDK requires a
+    // value, so this defaults rather than being optional.
+    S3_REGION: z.string().default("us-east-1"),
+    S3_BUCKET: z.string().optional(),
+    S3_ACCESS_KEY_ID: z.string().optional(),
+    S3_SECRET_ACCESS_KEY: z.string().optional(),
+    // Path-style addressing ("endpoint/bucket/key" rather than the virtual-hosted
+    // "bucket.endpoint/key"). MinIO needs it; set true for local dev.
+    S3_FORCE_PATH_STYLE: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((v) => v === "true"),
+    // Base URL used to build the STABLE public URL for public-visibility files
+    // (spec 21.3). Unset = derived from endpoint+bucket (path-style). Set it when a
+    // CDN or custom domain fronts the bucket.
+    S3_PUBLIC_URL: z.string().optional(),
   },
   // Server vars are read straight from process.env in the Node runtime.
   experimental__runtimeEnv: {},
