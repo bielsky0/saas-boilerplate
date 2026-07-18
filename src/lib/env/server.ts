@@ -139,6 +139,45 @@ export const env = createEnv({
     CSP_EXTRA_STYLE_SRC: z.string().default(""),
     CSP_EXTRA_CONNECT_SRC: z.string().default(""),
     CSP_EXTRA_IMG_SRC: z.string().default(""),
+    // Rate limiting (spec 2.1 / 22.3). Tri-state like CSP_MODE, but note the
+    // rationale is INVERTED: a CSP that ships disabled is a policy nobody notices
+    // is broken, so it defaults to enforce as an honesty measure. A rate limit
+    // that ships too TIGHT is an outage, so "report-only" exists as the TUNING
+    // mode — it counts, emits the RateLimit-* headers and logs every would-be
+    // block, but never answers 429. That is the safe way to change the tier table
+    // in src/lib/security/rate-limit.ts. "off" skips counting entirely.
+    //
+    // Still defaults to "enforce": 5 failed sign-ins per 15 minutes is not a limit
+    // any real user reaches, and the E2E suite proves the app works under it.
+    RATE_LIMIT_MODE: z.enum(["enforce", "report-only", "off"]).default("enforce"),
+    // Selects the rate-limit store (spec 22.3). "memory" is the default because
+    // the adapter factory runs at module load and the default must never throw
+    // (same reason BILLING_PROVIDER defaults to "none") — a Map cannot throw and
+    // needs no migration.
+    //
+    // ⚠️ KNOW WHAT THE DEFAULT COSTS YOU. "memory" counts PER PROCESS. Behind N
+    // instances (Vercel, any horizontally scaled deploy) each counts separately,
+    // so the effective limit is N x the configured limit. Use "postgres" there:
+    // one shared counter, one atomic statement, the database's clock as the single
+    // source of truth. It needs `pnpm db:migrate`.
+    //
+    // A "redis" member is the natural third — it is where a true sliding window
+    // (rather than this fixed window) belongs. Deliberately not built: it would
+    // add a dependency and a container for a precision nothing here needs yet.
+    RATE_LIMIT_PROVIDER: z.enum(["memory", "postgres"]).default("memory"),
+    // ⚠️ THE SECURITY-CRITICAL ONE. How many reverse proxies sit in front of this
+    // app. The client IP is taken this many entries from the RIGHT of
+    // X-Forwarded-For, because the LEFT end of that header is whatever the client
+    // typed. Get this wrong and the limiter is bypassable by rotating one header,
+    // i.e. decorative. 1 is correct on Vercel and behind a single nginx; 0 means
+    // nothing proxies the app. See src/lib/security/client-ip.ts.
+    RATE_LIMIT_FORWARDED_DEPTH: z.coerce.number().int().min(0).default(1),
+    // Spec 2.1's "blokada po 5 nieudanych próbach ... w oknie czasowym". These two
+    // are env — unlike the general tiers, which are code — because they are the
+    // §2.1 policy an operator tunes, and because the E2E suite pins them to prove
+    // the limit exists at its production values.
+    RATE_LIMIT_LOGIN_ATTEMPTS: z.coerce.number().int().positive().default(5),
+    RATE_LIMIT_LOGIN_WINDOW_S: z.coerce.number().int().positive().default(900),
   },
   // Server vars are read straight from process.env in the Node runtime.
   experimental__runtimeEnv: {},

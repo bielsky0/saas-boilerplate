@@ -71,6 +71,13 @@
       "when": 1784352142421,
       "tag": "0009_lumpy_big_bertha",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784382146885,
+      "tag": "0010_minor_thunderball",
+      "breakpoints": true
     }
   ]
 }

@@ -5,9 +5,12 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { authAdapter } from "@/lib/adapters/auth";
+import { rateLimit } from "@/lib/adapters/rate-limit";
 import { signOut as serverSignOut } from "@/lib/auth";
+import { env } from "@/lib/env/server";
 import { LOCALE_COOKIE, type Locale, withLocale } from "@/lib/i18n/config";
 import { storedLocaleForEmail } from "@/lib/i18n/user-locale";
+import { LOGIN_RULE, loginRateLimitKey } from "@/lib/security/rate-limit";
 import { forgotPasswordSchema, resetPasswordSchema, signInSchema, signUpSchema } from "./schema";
 
 /**
@@ -35,9 +38,62 @@ import { forgotPasswordSchema, resetPasswordSchema, signInSchema, signUpSchema }
  * So there is exactly ONE key, `auth.errors.invalidCredentials`, referenced from
  * both branches. Then no translation of any language can break the guarantee,
  * because there is only one string to translate. Never split it "for clarity".
+ *
+ * ─── Rate limiting, and why it does NOT threaten the invariant above (§2.1) ──
+ *
+ * §2.1 asks for two things in one bullet: throttled sign-in attempts, and a
+ * message that does not reveal whether an email exists. Those pull against each
+ * other, because "too many attempts" is a NEW observable — so the keying decides
+ * whether it is an oracle.
+ *
+ * KEYED ON THE CLIENT IP, NEVER ON THE SUBMITTED EMAIL. An oracle exists exactly
+ * when the observable varies with whether the account exists. An IP-keyed bucket
+ * is a function of THIS CLIENT'S recent failures and nothing else: five failures
+ * against a ghost address and five against a real one produce byte-identical
+ * state and byte-identical output. The attacker learns only that they have been
+ * failing, which they knew. So the distinct message is safe here — and worth
+ * showing, because a locked-out user told "invalid email or password" concludes
+ * their password is wrong and resets a password that was fine.
+ *
+ * Account-keyed limiting is rejected for three reasons, the last of which is the
+ * one people miss:
+ *   1. if the message differs, the Nth attempt is a perfect oracle;
+ *   2. the NATURAL implementation only creates a counter where the code reaches
+ *      the "wrong password" branch — which it only does for accounts that EXIST.
+ *      Getting it right means counting the submitted string before any lookup,
+ *      which lets an attacker fill the store with arbitrary keys;
+ *   3. it is an ACCOUNT-DENIAL-OF-SERVICE vector. Anyone who knows a victim's
+ *      email can lock them out of their own account, repeatedly, forever. IP
+ *      keying has no such property: an attacker can only lock out themselves.
+ *
+ * If account keying is ever added anyway, the rule is absolute: it must return
+ * the SAME `invalidCredentials` string, never a distinct one.
+ *
+ * `tooManyAttempts` is therefore a THIRD branch, reached BEFORE the two that must
+ * stay identical, and it does not participate in their equality. Adding it does
+ * not split the one key — that invariant is untouched.
+ *
+ * ONLY FAILURES ARE COUNTED, and success clears the bucket. An office of 300
+ * people behind one NAT therefore never accumulates, while brute force — which is
+ * by definition a stream of failures — is targeted exactly.
  */
 
 export type FormState = { error?: string };
+
+/**
+ * Is this client currently locked out (spec 2.1)?
+ *
+ * PEEK, NOT CONSUME — and the order matters more than it looks. The check runs
+ * BEFORE the auth adapter is called, because verifying a password is an argon2
+ * hash and that CPU cost is precisely what an attacker is trying to spend on our
+ * behalf. A limiter that verifies first and counts afterwards has already paid
+ * for the attack it then declines. See the `peek` note in the adapter contract.
+ */
+async function loginBlocked(requestHeaders: Headers): Promise<boolean> {
+  if (env.RATE_LIMIT_MODE !== "enforce") return false;
+  const decision = await rateLimit.peek(loginRateLimitKey(requestHeaders), LOGIN_RULE);
+  return !decision.allowed;
+}
 
 function safeCallbackUrl(raw: FormDataEntryValue | null): string {
   const value = typeof raw === "string" ? raw : "";
@@ -58,9 +114,18 @@ export async function signUpAction(_prev: FormState, formData: FormData): Promis
     return { error: parsed.error.issues[0]?.message ?? t("generic") };
   }
 
+  const requestHeaders = await headers();
+
+  // Account-creation spam (spec 22.3). Reveals nothing: the bucket is keyed on the
+  // client, so this message is identical whether or not the email already exists —
+  // the neutral-outcome guarantee below is untouched.
+  if (await loginBlocked(requestHeaders)) {
+    return { error: t("tooManyAttempts") };
+  }
+
   const result = await authAdapter.signUpEmailPassword(
     { email: parsed.data.email, password: parsed.data.password, name: parsed.data.name },
-    await headers(),
+    requestHeaders,
   );
 
   if (!result.ok) {
@@ -98,9 +163,17 @@ export async function signInAction(_prev: FormState, formData: FormData): Promis
     return { error: t("invalidCredentials") };
   }
 
+  const requestHeaders = await headers();
+  const rateKey = loginRateLimitKey(requestHeaders);
+
+  // §2.1 — before the engine, so a locked-out client costs us no password hash.
+  if (await loginBlocked(requestHeaders)) {
+    return { error: t("tooManyAttempts") };
+  }
+
   const result = await authAdapter.signInEmailPassword(
     { email: parsed.data.email, password: parsed.data.password },
-    await headers(),
+    requestHeaders,
   );
 
   if (!result.ok) {
@@ -108,17 +181,29 @@ export async function signInAction(_prev: FormState, formData: FormData): Promis
     // as the parse failure above — see this file's header. One key, three call
     // sites, so no translation can pull them apart.
     if (result.code === "INVALID_CREDENTIALS") {
+      // The ONLY branch that counts. Note it is also the only branch that is
+      // reachable without knowing the password, which is what makes it the
+      // brute-force signal rather than merely the most common failure.
+      await rateLimit.consume(rateKey, LOGIN_RULE);
       return { error: t("invalidCredentials") };
     }
     // Suspended/deleted (spec 6.2): only reachable with CORRECT credentials, since
     // the check runs after password verification — so naming the reason enumerates
     // nothing, and a locked-out user otherwise sees "invalid password" forever and
     // files a support ticket we already know the answer to.
+    //
+    // Deliberately does NOT consume: for that same reason it is not a
+    // brute-force signal, and counting it would let a suspended user's own retries
+    // throttle everyone sharing their IP.
     if (result.code === "ACCOUNT_SUSPENDED") {
       return { error: t("accountSuspended") };
     }
     return { error: t("generic") };
   }
+
+  // Success clears the bucket (spec 2.1) — this is what keeps a shared office IP
+  // from ever accumulating, and it is why only failures are counted.
+  await rateLimit.reset(rateKey);
 
   /*
    * SIGN-IN IS WHERE THE DURABLE STORE SEEDS THE REQUEST-TIME CACHE (spec 16.1).
@@ -198,11 +283,31 @@ export async function requestPasswordResetAction(
     return { sent: true };
   }
 
+  const requestHeaders = await headers();
+
+  /*
+   * ⚠️ RATE-LIMITED SILENTLY. This action must keep returning `{ sent: true }` —
+   * see this function's header. It is documented as having EXACTLY ONE observable
+   * outcome, so a distinguishable "too many attempts" state here would be a new
+   * signal on the one form specifically built not to have any, and the easiest
+   * oracle in the app to abuse because it needs no password guess.
+   *
+   * So a blocked client gets the same "we sent you a link" it always gets, and we
+   * simply do not send. That also makes this the mail-flood protection §22.4 asks
+   * for: the send is the expensive, abusable side effect, and it is what gets
+   * skipped.
+   */
+  const key = loginRateLimitKey(requestHeaders);
+  const decision = await rateLimit.consume(key, LOGIN_RULE);
+  if (env.RATE_LIMIT_MODE === "enforce" && !decision.allowed) {
+    return { sent: true };
+  }
+
   await authAdapter.requestPasswordReset(
     // Same-origin path only; the engine origin-checks it, so this cannot become an
     // open redirect.
     { email: parsed.data.email, redirectTo: "/reset-password" },
-    await headers(),
+    requestHeaders,
   );
 
   return { sent: true };

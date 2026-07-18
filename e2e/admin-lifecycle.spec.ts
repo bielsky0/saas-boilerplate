@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./rate-limit-fixtures";
 
 import { loginViaUi, registerViaApi, seedSuperAdmin, TEST_PASSWORD, uniqueEmail } from "./helpers";
 

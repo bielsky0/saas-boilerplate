@@ -63,7 +63,8 @@ Every business record belongs to exactly one context: a personal account or an o
 ## Security
 
 - Passwords are stored only as hashes (`bcrypt` or `argon2`)—never logged or stored in plain text.
-- Login rate limiting and responses that do not disclose whether an account exists.
+- Login rate limiting—per client, counting failed attempts only—with a lockout message that still does not disclose whether an account exists.
+- Rate limiting across every API endpoint, tiered by operation cost, answering `429` with `Retry-After`.
 - Single-use, expiring tokens for verification, password resets, magic links, and invitations.
 - Backend authorization for every data-changing operation; missing permissions return `403`.
 - A common protection mechanism for both application routes and API endpoints.

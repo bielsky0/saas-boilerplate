@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 import { E2E_BILLING_ENV } from "./e2e/billing-fixtures";
+import { E2E_RATE_LIMIT_ENV } from "./e2e/rate-limit-fixtures";
 import { E2E_STORAGE_ENV } from "./e2e/storage-fixtures";
 
 /**
@@ -60,6 +61,10 @@ export default defineConfig({
       ...E2E_BILLING_ENV,
       // Selects the S3 adapter against local MinIO (spec 21 / 25).
       ...E2E_STORAGE_ENV,
+      // Rate limiting at PRODUCTION limits (spec 2.1 / 22.3). The suite stays
+      // green because each test gets its own bucket via a header fixture, not
+      // because the limits are relaxed — see e2e/rate-limit-fixtures.ts.
+      ...E2E_RATE_LIMIT_ENV,
     },
   },
 });

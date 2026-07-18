@@ -82,6 +82,11 @@ exports as modules are built.
      `requireSuperAdmin()`. Tenant ids live in `payload`, as data;
    - `email_suppression` (§10.3) — an address is not a tenant record: it may map
      to no user, and to several tenants at once. Boundary: an HMAC-signed link.
+   - `rate_limit` (§22.3) — a counter is keyed on a **client** identifier, which
+     may map to no user and, behind a shared NAT, to several tenants at once.
+     Per-tenant counters would hand an attacker a fresh allowance for every
+     tenant they can name. Boundary: no feature code reads the table at all —
+     the only readers are `src/proxy.ts` and the sign-in action.
 
    `src/features/admin/data.ts` likewise queries **across** tenants by design,
    because §6.2 requires a global view; `requireSuperAdmin()` is what replaces the
@@ -163,6 +168,21 @@ implementation in code once the corresponding module is built (spec §17.2):
      join our memberships/subscriptions or see our `deletedAt`. Only operations
      that need the identity ENGINE (minting/revoking sessions) are in the
      contract; everything else is a Drizzle query in `features/admin/data.ts`.
+
+  `src/lib/adapters/rate-limit/` is a sixth, and shows what to do when an
+  adapter's operation must be **atomic** rather than transactional. A counter is
+  the mirror image of the jobs case: two requests racing toward the last slot of
+  a window must serialise against **each other**, not join some caller's
+  unrelated business write — so there is no `writer` parameter, and the postgres
+  provider is one `INSERT … ON CONFLICT DO UPDATE`, never a read-modify-write.
+  Two further things it demonstrates:
+  - **Two decision helpers, not one.** `decide` judges a hit already counted
+    (`count <= limit`); `decideNext` judges the hit about to happen
+    (`count < limit`). Collapsing them makes every limit fire one attempt late.
+  - **It fails OPEN.** A store that throws returns `allowed: true` and logs at
+    warn — the same stance the proxy takes on the session guard, because failing
+    closed turns a database blip into a total outage of every endpoint at once.
+
 - **Translate a string (§16):** add the key to **`src/lib/i18n/messages/en.json` and
   `pl.json`**, then read it with `useTranslations("ns")` (client + sync server
   components) or `await getTranslations("ns")` (async server components).
@@ -540,6 +560,83 @@ permission)` from `src/features/organizations/context.ts` as the FIRST line —
     https.** On an http origin it rewrites Better Auth's absolute redirects to a
     port nothing serves, and sign-in dies on a blank "This page couldn't load"
     with no violation logged anywhere.
+- **Add or tune a rate limit — spec 22.3:** the policy lives in ONE place,
+  `src/lib/security/rate-limit.ts`: `tierFor()` maps a request to a tier and
+  `TIERS` gives each tier its rule. `src/proxy.ts` only counts and attaches; the
+  adapter (`src/lib/adapters/rate-limit/`) only stores. Things worth knowing
+  before you change any of it:
+  - **`tierFor` is first-match-wins, and the order is the design.** Exemptions
+    are enumerated at the top; everything else under `/api/` falls through to
+    `read`/`write` by method. So a route added next month is limited **by
+    default**, and exempting one is a deliberate edit — not something you can
+    forget into existence.
+  - **Tune with `RATE_LIMIT_MODE=report-only` first.** It counts, emits the
+    `RateLimit-*` headers and logs every would-be block without answering 429.
+    This is the same move the CSP entry above recommends, for the mirror-image
+    reason: a CSP that ships disabled goes unnoticed, whereas a rate limit that
+    ships too tight is an outage.
+  - **The tiers are code, the login numbers are env.** `RATE_LIMIT_LOGIN_ATTEMPTS`
+    / `_WINDOW_S` are §2.1 policy an operator tunes; the other four tiers are a
+    _shape_ (read looser than write, write looser than expensive) and five
+    independent env vars would just be five ways to make it incoherent.
+  - **Two endpoints are exempt on purpose, and both would be actively harmful to
+    limit.** `/api/billing/webhook`: Stripe retries every non-2xx, so a 429 there
+    produces _more_ traffic and walks toward Stripe disabling the endpoint — the
+    limiter would cause the outage it exists to prevent, and the HMAC already
+    gates it before any DB work. `/api/cron/*`: a throttled drain does not fail
+    loudly, it silently stops every retry and all scheduled work.
+    `/api/unsubscribe` is limited but at the loosest tier, because a blocked
+    RFC 8058 unsubscribe is a compliance failure.
+  - **⚠️ `RATE_LIMIT_FORWARDED_DEPTH` is the security-critical variable.** The
+    client IP is taken that many entries from the RIGHT of `X-Forwarded-For`,
+    because the left end is whatever the client typed. Set it wrong and the
+    limiter is bypassable by rotating one header — i.e. decorative. 1 is correct
+    on Vercel and behind a single nginx. (Note `src/features/admin/audit.ts`
+    takes the LEFTMOST value; that is correct there because it is _evidence_, and
+    would be a vulnerability here because this is a _control_. Do not unify them.)
+  - **`RATE_LIMIT_PROVIDER=memory` counts per PROCESS.** Behind N instances the
+    effective limit is N × the limit. Switch to `postgres` on Vercel or any
+    horizontally scaled deploy, and run `pnpm db:migrate`.
+  - **The login limit is deliberately NOT enforced by the proxy.** Sign-in is a
+    server action, which POSTs to a page URL and never matches an `/api` rule, so
+    `signInAction` calls the adapter itself. That duplication is the point:
+    "the general limit must not override the login limit" cannot be guaranteed by
+    the same table it is a claim about. Limits compose by intersection — nothing
+    anywhere removes a bucket.
+  - **⚠️ E2E: a spec that drives a login must `import { expect, test } from
+"./rate-limit-fixtures"`**, not from `@playwright/test`. The suite runs
+    `fullyParallel` against one origin with no `X-Forwarded-For`, so without the
+    fixture's per-test bucket header every worker shares the `"unknown"` bucket
+    and specs fail each other with a "too many sign-in attempts" message that
+    looks nothing like the cause. `/api/dev/*` is exempt from the limiter, so
+    plain seeding needs no fixture. The suite runs at PRODUCTION limits on
+    purpose — see `e2e/rate-limit-fixtures.ts`.
+
+## Rate limiting in production
+
+`RATE_LIMIT_PROVIDER=memory` is the default because the adapter factory runs at
+module load and a default that can throw breaks `next build` for everyone. It is
+correct for a single container and for CI. **It is not correct for a multi-
+instance deploy**, where each instance keeps its own Map and the effective limit
+becomes N × the configured one. Set `RATE_LIMIT_PROVIDER=postgres` there: one
+shared counter, one atomic upsert, and the database's clock as the single source
+of truth (which is why every timestamp in that adapter is computed with `now()`
+rather than passed in from Node).
+
+Expired counters are reclaimed by the `ratelimit.prune` job, enqueued from
+`/api/cron/jobs` with an **hourly** dedupe key rather than the daily one
+`job.prune` and `storage.purge` use — rate-limit rows are one per client per
+bucket and expire in minutes, so a daily sweep would carry a full day of dead
+rows in a table the request path writes to constantly. On Vercel Hobby (daily
+cron only) it degrades to one prune per run. Skipping it entirely costs disk, not
+correctness: an expired row is reset by the next `consume` rather than read.
+
+**A deployment with no reverse proxy in front of it gets ONE bucket for the
+entire internet.** `clientIp()` has no socket address to fall back on (`NextRequest.ip`
+was removed in Next 15), so with no `X-Forwarded-For` every anonymous request
+keys to `"unknown"`. That only ever over-restricts, never under-restricts, but it
+means one abusive client can exhaust the anonymous allowance for everyone.
+Authenticated traffic is unaffected — it keys on the session.
 
 ## Common commands
 

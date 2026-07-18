@@ -53,6 +53,24 @@ const eslintConfig = defineConfig([
     },
   },
   /**
+   * Playwright fixtures are not React (spec 14.1).
+   *
+   * A Playwright fixture is declared as `async ({ deps }, use) => { await use(x) }`
+   * — and `react-hooks/rules-of-hooks` matches that call by NAME alone, deciding
+   * `use` is React 19's `use()` hook being called outside a component. It is a
+   * false positive on a file the React runtime never sees: nothing under e2e/ is
+   * bundled, rendered, or imported by the app.
+   *
+   * Scoped to the fixture files rather than all of e2e/, so the rule keeps working
+   * anywhere it could still mean something.
+   */
+  {
+    files: ["e2e/*-fixtures.ts"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+    },
+  },
+  /**
    * Super-admin containment (spec 6.3).
    *
    * Two things must not leak out of `src/features/admin`:

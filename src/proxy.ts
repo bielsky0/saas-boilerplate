@@ -10,10 +10,13 @@ import {
   stripLocale,
   withLocale,
 } from "@/lib/i18n/config";
+import { rateLimit } from "@/lib/adapters/rate-limit";
+import type { RateLimitDecision } from "@/lib/adapters/rate-limit";
 import { env } from "@/lib/env/server";
-import { REQUEST_ID_HEADER, normalizeRequestId } from "@/lib/logger";
+import { createLogger, REQUEST_ID_HEADER, normalizeRequestId } from "@/lib/logger";
 import { isMetadataImageRoute, isPublicPage } from "@/lib/public-routes";
 import { buildCsp, CSP_HEADER, NONCE_HEADER } from "@/lib/security/csp";
+import { rateLimitHeaders, rateLimitKey, tierFor, TIERS } from "@/lib/security/rate-limit";
 
 /**
  * Route guard (spec 2.5) + locale routing (spec 16) + request-id minting
@@ -45,16 +48,32 @@ import { buildCsp, CSP_HEADER, NONCE_HEADER } from "@/lib/security/csp";
  *
  * Same principle, applied a second time. Spec 22.1 requires the header mechanism
  * to COMPOSE with this guard rather than compete with it, so the CSP is not a
- * decision in the flow below — it is attached by the two functions that already
- * construct every response (`forward` and `redirectTo`), exactly like the request
- * id. The ordering above is untouched, and there is no path out of this file that
- * can forget the header, because there is no path out of this file that does not
- * go through one of those two.
+ * decision in the flow below — it is attached by the three functions that
+ * construct every response (`forward`, `redirectTo` and the terminal
+ * `tooManyRequests`), exactly like the request id. The ordering above is
+ * untouched, and there is no path out of this file that can forget the header,
+ * because there is no path out of this file that does not go through one of
+ * those three.
+ *
+ * ─── Rate limiting, the third concern (spec 22.3) ────────────────────────────
+ *
+ * `tooManyRequests` is the only one of the three that TERMINATES rather than
+ * continues, and it exists as a constructor for exactly the reason above: a
+ * hand-rolled `NextResponse.json` in the flow would be the first path out of this
+ * file that could forget the CSP and the request id, which would make the
+ * paragraph above false.
+ *
+ * The policy — which endpoint gets which limit — is not here either. It lives in
+ * src/lib/security/rate-limit.ts, the same way the CSP string lives in csp.ts,
+ * so this file stays a list of decisions rather than a table of numbers.
  *
  * The four CONSTANT security headers are not here at all; they are in
  * next.config.ts, which also covers the dot-paths this proxy's matcher skips.
  * See src/lib/security/csp.ts for why that split exists.
  */
+
+/** Only used by RATE_LIMIT_MODE=report-only; the enforce path answers, it does not narrate. */
+const log = createLogger("rate-limit");
 
 /**
  * `/api/*` routes reachable without a session.
@@ -154,6 +173,7 @@ function forward(
   requestId: string,
   nonce: string,
   locale?: Locale,
+  rateHeaders?: Record<string, string>,
 ): NextResponse {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(REQUEST_ID_HEADER, requestId);
@@ -163,6 +183,13 @@ function forward(
   if (locale) requestHeaders.set(LOCALE_HEADER, locale);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set(REQUEST_ID_HEADER, requestId);
+  // Advertise the remaining budget on ALLOWED responses too (spec 22.3) — a
+  // client that can see it coming backs off; one that cannot discovers the limit
+  // by being blocked. Attached here rather than in the flow, for the same reason
+  // the CSP is.
+  if (rateHeaders) {
+    for (const [name, value] of Object.entries(rateHeaders)) response.headers.set(name, value);
+  }
   return withCsp(response, nonce);
 }
 
@@ -173,15 +200,59 @@ function redirectTo(url: URL, requestId: string, nonce: string): NextResponse {
   return withCsp(response, nonce);
 }
 
-export function proxy(request: NextRequest): NextResponse {
+/**
+ * Terminal 429 (spec 22.3). The THIRD response constructor — see this file's
+ * header for why it is a function here rather than an inline NextResponse.json
+ * in the flow below.
+ *
+ * The body is `{ error }`, matching the shape every route handler in this repo
+ * hand-rolls, and NOT the `{ error, issues }` shape, which means 422 field
+ * validation. The string stays English and machine-stable because API clients
+ * parse it; the human, translated message is `auth.errors.tooManyAttempts`,
+ * rendered by the login form for the one case a person actually sees.
+ */
+function tooManyRequests(
+  decision: RateLimitDecision,
+  requestId: string,
+  nonce: string,
+): NextResponse {
+  const response = NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  response.headers.set(REQUEST_ID_HEADER, requestId);
+  for (const [name, value] of Object.entries(rateLimitHeaders(decision))) {
+    response.headers.set(name, value);
+  }
+  /*
+   * ⚠️ A CACHED 429 IS SERVED TO EVERYONE. Any CDN or intermediary that stored
+   * this response would hand it to clients that never hit a limit, for the life
+   * of the cache entry — turning a per-client control into a site-wide outage.
+   */
+  response.headers.set("Cache-Control", "no-store");
+  return withCsp(response, nonce);
+}
+
+/**
+ * Server actions POST to a PAGE url with a `Next-Action` header, so they never
+ * match an /api rule. See the defence-in-depth warning in security/rate-limit.ts:
+ * this header is an internal Next convention, and the §2.1 login guarantee
+ * deliberately does not depend on it.
+ */
+function isServerAction(request: NextRequest): boolean {
+  return request.method === "POST" && request.headers.has("next-action");
+}
+
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
   const requestId = normalizeRequestId(request.headers.get(REQUEST_ID_HEADER));
   /*
    * A FRESH nonce per request (spec 22.1). Reusing one across requests would make
    * it guessable, which is the whole of its security value.
    *
-   * `crypto.randomUUID()` is Web Crypto, present in the edge runtime — unlike
-   * node:crypto, which is not. It is CSPRNG-backed, so no manual seeding.
+   * `crypto.randomUUID()` is Web Crypto and CSPRNG-backed, so no manual seeding.
+   * It is also runtime-agnostic, which node:crypto is not — that mattered when
+   * proxies ran on the edge runtime. Next 16 defaults them to Node.js (the
+   * `runtime` option is not even available in a proxy file), which is what lets
+   * security/rate-limit.ts import node:crypto directly. Web Crypto here is now a
+   * preference rather than a constraint; there is no reason to change it.
    */
   const nonce = btoa(crypto.randomUUID());
 
@@ -199,9 +270,38 @@ export function proxy(request: NextRequest): NextResponse {
     return forward(request, requestId, nonce);
   }
 
+  /*
+   * Rate limiting (spec 22.3). ORDER IS THE DESIGN here too, and this step sits
+   * between two specific neighbours:
+   *
+   *   - AFTER the metadata-image escape above. An OG scraper has no session and
+   *     does not retry; a social network that gets a 429 caches the failure, so
+   *     one burst of shares would break every share card for as long as that
+   *     cache lives.
+   *   - BEFORE `isPublicApiPath`. That list is exactly the set of endpoints an
+   *     anonymous attacker can reach without a session, which makes it the set
+   *     most in need of counting — exempting it would invert the point.
+   */
+  let rateHeaders: Record<string, string> | undefined;
+  if (env.RATE_LIMIT_MODE !== "off") {
+    const tier = tierFor(pathname, request.method, isServerAction(request));
+    if (tier !== "exempt") {
+      const decision = await rateLimit.consume(rateLimitKey(tier, request), TIERS[tier]);
+      if (!decision.allowed) {
+        if (env.RATE_LIMIT_MODE === "enforce") {
+          return tooManyRequests(decision, requestId, nonce);
+        }
+        // report-only: count, say so, block nothing. The tuning mode — see the
+        // RATE_LIMIT_MODE comment in env/server.ts.
+        log.warn("rate limit would block", { tier, pathname, method: request.method, requestId });
+      }
+      rateHeaders = rateLimitHeaders(decision);
+    }
+  }
+
   // Non-session-authenticated API routes: signature, bearer token or HMAC.
   if (isPublicApiPath(pathname)) {
-    return forward(request, requestId, nonce);
+    return forward(request, requestId, nonce, undefined, rateHeaders);
   }
 
   const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value ?? null;
@@ -246,7 +346,7 @@ export function proxy(request: NextRequest): NextResponse {
   }
 
   if (isPublicBarePage(bare)) {
-    return forward(request, requestId, nonce, locale);
+    return forward(request, requestId, nonce, locale, rateHeaders);
   }
 
   const hasSession = Boolean(getSessionCookie(request));
@@ -258,10 +358,24 @@ export function proxy(request: NextRequest): NextResponse {
     return redirectTo(loginUrl, requestId, nonce);
   }
 
-  return forward(request, requestId, nonce, locale);
+  return forward(request, requestId, nonce, locale, rateHeaders);
 }
 
 export const config = {
-  // Run on everything except Next internals, the auth API, and static files.
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  /*
+   * Run on everything except Next internals and static files.
+   *
+   * `api/auth` USED TO BE EXCLUDED HERE and no longer is (spec 22.3): Better
+   * Auth's HTTP surface is the credential surface, so excluding it from the proxy
+   * excluded it from the limiter — the one endpoint group §2.1 is actually about.
+   * Nothing else changes for it: `isPublicApiPath` already returns true for
+   * `/api/auth/`, so it forwards without a locale redirect and without a session
+   * check, and `forward`'s header clone keeps its cookies intact. Those responses
+   * now also carry the CSP and the request id, which is a gain, not a regression.
+   *
+   * `.*\..*` still skips every path containing a dot (/robots.txt, /sitemap.xml,
+   * /.well-known/*), which is why the four CONSTANT security headers live in
+   * next.config.ts instead — see src/lib/security/csp.ts.
+   */
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

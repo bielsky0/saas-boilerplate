@@ -107,6 +107,7 @@
       "invalidCredentials": "Invalid email or password.",
       "weakPassword": "Password must be at least 8 characters and include a letter and a number.",
       "accountSuspended": "This account has been suspended. Contact support for help.",
+      "tooManyAttempts": "Too many sign-in attempts. Try again in a few minutes.",
       "resetLinkExpired": "This reset link is invalid or has expired. Request a new one."
     },
     "fields": {

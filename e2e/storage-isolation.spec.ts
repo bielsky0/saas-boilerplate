@@ -1,4 +1,5 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test } from "./rate-limit-fixtures";
 
 import { loginViaUi, registerViaApi, seedOrg, TEST_PASSWORD, uniqueEmail } from "./helpers";
 

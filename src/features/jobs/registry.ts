@@ -3,6 +3,7 @@ import { billingNotifyHandler } from "@/features/billing/notify";
 import { emailSendHandler } from "@/features/emails/handler";
 import { notificationCreateHandler } from "@/features/notifications/handler";
 import { onboardingStepHandler } from "@/features/onboarding/handler";
+import { rateLimitPruneHandler } from "@/features/rate-limit/handler";
 import { storagePurgeHandler } from "@/features/storage/purge";
 import { jobPruneHandler } from "./handler";
 
@@ -27,4 +28,5 @@ export const registry: JobRegistry = {
   "notification.create": notificationCreateHandler,
   "job.prune": jobPruneHandler,
   "storage.purge": storagePurgeHandler,
+  "ratelimit.prune": rateLimitPruneHandler,
 };

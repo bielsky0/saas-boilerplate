@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./rate-limit-fixtures";
 
 /**
  * Spec §8.2, §9.1 — sitemap.xml lists every published post and updates itself as

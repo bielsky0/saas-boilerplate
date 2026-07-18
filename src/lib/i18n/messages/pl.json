@@ -107,6 +107,7 @@
       "invalidCredentials": "Nieprawidłowy e-mail lub hasło.",
       "weakPassword": "Hasło musi mieć co najmniej 8 znaków oraz zawierać literę i cyfrę.",
       "accountSuspended": "To konto zostało zawieszone. Skontaktuj się ze wsparciem.",
+      "tooManyAttempts": "Zbyt wiele prób logowania. Spróbuj ponownie za kilka minut.",
       "resetLinkExpired": "Ten link resetujący jest nieprawidłowy lub wygasł. Poproś o nowy."
     },
     "fields": {

@@ -59,7 +59,8 @@ export type JobName =
   | "billing.notify"
   | "notification.create"
   | "job.prune"
-  | "storage.purge";
+  | "storage.purge"
+  | "ratelimit.prune";
 
 /**
  * `email.send`'s `template` is `string`, not the email adapter's `TemplateName`:
@@ -134,6 +135,15 @@ export interface JobPayloads {
   "job.prune": Record<string, never>;
   /** Retention purge of soft-deleted files + their objects (spec 21.4). Cron-shaped. */
   "storage.purge": Record<string, never>;
+  /**
+   * Reclaim expired rate-limit counters (spec 22.3). Cron-shaped, and enqueued
+   * HOURLY rather than daily — see the note at its enqueue site.
+   *
+   * Purely a disk concern: an expired counter is already reset by the next
+   * `consume` rather than read, so skipping this job costs storage, never
+   * correctness. A no-op on the memory provider.
+   */
+  "ratelimit.prune": Record<string, never>;
 }
 
 export interface EnqueueOptions {

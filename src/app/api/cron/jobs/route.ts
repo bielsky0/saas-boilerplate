@@ -62,6 +62,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   await jobs.enqueue(db, "job.prune", {}, { dedupeKey: `job.prune:${today}` });
   // File retention purge (spec 21.4) — same once-per-day dedupe as job.prune.
   await jobs.enqueue(db, "storage.purge", {}, { dedupeKey: `storage.purge:${today}` });
+  /*
+   * Rate-limit counter reclaim (spec 22.3). HOURLY, not daily like the two above,
+   * and the difference is the point: those sweep a slow trickle of soft-deleted
+   * records, whereas rate-limit rows are one per client per bucket and expire in
+   * minutes. At daily cadence a busy deployment carries a full day of dead rows
+   * in a table the request path writes to on every request.
+   *
+   * Slicing the ISO string to the hour gives one prune per hour on any pinger
+   * running more often than hourly, and degrades gracefully to one per run on
+   * Vercel Hobby, whose cron is daily-only (docs/ARCHITECTURE.md).
+   */
+  const thisHour = new Date().toISOString().slice(0, 13);
+  await jobs.enqueue(db, "ratelimit.prune", {}, { dedupeKey: `ratelimit.prune:${thisHour}` });
 
   const result = await jobs.drain(registry, { budgetMs: BATCH_BUDGET_MS });
   const stats = await jobStats();

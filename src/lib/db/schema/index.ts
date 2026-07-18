@@ -22,6 +22,11 @@
  *   - `./email-suppressions`: an address (§10.3) is not a tenant record — it may
  *     map to no user, and to several tenants at once. A global opt-out is the
  *     point. Boundary: an HMAC-signed link, not a session.
+ *   - `./rate-limits`: a counter (§22.3) is keyed on a CLIENT identifier, which
+ *     may map to no user and, behind a shared NAT, to several tenants at once.
+ *     Per-tenant counters would hand an attacker a fresh allowance per tenant
+ *     named. Boundary: no feature code reads the table at all — the only readers
+ *     are the proxy and the sign-in action.
  *
  * If a new table seems to qualify, check both halves honestly before adding it
  * here: "the query is awkward to scope" is not the same as "the subject is not a
@@ -52,3 +57,4 @@ export * from "./email-suppressions";
 export * from "./files";
 export * from "./notifications";
 export * from "./notification-preferences";
+export * from "./rate-limits";
