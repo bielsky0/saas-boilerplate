@@ -29,7 +29,8 @@ export type Permission =
   | "organization.delete"
   | "organization.leave"
   | "storage.upload"
-  | "storage.delete";
+  | "storage.delete"
+  | "audit.read";
 
 /** role → permissions. Owner is a superset; Admin manages members; Member reads. */
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
@@ -43,6 +44,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "organization.leave",
     "storage.upload",
     "storage.delete",
+    "audit.read",
   ],
   admin: [
     "members.invite",
@@ -53,8 +55,14 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "organization.leave",
     "storage.upload",
     "storage.delete",
+    "audit.read",
   ],
   // Members may upload content, but not delete other people's files.
+  //
+  // NOT granted `audit.read` (§6.4): the trail records who removed whom and whose
+  // role changed, which is management information about colleagues rather than
+  // content. Owner/Admin are the roles accountable for those actions and so the
+  // ones with standing to review them.
   member: ["organization.leave", "storage.upload"],
 };
 

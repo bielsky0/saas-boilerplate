@@ -112,11 +112,22 @@ export async function softDeleteFile(owner: FileOwner, fileId: string): Promise<
  * webhook resolution uses).
  */
 export async function listPurgeableFiles(cutoff: Date, limit = 100) {
-  return db
-    .select({ id: file.id, key: file.key })
-    .from(file)
-    .where(and(lt(file.deletedAt, cutoff)))
-    .limit(limit);
+  return (
+    db
+      // The owner columns are selected for the AUDIT entry (spec 6.4), not for the
+      // deletion — the purge itself only needs the id and the key. An org's files
+      // vanishing with nothing in its trail to explain why is precisely the kind of
+      // silent system action §6.4 exists to surface.
+      .select({
+        id: file.id,
+        key: file.key,
+        organizationId: file.organizationId,
+        accountId: file.accountId,
+      })
+      .from(file)
+      .where(and(lt(file.deletedAt, cutoff)))
+      .limit(limit)
+  );
 }
 
 /** Hard-delete a row after its object has been removed from the bucket. */

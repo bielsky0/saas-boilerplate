@@ -1,4 +1,4 @@
-import { lte } from "drizzle-orm";
+import { and, eq, lte } from "drizzle-orm";
 
 import type {
   BillingEvent,
@@ -6,6 +6,7 @@ import type {
   BillingSubscriptionData,
 } from "@/lib/adapters/billing";
 import { jobs } from "@/lib/adapters/jobs";
+import { changed, recordAudit, SYSTEM_ACTOR } from "@/features/admin/audit";
 import { db } from "@/lib/db";
 import { billingPayment, subscription, webhookEvent } from "@/lib/db/schema";
 import { createLogger } from "@/lib/logger";
@@ -55,7 +56,28 @@ async function applySubscriptionEvent(
   customer: { id: string } & Owner,
 ): Promise<void> {
   const data = event.subscription;
-  await tx
+
+  // The pre-image, for §6.4's field-level diff. Read with `tx` (we are inside an
+  // open transaction — see features/admin/audit.ts) and read BEFORE the upsert,
+  // which is the only moment the old values still exist. Undefined on a genuine
+  // `created`, which is exactly how we tell the two apart below.
+  const [before] = await tx
+    .select({
+      planId: subscription.planId,
+      status: subscription.status,
+      quantity: subscription.quantity,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+    })
+    .from(subscription)
+    .where(
+      and(
+        eq(subscription.provider, event.provider),
+        eq(subscription.providerSubscriptionId, data.providerSubscriptionId),
+      ),
+    )
+    .limit(1);
+
+  const applied = await tx
     .insert(subscription)
     .values({
       provider: event.provider,
@@ -88,7 +110,51 @@ async function applySubscriptionEvent(
       // bypasses the column's type encoder and reaches the driver as a raw Date,
       // which it cannot serialize.
       setWhere: lte(subscription.lastEventAt, event.occurredAt),
-    });
+    })
+    .returning({ id: subscription.id });
+
+  /*
+   * `.returning()` on an upsert whose `setWhere` failed yields NO ROW. That is a
+   * free, exact signal that this event was stale and changed nothing — and it must
+   * not be audited, because auditing it would assert a change that the watermark
+   * just refused to make.
+   */
+  if (applied.length === 0) return;
+
+  const after = {
+    planId: planIdForPriceId(data.providerPriceId),
+    status: data.status,
+    quantity: data.quantity,
+    cancelAtPeriodEnd: data.cancelAtPeriodEnd,
+  };
+  // A `created` has no pre-image, so every field is a change. An `updated` that
+  // altered nothing (the monthly renewal — same plan, same status, same seats)
+  // yields `undefined` from `changed()` and is skipped. Logging those would add a
+  // row per subscriber per month saying nothing happened, which is how an audit
+  // log becomes something people filter out rather than read.
+  const changes = before
+    ? changed(before, after, Object.keys(after) as (keyof typeof after)[])
+    : undefined;
+  if (before && !changes) return;
+
+  await recordAudit(tx, {
+    action: "subscription.change",
+    actor: SYSTEM_ACTOR,
+    organizationId: customer.organizationId,
+    targetType: "subscription",
+    targetId: data.providerSubscriptionId,
+    targetLabel: after.planId ?? data.providerPriceId,
+    metadata: {
+      changes,
+      eventType: event.type,
+      // The webhook route IS a request scope, so recordAudit's headers() capture
+      // succeeds — and captures the PROVIDER's IP and user-agent, not a user's.
+      // Naming the source here stops the next reader from misreading those columns
+      // as evidence about a person.
+      source: "webhook",
+      providerEventId: event.id,
+    },
+  });
 }
 
 /** Same watermarked upsert for payments — stops a late `invoice.paid` from
@@ -99,7 +165,7 @@ async function applyPaymentEvent(
   customer: { id: string } & Owner,
 ): Promise<void> {
   const data = event.payment;
-  await tx
+  const applied = await tx
     .insert(billingPayment)
     .values({
       provider: event.provider,
@@ -125,7 +191,37 @@ async function applyPaymentEvent(
         updatedAt: new Date(),
       },
       setWhere: lte(billingPayment.lastEventAt, event.occurredAt),
-    });
+    })
+    .returning({ id: billingPayment.id });
+
+  // Same stale-event signal as the subscription path above.
+  if (applied.length === 0) return;
+
+  /*
+   * No `changed()` diff here, unlike subscriptions, and the asymmetry is
+   * deliberate. A payment is an EVENT, not a mutable record — "succeeded" and
+   * "refunded" arrive as separate provider events about separate facts, so its
+   * status transitions are the thing worth recording, not a field-level diff
+   * against a previous shape. `metadata` carries the amount, which is what an
+   * auditor actually reconciles against.
+   */
+  await recordAudit(tx, {
+    action: "payment.record",
+    actor: SYSTEM_ACTOR,
+    organizationId: customer.organizationId,
+    targetType: "payment",
+    targetId: data.providerPaymentId,
+    targetLabel: `${(data.amount / 100).toFixed(2)} ${data.currency.toUpperCase()}`,
+    metadata: {
+      status: data.status,
+      reason: data.reason,
+      amount: data.amount,
+      currency: data.currency,
+      eventType: event.type,
+      source: "webhook",
+      providerEventId: event.id,
+    },
+  });
 }
 
 /**

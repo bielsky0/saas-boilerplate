@@ -56,6 +56,29 @@ export const suspendUserSchema = z.object({
   reason: z.string().trim().max(500).optional(),
 });
 
+/**
+ * Impersonation requires a REASON (spec 6.4) — a separate schema from
+ * `userTargetSchema`, and deliberately not a reuse of `suspendUserSchema`.
+ *
+ * `min(10)` rather than `min(1)`: a mandatory field that accepts "x" is theatre,
+ * and this is the one action in the panel that reads another person's account. The
+ * reason lands in the audit entry's metadata, where the org whose data was read can
+ * see it — so it is written FOR someone, not merely recorded.
+ *
+ * Note the contrast with `suspendUserSchema.reason`, which stays optional: a
+ * suspension is a visible, reversible state change on our own platform, and its
+ * justification is usually the ticket that prompted it. Reading someone's account
+ * leaves no trace anywhere else.
+ */
+export const impersonateUserSchema = z.object({
+  userId: z.string().min(1),
+  reason: z
+    .string()
+    .trim()
+    .min(10, "Give a reason of at least 10 characters — it is recorded in the audit log.")
+    .max(500),
+});
+
 export const orgTargetSchema = z.object({
   organizationId: z.string().min(1),
 });

@@ -13,6 +13,7 @@ import { recordAudit } from "./audit";
 import { requireSuperAdmin } from "./context";
 import { countSuperAdmins, getUserDetail, getUserEmailById, listSolelyOwnedOrgs } from "./data";
 import {
+  impersonateUserSchema,
   orgTargetSchema,
   setSuperAdminSchema,
   suspendUserSchema,
@@ -67,8 +68,15 @@ export async function impersonateUserAction(
 ): Promise<ActionState> {
   const ctx = await requireSuperAdmin();
 
-  const parsed = userTargetSchema.safeParse({ userId: str(formData.get("userId")) });
-  if (!parsed.success) return { error: GENERIC_ERROR };
+  const parsed = impersonateUserSchema.safeParse({
+    userId: str(formData.get("userId")),
+    reason: str(formData.get("reason")),
+  });
+  // Surfaces the actual message, unlike the other actions' GENERIC_ERROR. Those
+  // can only fail on a malformed hidden field, which a human cannot fix and should
+  // not see; this one fails on a field the admin just typed, so telling them why
+  // is the difference between a working form and a dead button.
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? GENERIC_ERROR };
 
   const target = await getUserDetail(parsed.data.userId);
   if (!target) return { error: "User not found." };
@@ -76,11 +84,12 @@ export async function impersonateUserAction(
 
   await recordAudit(db, {
     action: "impersonation.start",
-    actorId: ctx.actorId,
-    actorEmail: ctx.actorEmail,
+    actor: { actorType: "Admin", actorId: ctx.actorId, actorEmail: ctx.actorEmail },
+    organizationId: null,
     targetType: "user",
     targetId: target.id,
     targetLabel: target.email,
+    metadata: { reason: parsed.data.reason },
   });
 
   const result = await adminAuthAdapter.impersonate(target.id, await headers());
@@ -126,8 +135,12 @@ export async function stopImpersonatingAction(): Promise<void> {
 
   await recordAudit(db, {
     action: "impersonation.stop",
-    actorId: session.impersonatedBy,
-    actorEmail: adminEmail ?? "(unknown admin)",
+    actor: {
+      actorType: "Admin",
+      actorId: session.impersonatedBy,
+      actorEmail: adminEmail ?? "(unknown admin)",
+    },
+    organizationId: null,
     targetType: "user",
     targetId: impersonatedUser.id,
     targetLabel: impersonatedUser.email,
@@ -172,8 +185,8 @@ export async function suspendUserAction(
 
   await recordAudit(db, {
     action: "user.suspend",
-    actorId: ctx.actorId,
-    actorEmail: ctx.actorEmail,
+    actor: { actorType: "Admin", actorId: ctx.actorId, actorEmail: ctx.actorEmail },
+    organizationId: null,
     targetType: "user",
     targetId: target.id,
     targetLabel: target.email,
@@ -212,8 +225,8 @@ export async function unsuspendUserAction(
 
   await recordAudit(db, {
     action: "user.unsuspend",
-    actorId: ctx.actorId,
-    actorEmail: ctx.actorEmail,
+    actor: { actorType: "Admin", actorId: ctx.actorId, actorEmail: ctx.actorEmail },
+    organizationId: null,
     targetType: "user",
     targetId: target.id,
     targetLabel: target.email,
@@ -269,8 +282,8 @@ export async function deleteUserAction(
       await tx.update(organization).set({ deletedAt: now }).where(eq(organization.id, org.id));
       await recordAudit(tx, {
         action: "organization.delete",
-        actorId: ctx.actorId,
-        actorEmail: ctx.actorEmail,
+        actor: { actorType: "Admin", actorId: ctx.actorId, actorEmail: ctx.actorEmail },
+        organizationId: org.id,
         targetType: "organization",
         targetId: org.id,
         targetLabel: org.slug,
@@ -282,8 +295,8 @@ export async function deleteUserAction(
 
     await recordAudit(tx, {
       action: "user.delete",
-      actorId: ctx.actorId,
-      actorEmail: ctx.actorEmail,
+      actor: { actorType: "Admin", actorId: ctx.actorId, actorEmail: ctx.actorEmail },
+      organizationId: null,
       targetType: "user",
       targetId: target.id,
       targetLabel: target.email,
@@ -328,8 +341,8 @@ export async function deleteOrganizationAction(
     await tx.update(organization).set({ deletedAt: new Date() }).where(eq(organization.id, org.id));
     await recordAudit(tx, {
       action: "organization.delete",
-      actorId: ctx.actorId,
-      actorEmail: ctx.actorEmail,
+      actor: { actorType: "Admin", actorId: ctx.actorId, actorEmail: ctx.actorEmail },
+      organizationId: org.id,
       targetType: "organization",
       targetId: org.id,
       targetLabel: org.slug,
@@ -387,8 +400,8 @@ export async function setSuperAdminAction(
 
   await recordAudit(db, {
     action: grant ? "superadmin.grant" : "superadmin.revoke",
-    actorId: ctx.actorId,
-    actorEmail: ctx.actorEmail,
+    actor: { actorType: "Admin", actorId: ctx.actorId, actorEmail: ctx.actorEmail },
+    organizationId: null,
     targetType: "user",
     targetId: target.id,
     targetLabel: target.email,

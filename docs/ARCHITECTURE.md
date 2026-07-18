@@ -305,6 +305,27 @@ recipients for payment-failed", { event: p.eventId })`, never a template
   carry an indexed `organizationId` and every read/write is scoped by it in the
   feature's data layer `src/features/organizations/data.ts` — copy that layer's
   shape (never query a tenant table without its owner filter).
+- **Audit a state change (§6.4):** add the action name to `AUDIT_ACTIONS` in
+  `src/features/admin/audit.ts`, then call `recordAudit(tx, …)` **inside the same
+  transaction as the write** (Rule A — the module header explains when the other
+  ordering, Rule B, applies instead). Three things that are not optional:
+  `organizationId` is a **required** field, so a call site must state its tenant or
+  explicitly write `null`; the actor comes from `resolveActor(session)` — never
+  build one by hand, because it is what attributes an impersonated action to the
+  ADMIN rather than the account they are wearing; and a `targetLabel` lookup that
+  needs a second query must use `tx`, not `db`, or it deadlocks against the
+  transaction holding the connection. Field-level before/after goes in
+  `metadata.changes` via `changed(before, after, fields)`, which returns
+  `undefined` when nothing differs — check it, so a no-op write logs nothing.
+  **Reference:** `updateMemberRoleAction` in
+  `src/features/organizations/actions.ts` (user actor, `FOR UPDATE` pre-image,
+  `tx` label lookup); `applySubscriptionEvent` in `src/features/billing/webhooks.ts`
+  (`SYSTEM_ACTOR`, and `.returning()` as the "this event changed nothing" signal);
+  `src/features/storage/purge.ts` (system actor from a background job, one row per
+  tenant rather than per record). Reading it back is tenant-scoped in
+  `src/features/organizations/audit-data.ts` and cross-tenant in
+  `src/features/admin/data.ts` — the two have deliberately opposite boundaries, so
+  do not merge them into one function with a nullable owner argument.
 - **Add a UI primitive (design system, §7.1):** put it in `src/components/ui/<name>.tsx`
   and export it from `src/components/ui/index.ts`. Rules: style only with the
   semantic tokens (`bg-card`, `text-muted-foreground`, `border-border`…) — never

@@ -40,10 +40,19 @@
  * their creators, or null the column first). Whoever builds the job makes both
  * calls, and writes the reasoning down beside it.
  *
- * `audit_log` is deliberately NOT purged with its subjects — `actorUserId` is
- * `onDelete: "set null"` and the actor/target labels are snapshots, precisely so
- * the trail survives erasure of the people it names (see the schema header).
- * Audit-log retention/rotation is a separate policy question, out of §6's scope.
+ * `audit_log` is deliberately NOT purged with its subjects — `actorUserId` and
+ * `organizationId` are both `onDelete: "set null"` and the actor/target labels are
+ * snapshots, precisely so the trail survives erasure of the people and tenants it
+ * names (see the schema header). Audit-log retention/rotation is a separate policy
+ * question: §6.4 notes the log may need a LONGER window than the data it
+ * describes, which is the reason it cannot simply inherit `RETENTION_DAYS`.
+ *
+ * WHEN THE PURGE JOB IS BUILT, it must audit what it deletes (§6.4). The worked
+ * example already exists: `features/storage/purge.ts` writes one `retention.purge`
+ * entry PER ORGANIZATION with a count, using `SYSTEM_ACTOR`, rather than one entry
+ * per deleted record. Copy that shape — the reasoning (a tenant's audit page must
+ * not be buried under thousands of rows about records it can no longer see) applies
+ * identically to users and organizations.
  */
 
 /** Days a soft-deleted user/organization is retained before permanent purge. */

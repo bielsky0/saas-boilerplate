@@ -87,11 +87,20 @@ export function DialogFooter({ className, ...props }: ComponentProps<"div">) {
  * with the form's `id` — the HTML `form` attribute associates a submit button
  * with a form anywhere in the document, which is what makes server-action forms
  * work from inside the portal.
+ *
+ * `body` renders between the description and the footer, for the case where
+ * confirming needs INPUT rather than just assent — impersonation's mandatory
+ * reason (spec 6.4) is the motivating one. Fields passed here need the same
+ * `form={id}` attribute as the confirm button, and for exactly the same reason:
+ * the portal puts them outside the form too. Keep the server-side validation as
+ * the real gate — a portaled input's native validation bubble has nothing to
+ * anchor to once the dialog closes.
  */
 export function ConfirmDialog({
   trigger,
   title,
   description,
+  body,
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
   confirmVariant = "destructive",
@@ -102,6 +111,7 @@ export function ConfirmDialog({
   trigger: ReactNode;
   title: string;
   description?: ReactNode;
+  body?: ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
   confirmVariant?: VariantProps<typeof buttonVariants>["variant"];
@@ -118,6 +128,7 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
+        {body}
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline" type="button">

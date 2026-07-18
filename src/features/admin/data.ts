@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import { endOfDay, likePattern, parseDate, toPaged, type Paged } from "@/lib/db/pagination";
 import {
   auditLog,
   billingPayment,
@@ -47,29 +48,7 @@ import { PAGE_SIZE, type AuditListQuery, type OrgListQuery, type UserListQuery }
  * eslint.config.mjs — the rule is the enforcement, this paragraph is only the why.
  */
 
-/**
- * Escape LIKE wildcards in user input.
- *
- * Without this, searching for "100%" matches every row and "a_b" matches "axb" —
- * the filter silently lies rather than erroring, which is the worst failure mode
- * for a support tool. Pairs with the `\` ESCAPE that Postgres uses by default.
- */
-function likePattern(input: string): string {
-  return `%${input.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
-}
-
-/** End of the given day, so a `to=2026-07-16` filter includes that whole day. */
-function endOfDay(date: Date): Date {
-  const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
-  return end;
-}
-
-function parseDate(value: string): Date | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
+export type { Paged };
 
 export type UserStatus = "active" | "suspended" | "deleted";
 
@@ -94,21 +73,6 @@ export type AdminUserRow = {
   status: UserStatus;
   createdAt: Date;
 };
-
-export type Paged<T> = { rows: T[]; page: number; hasNext: boolean };
-
-/**
- * Pagination is Prev/Next only, via `limit(PAGE_SIZE + 1)`: fetch one extra row
- * to learn whether a next page exists, then drop it.
- *
- * Deliberately NO `count()`, no total, no page numbers. A COUNT(*) over a growing
- * user table on every page load is the thing you regret, and page numbers are its
- * only justification. Search narrows; nobody pages to 47.
- */
-function toPaged<T>(rows: T[], page: number): Paged<T> {
-  const hasNext = rows.length > PAGE_SIZE;
-  return { rows: hasNext ? rows.slice(0, PAGE_SIZE) : rows, page, hasNext };
-}
 
 /**
  * All users, filtered (spec 6.2). Cross-tenant by design — see the header.
@@ -165,6 +129,7 @@ export async function listAllUsers(query: UserListQuery): Promise<Paged<AdminUse
       createdAt: row.createdAt,
     })),
     query.page,
+    PAGE_SIZE,
   );
 }
 
@@ -367,7 +332,7 @@ export async function listAllOrganizations(query: OrgListQuery): Promise<Paged<A
     .limit(PAGE_SIZE + 1)
     .offset(query.page * PAGE_SIZE);
 
-  return toPaged(rows, query.page);
+  return toPaged(rows, query.page, PAGE_SIZE);
 }
 
 export type RevenueByCurrency = { currency: string; netMinor: number };
@@ -478,6 +443,8 @@ async function orgSummaryById(orgId: string): Promise<AdminOrgRow | null> {
 export type AuditRow = {
   id: string;
   action: string;
+  /** §6.4 actor model: User | System | AIAgent | Admin. */
+  actorType: string;
   actorEmail: string;
   targetType: string;
   targetId: string;
@@ -511,6 +478,7 @@ export async function listAuditEntries(query: AuditListQuery): Promise<Paged<Aud
     .select({
       id: auditLog.id,
       action: auditLog.action,
+      actorType: auditLog.actorType,
       actorEmail: auditLog.actorEmail,
       targetType: auditLog.targetType,
       targetId: auditLog.targetId,
@@ -524,5 +492,5 @@ export async function listAuditEntries(query: AuditListQuery): Promise<Paged<Aud
     .limit(PAGE_SIZE + 1)
     .offset(query.page * PAGE_SIZE);
 
-  return toPaged(rows, query.page);
+  return toPaged(rows, query.page, PAGE_SIZE);
 }

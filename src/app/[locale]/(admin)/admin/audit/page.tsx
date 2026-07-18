@@ -69,12 +69,13 @@ export default async function AdminAuditPage({
             <TableHead>Action</TableHead>
             <TableHead>Actor</TableHead>
             <TableHead>Target</TableHead>
+            <TableHead>Details</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="text-muted-foreground py-8 text-center">
+              <TableCell colSpan={5} className="text-muted-foreground py-8 text-center">
                 No audit entries match this search.
               </TableCell>
             </TableRow>
@@ -91,10 +92,21 @@ export default async function AdminAuditPage({
                     {row.action}
                   </Badge>
                 </TableCell>
-                <TableCell className="font-medium">{row.actorEmail}</TableCell>
+                <TableCell>
+                  <span className="font-medium">{row.actorEmail}</span>
+                  <div className="text-muted-foreground text-xs">{row.actorType}</div>
+                </TableCell>
                 <TableCell>
                   <span>{row.targetLabel}</span>
                   <div className="text-muted-foreground text-xs">{row.targetType}</div>
+                </TableCell>
+                <TableCell className="text-muted-foreground max-w-xs text-xs">
+                  {/* Raw JSON, unlike the org page's formatted view. This is an
+                      operator tool: an incident review wants every key that is
+                      actually there, including ones no renderer knows about yet. */}
+                  {row.metadata ? (
+                    <span className="break-words">{JSON.stringify(row.metadata)}</span>
+                  ) : null}
                 </TableCell>
               </TableRow>
             ))

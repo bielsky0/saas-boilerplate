@@ -44,6 +44,16 @@ export async function resolveMcpOrg(userId: string, slug: string): Promise<McpOr
  * membership, mirroring `resolveNotificationOwner`) — it is the extension point for
  * the first WRITE tool, so permission-gated actions reuse the identical map the UI
  * enforces rather than re-deriving authorization.
+ *
+ * THE FIRST WRITE TOOL MUST ALSO AUDIT (spec 26.1 → 6.4). §26.1 requires every
+ * agent action to land in the trail with actor type `AIAgent`, and the plumbing is
+ * already built: call `recordAudit` inside the write's transaction (Rule A) with
+ * `mcpActor(userId, email)` from `features/admin/audit.ts`. The agent has no
+ * identity of its own — it acts as the user whose token authorized it, with
+ * exactly that user's permissions — so `mcpActor` takes their id and email and
+ * only `actorType` records that a machine drove it. Do not invent a separate
+ * agent-audit path; a trail an agent writes differently from a human is a trail
+ * with a blind spot exactly where §26.1 says it must not have one.
  */
 export async function resolveMcpOrgPermission(
   userId: string,

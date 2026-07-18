@@ -6,11 +6,12 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { createHash, randomUUID } from "node:crypto";
 
+import { changed, recordAudit, resolveActor, withImpersonation } from "@/features/admin/audit";
 import { enqueueEmail } from "@/features/emails/send";
 import { enqueueNotification } from "@/features/notifications/send";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { invitation, membership, organization } from "@/lib/db/schema";
+import { invitation, membership, organization, user } from "@/lib/db/schema";
 import { clientEnv } from "@/lib/env/client";
 import { storedLocaleForEmail, toLocale } from "@/lib/i18n/user-locale";
 import type { FormState } from "@/lib/validation";
@@ -32,6 +33,19 @@ import { resolveUniqueSlug } from "./slug";
  * touching data (spec 4.2). Business invariants that must hold under concurrency
  * — chiefly "an org always keeps ≥1 Owner" (§3.2/§3.4) — are enforced inside a
  * transaction that locks the owner rows (`FOR UPDATE`).
+ *
+ * AUDIT (spec 6.4): every mutation here writes an audit row via `recordAudit`
+ * under Rule A — INSIDE the same transaction as the change, so a rollback takes
+ * the log entry with it and a committed change can never lack its row. Two
+ * conventions that are easy to get wrong:
+ *
+ *  - `resolveActor(ctx.session)` is awaited BEFORE `db.transaction` opens. It may
+ *    query (when the session is impersonated), and a query inside the transaction
+ *    would take a SECOND pooled connection while `tx` holds the first — the
+ *    deadlock features/admin/audit.ts documents, and the same reason
+ *    `inviteeLocale` is resolved outside the transaction below.
+ *  - `targetLabel` lookups that DO belong inside use `tx`, not `db`, for that same
+ *    reason. Those read rows the transaction is mutating, so they cannot move out.
  */
 
 /**
@@ -95,6 +109,7 @@ export async function createOrganizationAction(
   }
 
   const slug = await resolveUniqueSlug(parsed.data.slug ?? parsed.data.name, isSlugTaken);
+  const actor = await resolveActor(session);
 
   await db.transaction(async (tx) => {
     const [org] = await tx
@@ -106,6 +121,17 @@ export async function createOrganizationAction(
       userId: session.user.id,
       role: "owner",
       status: "active",
+    });
+    // The genesis row: without it an org's trail begins mid-story, and "who
+    // created this tenant" is the first question any audit asks.
+    await recordAudit(tx, {
+      action: "organization.create",
+      actor,
+      organizationId: org!.id,
+      targetType: "organization",
+      targetId: org!.id,
+      targetLabel: slug,
+      metadata: withImpersonation(session, { name: parsed.data.name }),
     });
   });
 
@@ -156,6 +182,7 @@ export async function inviteMemberAction(
    */
   const inviteeLocale =
     (await storedLocaleForEmail(parsed.data.email)) ?? toLocale(ctx.session.user.locale);
+  const actor = await resolveActor(ctx.session);
 
   await db.transaction(async (tx) => {
     // Supersede any prior pending invite for this email so only one link is live.
@@ -181,6 +208,18 @@ export async function inviteMemberAction(
         invitedByUserId: ctx.session.user.id,
       })
       .returning({ id: invitation.id });
+
+    await recordAudit(tx, {
+      action: "member.invite",
+      actor,
+      organizationId: ctx.org.id,
+      targetType: "invitation",
+      targetId: row!.id,
+      // The invitee's EMAIL, not the invitation id: an auditor asks "who was
+      // invited", and a uuid answers a different question.
+      targetLabel: parsed.data.email,
+      metadata: withImpersonation(ctx.session, { role: parsed.data.role }),
+    });
 
     // Enqueued INSIDE the transaction, so a rollback un-sends the invitation
     // rather than emailing a link to a row that does not exist. It also takes the
@@ -244,17 +283,42 @@ export async function revokeInvitationAction(
   const invitationId = str(formData.get("invitationId"));
   const ctx = await requireOrgPermission(slug, "invitations.revoke");
   const ts = await getTranslations("organizations.success");
+  const actor = await resolveActor(ctx.session);
 
-  await db
-    .update(invitation)
-    .set({ status: "revoked" })
-    .where(
-      and(
-        eq(invitation.id, invitationId),
-        eq(invitation.organizationId, ctx.org.id),
-        eq(invitation.status, "pending"),
-      ),
-    );
+  /*
+   * Wrapped in a transaction and given a `.returning()` for the audit row (§6.4).
+   *
+   * The `.returning()` also fixes a pre-existing bug this change surfaced: the
+   * update matched on `status = 'pending'`, so revoking an already-revoked or
+   * already-accepted invitation updated ZERO rows and still reported success.
+   * Auditing forced the question "what did I just revoke?", and the honest answer
+   * was sometimes "nothing". Now that case returns without logging a revocation
+   * that never happened — the log records reality, not intent.
+   */
+  await db.transaction(async (tx) => {
+    const [revoked] = await tx
+      .update(invitation)
+      .set({ status: "revoked" })
+      .where(
+        and(
+          eq(invitation.id, invitationId),
+          eq(invitation.organizationId, ctx.org.id),
+          eq(invitation.status, "pending"),
+        ),
+      )
+      .returning({ id: invitation.id, email: invitation.email, role: invitation.role });
+    if (!revoked) return;
+
+    await recordAudit(tx, {
+      action: "invitation.revoke",
+      actor,
+      organizationId: ctx.org.id,
+      targetType: "invitation",
+      targetId: revoked.id,
+      targetLabel: revoked.email,
+      metadata: withImpersonation(ctx.session, { role: revoked.role }),
+    });
+  });
 
   revalidatePath(`/orgs/${slug}/members`);
   return { success: ts("invitationRevoked") };
@@ -276,6 +340,8 @@ export async function acceptInvitationAction(
   const org = await getOrgById(invite.organizationId);
   if (!org) return { error: t("invitationInvalid") };
 
+  const actor = await resolveActor(session);
+
   await db.transaction(async (tx) => {
     // Bearer-token accept by the authenticated session holder (documented policy).
     await tx
@@ -294,6 +360,20 @@ export async function acceptInvitationAction(
       .update(invitation)
       .set({ status: "accepted", acceptedAt: new Date() })
       .where(eq(invitation.id, invite.id));
+
+    // The actor is the JOINER, not the admin who invited them — they are the one
+    // who acted here. The invitation row already records who did the inviting, and
+    // a member who appears in the org with no row explaining how is precisely the
+    // gap an auditor notices.
+    await recordAudit(tx, {
+      action: "member.join",
+      actor,
+      organizationId: invite.organizationId,
+      targetType: "membership",
+      targetId: session.user.id,
+      targetLabel: session.user.email,
+      metadata: withImpersonation(session, { role: invite.role, invitationId: invite.id }),
+    });
   });
 
   redirect(`/orgs/${org.slug}`);
@@ -320,6 +400,8 @@ export async function updateMemberRoleAction(
     return { error: parsed.error.issues[0]?.message ?? t("generic") };
   }
 
+  const actor = await resolveActor(ctx.session);
+
   try {
     await db.transaction(async (tx) => {
       const [target] = await tx
@@ -342,6 +424,29 @@ export async function updateMemberRoleAction(
         .update(membership)
         .set({ role: parsed.data.role, updatedAt: new Date() })
         .where(eq(membership.id, target.id));
+
+      // `tx`, never `db` — see the module header. This reads inside an open
+      // transaction, so a second connection here would deadlock against it.
+      const [targetUser] = await tx
+        .select({ email: user.email })
+        .from(user)
+        .where(eq(user.id, target.userId))
+        .limit(1);
+
+      await recordAudit(tx, {
+        action: "member.role_change",
+        actor,
+        organizationId: ctx.org.id,
+        targetType: "membership",
+        targetId: target.userId,
+        targetLabel: targetUser?.email ?? target.userId,
+        metadata: withImpersonation(ctx.session, {
+          // `target` was SELECTed FOR UPDATE above, so `from` is the true
+          // pre-image and cannot have been changed by a concurrent writer
+          // between the read and the write. §6.4's "stara wartość → nowa wartość".
+          changes: changed({ role: target.role }, { role: parsed.data.role }, ["role"]),
+        }),
+      });
     });
   } catch (error) {
     if (error instanceof LastOwnerError) {
@@ -365,6 +470,7 @@ export async function removeMemberAction(
     getTranslations("organizations.success"),
   ]);
   const membershipId = str(formData.get("membershipId"));
+  const actor = await resolveActor(ctx.session);
 
   try {
     await db.transaction(async (tx) => {
@@ -378,7 +484,27 @@ export async function removeMemberAction(
       if (target.role === "owner" && target.status === "active") {
         if ((await lockActiveOwnerCount(tx, ctx.org.id)) <= 1) throw new LastOwnerError();
       }
+
+      // Resolved BEFORE the delete: the membership row is about to stop existing,
+      // and the audit entry needs its role. The user row survives, but reading it
+      // after the delete would be relying on ordering for no benefit.
+      const [targetUser] = await tx
+        .select({ email: user.email })
+        .from(user)
+        .where(eq(user.id, target.userId))
+        .limit(1);
+
       await tx.delete(membership).where(eq(membership.id, target.id));
+
+      await recordAudit(tx, {
+        action: "member.remove",
+        actor,
+        organizationId: ctx.org.id,
+        targetType: "membership",
+        targetId: target.userId,
+        targetLabel: targetUser?.email ?? target.userId,
+        metadata: withImpersonation(ctx.session, { role: target.role }),
+      });
     });
   } catch (error) {
     if (error instanceof LastOwnerError) {
@@ -398,6 +524,7 @@ export async function leaveOrganizationAction(
   const slug = str(formData.get("slug"));
   const ctx = await requireOrgPermission(slug, "organization.leave");
   const t = await getTranslations("organizations.errors");
+  const actor = await resolveActor(ctx.session);
 
   try {
     await db.transaction(async (tx) => {
@@ -405,6 +532,19 @@ export async function leaveOrganizationAction(
         if ((await lockActiveOwnerCount(tx, ctx.org.id)) <= 1) throw new LastOwnerError();
       }
       await tx.delete(membership).where(eq(membership.id, ctx.membership.id));
+
+      // Actor and target are the same person — that is the distinction between
+      // `member.leave` and `member.remove`, and why they are separate actions
+      // rather than one with a flag.
+      await recordAudit(tx, {
+        action: "member.leave",
+        actor,
+        organizationId: ctx.org.id,
+        targetType: "membership",
+        targetId: ctx.session.user.id,
+        targetLabel: ctx.session.user.email,
+        metadata: withImpersonation(ctx.session, { role: ctx.membership.role }),
+      });
     });
   } catch (error) {
     if (error instanceof LastOwnerError) {
@@ -448,11 +588,36 @@ export async function updateOrganizationAction(
     nextSlug = parsedSlug.data;
   }
 
-  await db
-    .update(organization)
-    .set({ name: parsedName.data, slug: nextSlug, updatedAt: new Date() })
-    .where(eq(organization.id, ctx.org.id));
+  const actor = await resolveActor(ctx.session);
 
+  // Wrapped in a transaction purely so the audit row is atomic with the update
+  // (Rule A). A bare `db.update` plus a separate insert would leave a window
+  // where the org is renamed and nothing says who did it.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(organization)
+      .set({ name: parsedName.data, slug: nextSlug, updatedAt: new Date() })
+      .where(eq(organization.id, ctx.org.id));
+
+    await recordAudit(tx, {
+      action: "organization.update",
+      actor,
+      organizationId: ctx.org.id,
+      targetType: "organization",
+      targetId: ctx.org.id,
+      targetLabel: nextSlug,
+      metadata: withImpersonation(ctx.session, {
+        changes: changed(
+          { name: ctx.org.name, slug: ctx.org.slug },
+          { name: parsedName.data, slug: nextSlug },
+          ["name", "slug"],
+        ),
+      }),
+    });
+  });
+
+  // NOTE the audit write is above this branch, not below it: `redirect()` throws,
+  // so anything after it in the success path never runs.
   if (nextSlug !== ctx.org.slug) {
     redirect(`/orgs/${nextSlug}/settings`);
   }
@@ -466,12 +631,29 @@ export async function deleteOrganizationAction(
 ): Promise<ActionState> {
   const slug = str(formData.get("slug"));
   const ctx = await requireOrgPermission(slug, "organization.delete");
+  const actor = await resolveActor(ctx.session);
 
-  // Soft delete (spec 11.3) — the row is retained for the retention window.
-  await db
-    .update(organization)
-    .set({ deletedAt: new Date() })
-    .where(eq(organization.id, ctx.org.id));
+  await db.transaction(async (tx) => {
+    // Soft delete (spec 11.3) — the row is retained for the retention window.
+    await tx
+      .update(organization)
+      .set({ deletedAt: new Date() })
+      .where(eq(organization.id, ctx.org.id));
+
+    // Shares the `organization.delete` action name with the super-admin panel's
+    // version deliberately: it is the same event. `actorType` is what separates
+    // "the owner closed their org" from "an operator deleted it", which is the
+    // whole reason §6.4 asks for an actor model rather than more action names.
+    await recordAudit(tx, {
+      action: "organization.delete",
+      actor,
+      organizationId: ctx.org.id,
+      targetType: "organization",
+      targetId: ctx.org.id,
+      targetLabel: ctx.org.slug,
+      metadata: withImpersonation(ctx.session),
+    });
+  });
 
   redirect("/dashboard");
 }

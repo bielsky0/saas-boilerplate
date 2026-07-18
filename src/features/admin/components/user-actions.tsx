@@ -97,7 +97,25 @@ export function UserActions({
                 </Button>
               }
               title={`Impersonate ${email}?`}
-              description="You will be signed in as this user for up to 30 minutes. A banner will show admin mode the whole time, and this is recorded in the audit log."
+              description="You will be signed in as this user for up to 30 minutes. A banner will show admin mode the whole time. Your reason is recorded in the audit log, where this user's organization admins can see it."
+              body={
+                /* `form={impersonateFormId}` for the same reason the confirm
+                   button needs it: the dialog is portaled to document.body, so
+                   this input is outside the <form> in the DOM. `required` is a
+                   courtesy — impersonateUserSchema is the actual gate. */
+                <label className="flex flex-col gap-1.5 text-sm">
+                  <span className="font-medium">Reason</span>
+                  <Input
+                    name="reason"
+                    form={impersonateFormId}
+                    required
+                    minLength={10}
+                    maxLength={500}
+                    placeholder="e.g. Ticket #482 — user reports checkout failing"
+                    aria-label="Reason for impersonating this account"
+                  />
+                </label>
+              }
               confirmLabel="Start impersonating"
               confirmForm={impersonateFormId}
               disabled={impersonatePending}

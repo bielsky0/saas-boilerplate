@@ -231,6 +231,45 @@
       "confirmLeaveTitle": "Opuścić tę organizację?",
       "confirmLeaveBody": "Stracisz dostęp do jej zasobów, dopóki ktoś nie zaprosi Cię ponownie.",
       "confirmLeaveAction": "Opuść organizację"
+    },
+    "auditActions": {
+      "impersonation": {
+        "start": "Rozpoczęto impersonację",
+        "stop": "Zakończono impersonację"
+      },
+      "user": {
+        "suspend": "Zawieszono użytkownika",
+        "unsuspend": "Odblokowano użytkownika",
+        "delete": "Usunięto użytkownika"
+      },
+      "organization": {
+        "create": "Utworzono organizację",
+        "update": "Zaktualizowano organizację",
+        "delete": "Usunięto organizację"
+      },
+      "superadmin": {
+        "grant": "Nadano uprawnienia super admina",
+        "revoke": "Odebrano uprawnienia super admina"
+      },
+      "member": {
+        "invite": "Zaproszono członka",
+        "join": "Członek dołączył",
+        "role_change": "Zmieniono rolę",
+        "remove": "Usunięto członka",
+        "leave": "Członek opuścił organizację"
+      },
+      "invitation": {
+        "revoke": "Cofnięto zaproszenie"
+      },
+      "subscription": {
+        "change": "Zmieniono subskrypcję"
+      },
+      "payment": {
+        "record": "Zarejestrowano płatność"
+      },
+      "retention": {
+        "purge": "Czyszczenie danych"
+      }
     }
   },
   "landing": {
@@ -311,7 +350,8 @@
       "yourRole": "Twoja rola:",
       "members": "Członkowie",
       "settings": "Ustawienia",
-      "files": "Pliki"
+      "files": "Pliki",
+      "audit": "Dziennik zmian"
     },
     "settings": {
       "heading": "Ustawienia",
@@ -335,6 +375,33 @@
       "pending": "Oczekujące zaproszenia ({count})",
       "statusInvited": "zaproszony",
       "statusSuspended": "zawieszony"
+    },
+    "audit": {
+      "heading": "Dziennik zmian",
+      "description": "Kto i kiedy zmienił dane w tej organizacji.",
+      "search": "Wykonawca, obiekt lub akcja",
+      "searchLabel": "Przeszukaj dziennik zmian",
+      "from": "Od",
+      "to": "Do",
+      "filter": "Filtruj",
+      "empty": "Brak wpisów pasujących do tych filtrów.",
+      "columns": {
+        "when": "Kiedy",
+        "action": "Akcja",
+        "actor": "Wykonawca",
+        "target": "Obiekt",
+        "details": "Szczegóły"
+      },
+      "actorTypes": {
+        "User": "Użytkownik",
+        "System": "System",
+        "AIAgent": "Agent AI",
+        "Admin": "Administrator"
+      },
+      "onBehalfOf": "w imieniu {email}",
+      "page": "Strona {page}",
+      "previous": "Poprzednia",
+      "next": "Następna"
     }
   },
   "storage": {

@@ -13,6 +13,8 @@ import { loginViaUi, registerViaApi, seedSuperAdmin, TEST_PASSWORD, uniqueEmail 
  * by a `uniqueEmail()` — never by list position or "the first row" — which is why
  * /admin/audit?q= is a design requirement and not a nicety.
  */
+const REASON = "Ticket 482 - investigating a checkout failure";
+
 test("impersonation is visible in the UI and leaves an audit trail", async ({ page, request }) => {
   const adminEmail = uniqueEmail("superadmin");
   const targetEmail = uniqueEmail("target");
@@ -30,6 +32,8 @@ test("impersonation is visible in the UI and leaves an audit trail", async ({ pa
   await page.waitForURL("**/admin/users/**");
 
   await page.getByRole("button", { name: /^impersonate$/i }).click();
+  // Mandatory since §6.4 — the reason is recorded and shown to the target's org.
+  await page.getByLabel(/reason for impersonating/i).fill(REASON);
   await page.getByRole("button", { name: /start impersonating/i }).click();
   await page.waitForURL("**/dashboard");
 
@@ -65,6 +69,8 @@ test("impersonation is visible in the UI and leaves an audit trail", async ({ pa
   await expect(startRow).toContainText(adminEmail); // ACTOR
   await expect(startRow).toContainText(targetEmail); // TARGET
   await expect(startRow.getByText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC/)).toBeVisible(); // TIMESTAMP
+  await expect(startRow, "the mandatory reason must reach the log").toContainText(REASON); // §6.4
+  await expect(startRow, "actor type distinguishes a panel action").toContainText("Admin");
 
   await expect(page.getByRole("row").filter({ hasText: "impersonation.stop" })).toContainText(
     adminEmail,
@@ -97,4 +103,43 @@ test("a super admin cannot impersonate another super admin", async ({ page, requ
   await expect(page.getByRole("button", { name: /^impersonate$/i })).toHaveCount(0);
   // …and the account stays marked as an admin, so nothing here is impersonable.
   await expect(page.getByText(/super admin/i).first()).toBeVisible();
+});
+
+/**
+ * §6.4 — the reason is MANDATORY. `impersonateUserSchema` requires ≥10 characters,
+ * and the input mirrors it with `required minLength`.
+ *
+ * The assertion is deliberately "impersonation did not happen" rather than "a
+ * specific error message appeared": the client gate (native validation) and the
+ * server gate (the zod schema) produce different feedback, and which one fires
+ * first is a browser detail. What must hold either way is that no session was
+ * swapped — that is the property §6.4 actually asks for.
+ */
+test("impersonation is refused without a sufficient reason", async ({ page, request }) => {
+  const adminEmail = uniqueEmail("superadmin-noreason");
+  const targetEmail = uniqueEmail("target-noreason");
+  await registerViaApi(request, adminEmail);
+  await registerViaApi(request, targetEmail);
+  await seedSuperAdmin(request, adminEmail);
+
+  await page.goto("/login");
+  await loginViaUi(page, adminEmail, TEST_PASSWORD);
+  await page.waitForURL("**/dashboard");
+
+  await page.goto(`/admin/users?q=${encodeURIComponent(targetEmail)}`);
+  await page.getByRole("link", { name: targetEmail }).click();
+  await page.waitForURL("**/admin/users/**");
+
+  await page.getByRole("button", { name: /^impersonate$/i }).click();
+  await page.getByLabel(/reason for impersonating/i).fill("too short");
+  await page.getByRole("button", { name: /start impersonating/i }).click();
+
+  // No session swap: still on the admin page, still ourselves, no admin banner.
+  await expect(page.getByRole("status").filter({ hasText: /admin mode/i })).toHaveCount(0);
+  expect(page.url()).toContain("/admin/users/");
+
+  // And nothing was written to the trail — the audit row and the effect are
+  // ordered so that a refusal leaves no trace of an impersonation that never was.
+  await page.goto(`/admin/audit?q=${encodeURIComponent(targetEmail)}`);
+  await expect(page.getByRole("row").filter({ hasText: "impersonation.start" })).toHaveCount(0);
 });

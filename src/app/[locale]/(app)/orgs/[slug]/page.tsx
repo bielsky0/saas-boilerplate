@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 
 import { Badge, Button } from "@/components/ui";
 import { Link } from "@/lib/i18n/navigation";
+import { hasPermission } from "@/features/rbac";
 import { requireOrgAccess } from "@/features/organizations/context";
 import { LeaveOrgButton } from "@/features/organizations/components/org-settings";
 
@@ -35,6 +36,13 @@ export default async function OrganizationPage({ params }: { params: Promise<{ s
         <Button asChild variant="outline" size="sm">
           <Link href={`/orgs/${slug}/settings`}>{t("settings")}</Link>
         </Button>
+        {/* Cosmetic gating only (spec 4.2) — the page itself calls
+            requireOrgPermission, which is the actual boundary. */}
+        {hasPermission(role, "audit.read") ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/orgs/${slug}/settings/audit`}>{t("audit")}</Link>
+          </Button>
+        ) : null}
       </nav>
 
       <div className="border-border border-t pt-6">

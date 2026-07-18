@@ -73,3 +73,30 @@ export function updateRoleSchema() {
 
 export type CreateOrgValues = z.infer<ReturnType<typeof createOrgSchema>>;
 export type InviteMemberValues = z.infer<ReturnType<typeof inviteMemberSchema>>;
+
+/** Rows per page in the org audit trail (§6.4). */
+export const AUDIT_PAGE_SIZE = 25;
+
+/**
+ * The org audit trail's searchParams (§6.4).
+ *
+ * NOT a factory, unlike the form schemas above: nothing here produces a message a
+ * human reads. Every field `.catch()`es to a safe default, so a hand-edited or
+ * shared URL (`?page=banana`, `?from=notadate`) degrades to the default view
+ * rather than 500ing — the same discipline `admin/schema.ts` defends, and it
+ * matters more here because a compliance view is a URL people paste to each other.
+ *
+ * The tenant is deliberately absent. It comes from the route slug via
+ * `requireOrgPermission`, never from a query parameter — a filter the user can
+ * type must never be able to name the tenant.
+ */
+export const orgAuditListQuerySchema = z.object({
+  /** Matches actor email, target label, or action. */
+  q: z.string().trim().max(200).catch(""),
+  from: z.string().trim().catch(""),
+  to: z.string().trim().catch(""),
+  // Clamped: a huge offset is a cheap way to make Postgres sort the whole table.
+  page: z.coerce.number().int().min(0).max(10_000).catch(0),
+});
+
+export type OrgAuditListQuery = z.infer<typeof orgAuditListQuerySchema>;

@@ -78,6 +78,13 @@
       "when": 1784382146885,
       "tag": "0010_minor_thunderball",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784392807457,
+      "tag": "0011_sloppy_leopardon",
+      "breakpoints": true
     }
   ]
 }

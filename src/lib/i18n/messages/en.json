@@ -231,6 +231,45 @@
       "confirmLeaveTitle": "Leave this organization?",
       "confirmLeaveBody": "You'll lose access to its resources until someone invites you back.",
       "confirmLeaveAction": "Leave organization"
+    },
+    "auditActions": {
+      "impersonation": {
+        "start": "Impersonation started",
+        "stop": "Impersonation ended"
+      },
+      "user": {
+        "suspend": "User suspended",
+        "unsuspend": "User reactivated",
+        "delete": "User deleted"
+      },
+      "organization": {
+        "create": "Organization created",
+        "update": "Organization updated",
+        "delete": "Organization deleted"
+      },
+      "superadmin": {
+        "grant": "Super admin granted",
+        "revoke": "Super admin revoked"
+      },
+      "member": {
+        "invite": "Member invited",
+        "join": "Member joined",
+        "role_change": "Role changed",
+        "remove": "Member removed",
+        "leave": "Member left"
+      },
+      "invitation": {
+        "revoke": "Invitation revoked"
+      },
+      "subscription": {
+        "change": "Subscription changed"
+      },
+      "payment": {
+        "record": "Payment recorded"
+      },
+      "retention": {
+        "purge": "Retention cleanup"
+      }
     }
   },
   "landing": {
@@ -311,7 +350,8 @@
       "yourRole": "Your role:",
       "members": "Members",
       "settings": "Settings",
-      "files": "Files"
+      "files": "Files",
+      "audit": "Audit trail"
     },
     "settings": {
       "heading": "Settings",
@@ -335,6 +375,33 @@
       "pending": "Pending invitations ({count})",
       "statusInvited": "invited",
       "statusSuspended": "suspended"
+    },
+    "audit": {
+      "heading": "Audit trail",
+      "description": "Who changed what in this organization, and when.",
+      "search": "Actor, target or action",
+      "searchLabel": "Search the audit trail",
+      "from": "From",
+      "to": "To",
+      "filter": "Filter",
+      "empty": "No audit entries match these filters.",
+      "columns": {
+        "when": "When",
+        "action": "Action",
+        "actor": "Actor",
+        "target": "Target",
+        "details": "Details"
+      },
+      "actorTypes": {
+        "User": "User",
+        "System": "System",
+        "AIAgent": "AI agent",
+        "Admin": "Admin"
+      },
+      "onBehalfOf": "on behalf of {email}",
+      "page": "Page {page}",
+      "previous": "Previous",
+      "next": "Next"
     }
   },
   "storage": {
