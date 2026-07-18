@@ -15,7 +15,7 @@ import { invitation, membership, organization, user } from "@/lib/db/schema";
 import { clientEnv } from "@/lib/env/client";
 import { storedLocaleForEmail, toLocale } from "@/lib/i18n/user-locale";
 import type { FormState } from "@/lib/validation";
-import { requireOrgPermission } from "./context";
+import { requireOrgPermission, requireOrgsEnabled } from "./context";
 import {
   ensurePersonalAccount,
   getInvitationByTokenHash,
@@ -95,6 +95,10 @@ export async function createOrganizationAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  // One of the two actions that legitimately bypass `requireOrgAccess` (there is
+  // no org yet), so it carries the §1.4 guard itself. Above `requireSession`: a
+  // deployment without organizations should not even resolve a session for them.
+  requireOrgsEnabled();
   const session = await requireSession("/orgs/new");
   const [t, tv] = await Promise.all([
     getTranslations("organizations.errors"),
@@ -328,6 +332,9 @@ export async function acceptInvitationAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  // The other bypass: membership is being created, so there is nothing for
+  // `requireOrgAccess` to check yet. See `createOrganizationAction` above.
+  requireOrgsEnabled();
   const rawToken = str(formData.get("token"));
   const session = await requireSession(`/invitations/${rawToken}`);
   const t = await getTranslations("organizations.errors");

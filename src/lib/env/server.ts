@@ -178,6 +178,26 @@ export const env = createEnv({
     // the limit exists at its production values.
     RATE_LIMIT_LOGIN_ATTEMPTS: z.coerce.number().int().positive().default(5),
     RATE_LIMIT_LOGIN_WINDOW_S: z.coerce.number().int().positive().default(900),
+    // Multi-tenancy (spec 1.4). Tri-state like CSP_MODE / RATE_LIMIT_MODE, read
+    // ONCE at startup — see src/lib/tenancy.ts, its only consumer.
+    //
+    // ⚠️ THIS FLAG IS COSMETIC BY CONTRACT. It changes what the UI OFFERS, never
+    // what the data model supports. Every business row still carries
+    // organization_id XOR account_id (§1.3); "disabled" means the app never
+    // CREATES an organization and never SHOWS one, not that the data layer
+    // stopped understanding them. That is what makes the switch reversible with
+    // zero migration: turning it back on uncovers UI that was already there,
+    // over rows that were never touched.
+    //
+    // "required" (the default for this boilerplate): §3-§4 in full — personal
+    //   account and organizations both visible, the switcher always present.
+    // "optional": organizations still work, but the main flow never pushes you
+    //   into one. Personal is the default context; /orgs/new stays reachable by
+    //   direct URL and is simply not advertised.
+    // "disabled": pure B2C. /orgs/* and /invitations/* answer 404, every org
+    //   server action refuses, and the switcher/CTAs are gone. Existing org rows
+    //   are retained and untouched — just unreachable from the tenant UI.
+    MULTI_TENANCY_MODE: z.enum(["required", "optional", "disabled"]).default("required"),
   },
   // Server vars are read straight from process.env in the Node runtime.
   experimental__runtimeEnv: {},

@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { Alert, Button } from "@/components/ui";
 import { requireSession } from "@/lib/auth";
 import { Link } from "@/lib/i18n/navigation";
+import { orgsExposed } from "@/lib/tenancy";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getTranslations("dashboard.meta"))("dashboard") };
@@ -23,9 +24,12 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">{t("heading")}</h1>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/orgs/new">{t("newOrg")}</Link>
-        </Button>
+        {/* Advertised only in `required` mode (spec §1.4). */}
+        {orgsExposed ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href="/orgs/new">{t("newOrg")}</Link>
+          </Button>
+        ) : null}
       </div>
 
       {!session.user.emailVerified ? (

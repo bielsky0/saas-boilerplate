@@ -52,8 +52,20 @@ jobs:
         run: pnpm build
 
   e2e:
-    name: E2E (Playwright)
+    name: E2E (Playwright, tenancy=${{ matrix.tenancy }})
     runs-on: ubuntu-latest
+    strategy:
+      # Never cancel the sibling leg: if `disabled` breaks, the `required` result
+      # is exactly what tells you whether the regression is mode-specific or not.
+      fail-fast: false
+      matrix:
+        # Spec 1.4 — prove the flag is cosmetic by booting the app both ways over
+        # the same schema. The `disabled` leg skips the 13 org-driving specs; see
+        # e2e/tenancy-fixtures.ts for why "all specs in both modes" is not the
+        # criterion. `optional` is deliberately not a third leg: its behaviour is
+        # a strict subset (orgsEnabled like required, orgsExposed like disabled),
+        # so both booleans are covered — just never in that combination.
+        tenancy: [required, disabled]
     env:
       # Real Postgres service below; log email adapter so the verification link
       # is captured in-process and read via /api/dev/emails (no SMTP).
@@ -61,6 +73,7 @@ jobs:
       BETTER_AUTH_SECRET: ci-e2e-secret-not-a-real-secret
       EMAIL_PROVIDER: log
       NEXT_PUBLIC_APP_URL: http://localhost:3000
+      MULTI_TENANCY_MODE: ${{ matrix.tenancy }}
     services:
       postgres:
         image: postgres:16
@@ -128,6 +141,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.tenancy }}
           path: playwright-report/
           retention-days: 7

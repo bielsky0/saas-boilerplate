@@ -1,4 +1,4 @@
-import { KeyRound, LayoutDashboard, Palette, ShieldCheck, Users, Zap } from "lucide-react";
+import { KeyRound, LayoutDashboard, Palette, ShieldCheck, User, Users, Zap } from "lucide-react";
 import type { Metadata } from "next";
 import { getLocale, getTranslations } from "next-intl/server";
 
@@ -10,6 +10,7 @@ import { JsonLd } from "@/features/content/components/json-ld";
 import { organizationJsonLd, webSiteJsonLd } from "@/features/content/jsonld";
 import { Link } from "@/lib/i18n/navigation";
 import { site } from "@/lib/site";
+import { orgsEnabled } from "@/lib/tenancy";
 
 /**
  * Public landing page (spec §7.3). Server-rendered for SEO; sections: header,
@@ -41,10 +42,19 @@ export async function generateMetadata(): Promise<Metadata> {
  * come from the catalog. Keeping the list a `const` (rather than inlining six
  * cards) is what let the previous version stay readable — that survives §16, the
  * literals just became keys.
+ *
+ * The tenancy card is the one entry that depends on MULTI_TENANCY_MODE (§1.4):
+ * with organizations switched off, promising a context switcher on the public
+ * landing page would be a lie. It is REPLACED rather than filtered out, so the
+ * 3x2 grid keeps its shape in every mode.
  */
+const TENANCY_FEATURE = orgsEnabled
+  ? ({ icon: Users, title: "tenancyTitle", body: "tenancyBody" } as const)
+  : ({ icon: User, title: "soloTitle", body: "soloBody" } as const);
+
 const FEATURES = [
   { icon: KeyRound, title: "authTitle", body: "authBody" },
-  { icon: Users, title: "tenancyTitle", body: "tenancyBody" },
+  TENANCY_FEATURE,
   { icon: ShieldCheck, title: "rbacTitle", body: "rbacBody" },
   { icon: Palette, title: "designTitle", body: "designBody" },
   { icon: LayoutDashboard, title: "shellTitle", body: "shellBody" },
@@ -130,7 +140,8 @@ export default async function Home() {
             {t("hero.title")}
           </h1>
           <p className="text-muted-foreground max-w-xl text-balance sm:text-lg">
-            {t("hero.subtitle")}
+            {/* Same reason as TENANCY_FEATURE below: don't promise teams we hide. */}
+            {t(orgsEnabled ? "hero.subtitle" : "hero.subtitleSolo")}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg">

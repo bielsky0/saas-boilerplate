@@ -280,6 +280,7 @@
       "badge": "Next.js {site}",
       "title": "Ship your SaaS faster, without the boilerplate",
       "subtitle": "Authentication, multi-tenancy, RBAC, and a themed design system — production-ready and free of vendor lock-in.",
+      "subtitleSolo": "Authentication, billing, and a themed design system — production-ready and free of vendor lock-in.",
       "getStarted": "Get started",
       "logIn": "Log in"
     },
@@ -290,6 +291,8 @@
       "authBody": "Email/password with verification, password reset, and rate-limited sign-in.",
       "tenancyTitle": "Multi-tenancy",
       "tenancyBody": "Personal accounts and organizations with an instant context switcher.",
+      "soloTitle": "Personal workspace",
+      "soloBody": "Every user gets an isolated personal account — no teams to manage.",
       "rbacTitle": "RBAC",
       "rbacBody": "Owner/Admin/Member roles enforced on the backend, cosmetic in the UI.",
       "designTitle": "Design system",

@@ -280,6 +280,7 @@
       "badge": "Next.js {site}",
       "title": "Twórz SaaS szybciej, bez pisania podstaw od zera",
       "subtitle": "Uwierzytelnianie, wielodostępność, RBAC i system designu z motywami — gotowe na produkcję i bez uzależnienia od dostawcy.",
+      "subtitleSolo": "Uwierzytelnianie, płatności i system designu z motywami — gotowe na produkcję i bez uzależnienia od dostawcy.",
       "getStarted": "Rozpocznij",
       "logIn": "Zaloguj się"
     },
@@ -290,6 +291,8 @@
       "authBody": "E-mail i hasło z weryfikacją, resetem hasła i logowaniem z limitem prób.",
       "tenancyTitle": "Wielodostępność",
       "tenancyBody": "Konta osobiste i organizacje z natychmiastowym przełącznikiem kontekstu.",
+      "soloTitle": "Przestrzeń osobista",
+      "soloBody": "Każdy użytkownik ma odizolowane konto osobiste — bez zarządzania zespołami.",
       "rbacTitle": "RBAC",
       "rbacBody": "Role Właściciel/Administrator/Członek egzekwowane po stronie serwera, w UI tylko kosmetycznie.",
       "designTitle": "System designu",

@@ -45,6 +45,7 @@ src/
     site.ts                §9 site identity (name, description, canonical base URL)
     logger.ts              §15.3 structured logging + request-id correlation
     public-routes.ts       §2.5/§9.1 the public page surface (proxy + sitemap + robots)
+    tenancy.ts             §1.4 MULTI_TENANCY_MODE — is the org layer offered at all?
     env/                   validated environment (server.ts / client.ts)
     db/                    Drizzle client + schema/ + migrations/
     adapters/              provider adapters behind internal contracts (§1.2)
@@ -694,6 +695,41 @@ permission)` from `src/features/organizations/context.ts` as the FIRST line —
     looks nothing like the cause. `/api/dev/*` is exempt from the limiter, so
     plain seeding needs no fixture. The suite runs at PRODUCTION limits on
     purpose — see `e2e/rate-limit-fixtures.ts`.
+- **Ship a cosmetic feature flag (§1.4).** `MULTI_TENANCY_MODE` is the reference
+  example: an env var that changes what the UI OFFERS and never what the data
+  model supports. Reference: `src/lib/tenancy.ts`.
+  - **Two booleans, not a three-way switch at each call site.** `orgsEnabled`
+    ("does this exist?") and `orgsExposed` ("do we push it?"). Every surface
+    answers one of those two questions, and `optional` is precisely the row where
+    the answers differ — naming them makes the mode table checkable from grep
+    output instead of by reading twelve call sites.
+  - **The data model does not move.** Every business row keeps its
+    `organization_id` XOR `account_id` owner in all three modes; no query changes,
+    no migration runs, and `disabled` writes nothing. That is what makes the
+    switch reversible: turning it back on uncovers UI that was already there over
+    rows that were never touched. In `disabled` the sole context is the personal
+    account — which already exists for every user — so the mode removes the ORG
+    layer, not the tenant layer. A "default organization" holding every user would
+    have required a write per user and is exactly what this avoids.
+  - **Refuse with `notFound()`, never `forbidden()`.** A 403 means "this exists
+    and you may not have it", which is true of RBAC and false of a switched-off
+    feature — and a 403 is a page that admits it is there, which does not satisfy
+    "completely hidden". `requireOrgsEnabled` in
+    `src/features/organizations/context.ts`.
+  - **Enforce at the existing chokepoint, not in the proxy.** One call at the top
+    of `requireOrgAccess` covers every `/orgs/[slug]/*` page and every action that
+    funnels through `requireOrgPermission`. Only three things need their own
+    guard: the two actions that legitimately bypass the chokepoint
+    (`createOrganizationAction`, `acceptInvitationAction` — no org / no membership
+    yet), and `(app)/orgs/layout.tsx` for `/orgs/new`. A 404 from `src/proxy.ts`
+    would add a fourth response constructor to a file whose invariant is that all
+    three attach the CSP and request id, and would bypass the app's rendering.
+  - **⚠️ E2E runs two legs and `reuseExistingServer` must be off in the second.**
+    `playwright.config.ts` forces it false outside `required`, or a server already
+    on :3000 in the default mode is silently reused and the whole leg asserts
+    disabled behaviour against a required-mode server. `ORG_DEPENDENT_SPECS` in
+    `e2e/tenancy-fixtures.ts` is a hand-maintained list — a new org-driving spec
+    must be added to it.
 
 ## Rate limiting in production
 
