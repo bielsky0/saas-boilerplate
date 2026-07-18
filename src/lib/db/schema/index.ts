@@ -50,3 +50,5 @@ export * from "./audit-logs";
 export * from "./jobs";
 export * from "./email-suppressions";
 export * from "./files";
+export * from "./notifications";
+export * from "./notification-preferences";

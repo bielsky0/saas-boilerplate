@@ -367,5 +367,48 @@
       "open": "Could not open the file.",
       "delete": "Could not delete the file."
     }
+  },
+  "notifications": {
+    "bell": {
+      "label": "Notifications",
+      "title": "Notifications",
+      "empty": "You're all caught up.",
+      "markAllRead": "Mark all read",
+      "settings": "Notification settings"
+    },
+    "types": {
+      "verify-email": {
+        "title": "Verify your email",
+        "body": "Confirm your email address to finish setting up your account."
+      },
+      "invitation": {
+        "title": "You've been invited",
+        "body": "{inviterName} invited you to join {orgName}."
+      },
+      "payment-failed": {
+        "title": "Payment failed",
+        "body": "We couldn't process the {amount} {currency} payment for {orgName}."
+      },
+      "subscription-confirmed": {
+        "title": "Subscription active",
+        "body": "The {planName} plan is now active for {orgName}."
+      }
+    },
+    "preferences": {
+      "heading": "Notifications",
+      "subheading": "Choose which in-app notifications you receive.",
+      "inAppTitle": "In-app notifications",
+      "types": {
+        "verify-email": "Email verification reminders",
+        "invitation": "Team invitations",
+        "payment-failed": "Failed payments",
+        "subscription-confirmed": "Subscription confirmations"
+      },
+      "locked": "Always on",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Preferences saved.",
+      "error": "Something went wrong. Please try again."
+    }
   }
 }

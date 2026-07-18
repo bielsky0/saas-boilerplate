@@ -7,6 +7,8 @@ import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
 
 import { enqueueEmail } from "@/features/emails/send";
+import { enqueueNotification } from "@/features/notifications/send";
+import { ensurePersonalAccount, getPersonalAccountByUserId } from "@/features/organizations/data";
 import { startOnboardingSequence } from "@/features/onboarding/sequence";
 import { db, schema } from "@/lib/db";
 import { env } from "@/lib/env/server";
@@ -154,6 +156,27 @@ export const auth = betterAuth({
         { url, name: user.name },
         { to: user.email, locale: await recipientLocale(user.id) },
       );
+      // Second channel (spec 23): a bell item after the auto-sign-in lands the new
+      // user on the dashboard, independent of the email. `db`, not a tx — the auth
+      // engine owns this connection (same reason the email enqueue above does).
+      // Scoped to the personal account, ensured here in case this fires before the
+      // user.create `after` hook. Deduped on the token so a resend/retry is safe.
+      await ensurePersonalAccount(user.id);
+      const account = await getPersonalAccountByUserId(user.id);
+      if (account) {
+        await enqueueNotification(
+          db,
+          {
+            userId: user.id,
+            organizationId: null,
+            accountId: account.id,
+            type: "verify-email",
+            params: { name: user.name ?? "" },
+            link: url,
+          },
+          { dedupeKey: `notif:verify-email:${url}` },
+        );
+      }
     },
     /**
      * Start the onboarding sequence (spec 10.3). Day 0 IS the welcome, so this one

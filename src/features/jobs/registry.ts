@@ -1,6 +1,7 @@
 import type { JobRegistry } from "@/lib/adapters/jobs";
 import { billingNotifyHandler } from "@/features/billing/notify";
 import { emailSendHandler } from "@/features/emails/handler";
+import { notificationCreateHandler } from "@/features/notifications/handler";
 import { onboardingStepHandler } from "@/features/onboarding/handler";
 import { storagePurgeHandler } from "@/features/storage/purge";
 import { jobPruneHandler } from "./handler";
@@ -23,6 +24,7 @@ export const registry: JobRegistry = {
   "email.send": emailSendHandler,
   "onboarding.step": onboardingStepHandler,
   "billing.notify": billingNotifyHandler,
+  "notification.create": notificationCreateHandler,
   "job.prune": jobPruneHandler,
   "storage.purge": storagePurgeHandler,
 };

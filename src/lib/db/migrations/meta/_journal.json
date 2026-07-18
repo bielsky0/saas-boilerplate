@@ -57,6 +57,13 @@
       "when": 1784313090462,
       "tag": "0007_glossy_proemial_gods",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784315476554,
+      "tag": "0008_harsh_kingpin",
+      "breakpoints": true
     }
   ]
 }

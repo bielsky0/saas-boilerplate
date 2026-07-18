@@ -54,7 +54,12 @@ import type { db } from "@/lib/db";
 export type JobWriter = Pick<typeof db, "insert">;
 
 export type JobName =
-  "email.send" | "onboarding.step" | "billing.notify" | "job.prune" | "storage.purge";
+  | "email.send"
+  | "onboarding.step"
+  | "billing.notify"
+  | "notification.create"
+  | "job.prune"
+  | "storage.purge";
 
 /**
  * `email.send`'s `template` is `string`, not the email adapter's `TemplateName`:
@@ -100,6 +105,22 @@ export interface JobPayloads {
     locale: string;
   };
   "onboarding.step": { userId: string; step: string };
+  /**
+   * Create an in-app notification (spec 23.1). A SEPARATE job from `email.send`
+   * for the same business event, deliberately: its own row means its own retry
+   * lane, so a dead-lettered email never blocks the in-app copy (spec 23 —
+   * channels are independent). `type` is `string`, not the feature's
+   * `NotificationType`, for the same reason `email.send`'s `template` is: a
+   * payload is jsonb and the handler re-validates it with zod.
+   */
+  "notification.create": {
+    userId: string;
+    organizationId: string | null;
+    accountId: string | null;
+    type: string;
+    params: Record<string, string | number>;
+    link?: string;
+  };
   /**
    * A discriminated union rather than one bag of optionals: `amount` is
    * meaningless for a confirmation and `providerSubscriptionId` for a failure,

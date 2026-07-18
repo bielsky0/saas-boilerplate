@@ -223,6 +223,62 @@ export async function waitForJobsSettled(
   return getJobs(request, { dedupeKeyPrefix });
 }
 
+// --- Notifications (spec 23) ------------------------------------------------
+
+export interface NotificationView {
+  id: string;
+  type: string;
+  params: Record<string, unknown>;
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+/** A user's in-app notifications across every owner context, newest first. */
+export async function getNotifications(
+  request: APIRequestContext,
+  email: string,
+): Promise<NotificationView[]> {
+  const res = await request.get(`/api/dev/notifications?email=${encodeURIComponent(email)}`);
+  const body = (await res.json()) as { notifications: NotificationView[] };
+  return body.notifications;
+}
+
+/**
+ * Wait for a notification of `type` to land — the in-app counterpart to
+ * `waitForEmail`. Same reason polling is mandatory: the `notification.create` job
+ * drains after the response, so a single read is a race.
+ */
+export async function waitForNotification(
+  request: APIRequestContext,
+  email: string,
+  type: string,
+  timeout = 15_000,
+): Promise<NotificationView> {
+  await expect
+    .poll(async () => (await getNotifications(request, email)).some((n) => n.type === type), {
+      timeout,
+      message: `Waiting for "${type}" notification to ${email}`,
+    })
+    .toBe(true);
+  return (await getNotifications(request, email)).find((n) => n.type === type)!;
+}
+
+/** Turn a user's in-app channel on/off for one notification type (spec 23.3). */
+export async function setNotificationPreference(
+  request: APIRequestContext,
+  email: string,
+  type: string,
+  inAppEnabled: boolean,
+): Promise<void> {
+  const res = await request.post("/api/dev/notification-preference", {
+    data: { email, type, inAppEnabled },
+  });
+  if (!res.ok()) {
+    throw new Error(`setNotificationPreference failed (${res.status()}): ${await res.text()}`);
+  }
+}
+
 /** Simulate a provider outage for one address (spec 14.1). */
 export async function failNextEmails(
   request: APIRequestContext,

@@ -7,13 +7,21 @@ import { getTranslations } from "next-intl/server";
 import { createHash, randomUUID } from "node:crypto";
 
 import { enqueueEmail } from "@/features/emails/send";
+import { enqueueNotification } from "@/features/notifications/send";
 import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { invitation, membership, organization } from "@/lib/db/schema";
 import { clientEnv } from "@/lib/env/client";
 import { storedLocaleForEmail, toLocale } from "@/lib/i18n/user-locale";
 import { requireOrgPermission } from "./context";
-import { getInvitationByTokenHash, getOrgById, isSlugTaken } from "./data";
+import {
+  ensurePersonalAccount,
+  getInvitationByTokenHash,
+  getOrgById,
+  getPersonalAccountByUserId,
+  getUserByEmail,
+  isSlugTaken,
+} from "./data";
 import { createOrgSchema, inviteMemberSchema, slugSchema, updateRoleSchema } from "./schema";
 import { resolveUniqueSlug } from "./slug";
 
@@ -185,6 +193,35 @@ export async function inviteMemberAction(
       // is not swallowed as a duplicate.
       { dedupeKey: `invitation:${row!.id}` },
     );
+
+    // Second channel (spec 23), for an invitee who ALREADY has an account — an
+    // in-app bell alongside the email. Scoped to their PERSONAL account (they are
+    // not a member of this org yet). No account → email only; the email is what
+    // reaches a stranger, the notification what reaches an existing user. Same
+    // `tx`, so a rollback un-sends both. `getUserByEmail` keeps §3.3 privacy: the
+    // admin never learns from the result whether the invitee had an account.
+    const invitee = await getUserByEmail(parsed.data.email);
+    if (invitee) {
+      await ensurePersonalAccount(invitee.id);
+      const account = await getPersonalAccountByUserId(invitee.id);
+      if (account) {
+        await enqueueNotification(
+          tx,
+          {
+            userId: invitee.id,
+            organizationId: null,
+            accountId: account.id,
+            type: "invitation",
+            params: {
+              orgName: ctx.org.name,
+              inviterName: ctx.session.user.name ?? ctx.session.user.email,
+            },
+            link: `/invitations/${rawToken}`,
+          },
+          { dedupeKey: `notif:invitation:${row!.id}` },
+        );
+      }
+    }
   });
 
   revalidatePath(`/orgs/${slug}/members`);

@@ -5,6 +5,7 @@ import type { JobHandler } from "@/lib/adapters/jobs";
 import { clientEnv } from "@/lib/env/client";
 import { createLogger } from "@/lib/logger";
 import { enqueueEmail } from "@/features/emails/send";
+import { enqueueNotification } from "@/features/notifications/send";
 import { getSubscriptionByProviderId, resolveBillingRecipients } from "./data";
 import { PLANS, type PlanId } from "./plans";
 
@@ -96,6 +97,20 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
         // anyone who already received it.
         { dedupeKey: `email:${p.kind}:${p.eventId}:${box.email.toLowerCase()}` },
       );
+      // The SECOND channel (spec 23), enqueued as its own job so email failure and
+      // in-app delivery are independent. Per-recipient dedupe on the same basis.
+      await enqueueNotification(
+        db,
+        {
+          userId: box.userId,
+          organizationId: p.organizationId,
+          accountId: p.accountId,
+          type: "subscription-confirmed",
+          params: { orgName: ownerName, planName: planName(sub.planId) },
+          link: manageUrl(orgSlug),
+        },
+        { dedupeKey: `notif:${p.kind}:${p.eventId}:${box.userId}` },
+      );
     }
     return;
   }
@@ -117,6 +132,19 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
       { orgName: ownerName, amount: p.amount, currency: p.currency, manageUrl: manageUrl(orgSlug) },
       { to: box.email, ...(box.name ? { name: box.name } : {}), locale: box.locale },
       { dedupeKey: `email:${p.kind}:${p.eventId}:${box.email.toLowerCase()}` },
+    );
+    // The SECOND channel (spec 23) — its own job, independent of the email above.
+    await enqueueNotification(
+      db,
+      {
+        userId: box.userId,
+        organizationId: p.organizationId,
+        accountId: p.accountId,
+        type: "payment-failed",
+        params: { orgName: ownerName, amount: p.amount, currency: p.currency },
+        link: manageUrl(orgSlug),
+      },
+      { dedupeKey: `notif:${p.kind}:${p.eventId}:${box.userId}` },
     );
   }
 };

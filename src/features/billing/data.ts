@@ -72,6 +72,8 @@ export async function getSubscriptionByProviderId(providerSubscriptionId: string
 }
 
 export interface Mailbox {
+  /** The recipient user — needed to target an in-app notification (spec 23.1). */
+  userId: string;
   email: string;
   name: string | null;
   /**
@@ -115,6 +117,7 @@ export async function resolveBillingRecipients(
   if (organizationId) {
     const rows = await db
       .select({
+        userId: user.id,
         email: user.email,
         name: user.name,
         locale: user.locale,
@@ -137,13 +140,18 @@ export async function resolveBillingRecipients(
     return {
       ownerName: rows[0]?.orgName ?? "your organization",
       orgSlug: rows[0]?.orgSlug ?? null,
-      mailboxes: rows.map((r) => ({ email: r.email, name: r.name, locale: toLocale(r.locale) })),
+      mailboxes: rows.map((r) => ({
+        userId: r.userId,
+        email: r.email,
+        name: r.name,
+        locale: toLocale(r.locale),
+      })),
     };
   }
 
   if (accountId) {
     const rows = await db
-      .select({ email: user.email, name: user.name, locale: user.locale })
+      .select({ userId: user.id, email: user.email, name: user.name, locale: user.locale })
       .from(personalAccount)
       .innerJoin(user, eq(user.id, personalAccount.userId))
       .where(
@@ -157,7 +165,12 @@ export async function resolveBillingRecipients(
     return {
       ownerName: rows[0]?.name ?? "your account",
       orgSlug: null,
-      mailboxes: rows.map((r) => ({ email: r.email, name: r.name, locale: toLocale(r.locale) })),
+      mailboxes: rows.map((r) => ({
+        userId: r.userId,
+        email: r.email,
+        name: r.name,
+        locale: toLocale(r.locale),
+      })),
     };
   }
 

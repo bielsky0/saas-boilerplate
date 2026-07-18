@@ -367,5 +367,48 @@
       "open": "Nie udało się otworzyć pliku.",
       "delete": "Nie udało się usunąć pliku."
     }
+  },
+  "notifications": {
+    "bell": {
+      "label": "Powiadomienia",
+      "title": "Powiadomienia",
+      "empty": "Wszystko przeczytane.",
+      "markAllRead": "Oznacz wszystkie jako przeczytane",
+      "settings": "Ustawienia powiadomień"
+    },
+    "types": {
+      "verify-email": {
+        "title": "Zweryfikuj adres e-mail",
+        "body": "Potwierdź swój adres e-mail, aby dokończyć zakładanie konta."
+      },
+      "invitation": {
+        "title": "Masz zaproszenie",
+        "body": "{inviterName} zaprosił(a) Cię do dołączenia do {orgName}."
+      },
+      "payment-failed": {
+        "title": "Nieudana płatność",
+        "body": "Nie udało się przetworzyć płatności {amount} {currency} dla {orgName}."
+      },
+      "subscription-confirmed": {
+        "title": "Subskrypcja aktywna",
+        "body": "Plan {planName} jest już aktywny dla {orgName}."
+      }
+    },
+    "preferences": {
+      "heading": "Powiadomienia",
+      "subheading": "Wybierz, które powiadomienia w aplikacji chcesz otrzymywać.",
+      "inAppTitle": "Powiadomienia w aplikacji",
+      "types": {
+        "verify-email": "Przypomnienia o weryfikacji e-mail",
+        "invitation": "Zaproszenia do zespołu",
+        "payment-failed": "Nieudane płatności",
+        "subscription-confirmed": "Potwierdzenia subskrypcji"
+      },
+      "locked": "Zawsze włączone",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "saved": "Zapisano preferencje.",
+      "error": "Coś poszło nie tak. Spróbuj ponownie."
+    }
   }
 }

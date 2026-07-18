@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SignOutButton } from "@/features/auth";
+import { NotificationBell } from "@/features/notifications";
 import { AccountSwitcher } from "@/features/organizations";
 import { ensurePersonalAccount, listUserOrgs } from "@/features/organizations/data";
 import { requireSession } from "@/lib/auth";
@@ -31,6 +32,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <AccountSwitcher personalLabel={personalLabel} orgs={orgs} />
           </div>
           <div className="flex items-center gap-2">
+            <NotificationBell />
             <ThemeToggle />
             <SignOutButton />
           </div>

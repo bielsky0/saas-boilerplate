@@ -44,6 +44,21 @@ export async function getPersonalAccountByUserId(userId: string) {
   return row ?? null;
 }
 
+/**
+ * A non-deleted user by email, or null — used to decide whether an invitee
+ * already has an account (spec 3.3), e.g. to raise an in-app invitation
+ * notification. Does NOT reveal existence to the caller's user (§3.3 privacy);
+ * only server-internal flows consume it.
+ */
+export async function getUserByEmail(email: string) {
+  const [row] = await db
+    .select({ id: user.id, name: user.name, email: user.email })
+    .from(user)
+    .where(and(eq(user.email, email), isNull(user.deletedAt)))
+    .limit(1);
+  return row ?? null;
+}
+
 /** Load a non-deleted org by its URL slug, or null. */
 export async function getOrgBySlug(slug: string) {
   const [row] = await db
