@@ -5,6 +5,7 @@ import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
+import { mcp } from "better-auth/plugins";
 
 import { enqueueEmail } from "@/features/emails/send";
 import { enqueueNotification } from "@/features/notifications/send";
@@ -96,6 +97,10 @@ export const auth = betterAuth({
       session: schema.session,
       account: schema.account,
       verification: schema.verification,
+      // OAuth 2.0 authorization-server tables for the MCP plugin (spec 26).
+      oauthApplication: schema.oauthApplication,
+      oauthAccessToken: schema.oauthAccessToken,
+      oauthConsent: schema.oauthConsent,
     },
   }),
   user: {
@@ -288,6 +293,37 @@ export const auth = betterAuth({
       // A super admin could then impersonate another super admin, and that
       // impersonated session would carry real admin authority. Bootstrap the first
       // super admin with SQL (see docs/ARCHITECTURE.md) instead.
+    }),
+    /**
+     * MCP / OAuth 2.0 authorization server (spec 26 — AI Agent).
+     *
+     * Turns the app into an OAuth provider so an MCP client (e.g. Claude) obtains a
+     * per-USER access token and acts on that user's behalf. `withMcpAuth` resolves
+     * that token to a `userId` on every `/api/mcp` call, which the MCP tools funnel
+     * through the SAME RBAC/tenant primitives the UI uses (§26.1) — the agent never
+     * has authority beyond the user it acts for.
+     *
+     * `loginPage` is a small bridge (`/oauth/login`), NOT the real sign-in page:
+     * the engine redirects an unauthenticated authorize request there with the OAuth
+     * query, and the bridge either resumes the flow (if a session already exists) or
+     * hands off to `/login` with a callback that returns to it. This keeps the
+     * existing server-action sign-in path (which does not go through the engine's
+     * HTTP sign-in endpoint, so the plugin's own resume hook cannot fire) untouched.
+     *
+     * `allowDynamicClientRegistration` lets the client self-register (RFC 7591);
+     * `requirePKCE` hardens the public-client code exchange; `consentPage` renders
+     * our own Allow/Deny screen instead of the engine's built-in HTML.
+     */
+    mcp({
+      loginPage: "/oauth/login",
+      oidcConfig: {
+        // `loginPage` is required by the OIDCOptions type; the mcp plugin overrides
+        // it with the value above, so keep the two identical.
+        loginPage: "/oauth/login",
+        allowDynamicClientRegistration: true,
+        requirePKCE: true,
+        consentPage: "/oauth/consent",
+      },
     }),
     // nextCookies MUST be last: it applies Set-Cookie from server-action calls
     // (signUpEmail/signInEmail/signOut/impersonateUser) to the Next.js response.

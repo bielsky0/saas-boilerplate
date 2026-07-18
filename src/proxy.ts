@@ -65,6 +65,14 @@ function isPublicApiPath(pathname: string): boolean {
   // the sender is a mail provider's server, which has no session and reads any
   // non-2xx as a broken unsubscribe.
   if (pathname.startsWith("/api/unsubscribe")) return true;
+  // MCP endpoint (spec 26). Authenticated by an OAuth 2.0 bearer token inside the
+  // handler (`withMcpAuth`), not a session cookie — the caller is an AI agent, not
+  // a browser. Guarding it here would 307 an API client to /login; instead the
+  // handler answers 401 with the WWW-Authenticate that starts the OAuth flow.
+  // (The OAuth authorization endpoints themselves live under /api/auth/, already
+  // exempt above; the root /.well-known/* metadata routes bypass this proxy via
+  // the matcher's `.*\..*` dot rule.)
+  if (pathname.startsWith("/api/mcp")) return true;
   return false;
 }
 

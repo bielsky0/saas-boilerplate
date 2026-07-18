@@ -33,6 +33,15 @@ import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
  * (spec 11.2). They are the identity layer on top of which multi-tenancy (§3)
  * is later built — a user exists before any tenant does. This is the first of
  * the two documented exceptions to the tenant-owner rule in `schema/index.ts`.
+ *
+ * The three `oauth*` tables at the bottom are the engine's `mcp`/`oidc-provider`
+ * plugin substrate (spec 26 — AI Agent). They turn the app into an OAuth 2.0
+ * authorization server so an MCP client (e.g. Claude) can obtain a per-USER
+ * access token and act on that user's behalf through the same RBAC path as the
+ * UI. Their shape is fixed by `better-auth/plugins/oidc-provider/schema.mjs` —
+ * do not rename columns without also remapping them in the adapter config. Same
+ * carve-out as above: they are identity/credential infrastructure, keyed by a
+ * system credential (the OAuth token), not a tenant owner.
  */
 
 export const user = pgTable(
@@ -126,6 +135,63 @@ export const verification = pgTable("verification", {
   identifier: text("identifier").notNull(),
   value: text("value").notNull(),
   expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+
+/**
+ * OAuth 2.0 authorization-server tables (spec 26 — AI Agent / MCP).
+ *
+ * Owned by the engine's `mcp` + `oidc-provider` plugins; shape mirrors
+ * `better-auth/plugins/oidc-provider/schema.mjs` exactly. A `required` field
+ * there → `.notNull()` here; `required: false` → nullable. An MCP client registers
+ * as an `oauthApplication` (dynamic client registration), the user grants an
+ * `oauthConsent`, and the resulting `oauthAccessToken` — carrying the user id — is
+ * what `withMcpAuth` resolves on every `/api/mcp` call.
+ */
+export const oauthApplication = pgTable("oauthApplication", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  icon: text("icon"),
+  metadata: text("metadata"),
+  clientId: text("clientId").notNull().unique(),
+  clientSecret: text("clientSecret"),
+  redirectUrls: text("redirectUrls").notNull(),
+  type: text("type").notNull(),
+  disabled: boolean("disabled").notNull().default(false),
+  // Nullable: a client can be registered without being tied to a single user.
+  userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+
+export const oauthAccessToken = pgTable("oauthAccessToken", {
+  id: text("id").primaryKey(),
+  accessToken: text("accessToken").notNull().unique(),
+  refreshToken: text("refreshToken").unique(),
+  accessTokenExpiresAt: timestamp("accessTokenExpiresAt").notNull(),
+  refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt").notNull(),
+  // FK to the application's business key (`clientId`), not its `id`.
+  clientId: text("clientId")
+    .notNull()
+    .references(() => oauthApplication.clientId, { onDelete: "cascade" }),
+  // The acting user (spec 26.1): this is what pins every MCP call to one identity.
+  userId: text("userId").references(() => user.id, { onDelete: "cascade" }),
+  scopes: text("scopes").notNull(),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+
+export const oauthConsent = pgTable("oauthConsent", {
+  id: text("id").primaryKey(),
+  clientId: text("clientId")
+    .notNull()
+    .references(() => oauthApplication.clientId, { onDelete: "cascade" }),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  scopes: text("scopes").notNull(),
+  consentGiven: boolean("consentGiven").notNull(),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });

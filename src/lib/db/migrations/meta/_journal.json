@@ -64,6 +64,13 @@
       "when": 1784315476554,
       "tag": "0008_harsh_kingpin",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784352142421,
+      "tag": "0009_lumpy_big_bertha",
+      "breakpoints": true
     }
   ]
 }

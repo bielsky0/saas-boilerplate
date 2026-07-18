@@ -67,6 +67,15 @@ export const PUBLIC_PAGE_ROUTES = {
    */
   "/login": { prefix: false, indexable: false },
   "/signup": { prefix: false, indexable: false },
+  /*
+   * OAuth login bridge (spec 26). The engine redirects an unauthenticated MCP
+   * authorize request here; the page decides whether to resume the flow or send
+   * the user to /login. It must be reachable WITHOUT a session for that decision
+   * to run at all — otherwise the guard 307s to /login and the OAuth query is lost
+   * before the bridge ever sees it. (The consent page, by contrast, is only ever
+   * reached WITH a session, so it stays guarded.)
+   */
+  "/oauth/login": { prefix: false, indexable: false },
   "/verify-email": { prefix: false, indexable: false },
   "/forgot-password": { prefix: false, indexable: false },
   "/reset-password": { prefix: false, indexable: false },
