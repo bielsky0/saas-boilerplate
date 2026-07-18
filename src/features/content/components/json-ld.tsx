@@ -1,3 +1,5 @@
+import { getNonce } from "@/lib/security/nonce";
+
 import type { JsonLdNode } from "../jsonld";
 
 /**
@@ -9,8 +11,17 @@ import type { JsonLdNode } from "../jsonld";
  * there, dropping the rest of the JSON into the document as markup. That is
  * stored XSS via a blog post's title. Escaping `<` as < is still valid JSON
  * (and valid JSON-LD), and cannot close the tag.
+ *
+ * The nonce (spec 22.1) is read HERE rather than passed in by each of the six
+ * pages that render this. A forgotten prop would not fail the build — it would
+ * quietly strip structured data from one page's search results, which is the
+ * kind of regression nobody notices for a quarter. `application/ld+json` never
+ * executes, but `script-src` blocks it all the same.
  */
-export function JsonLd({ data }: { data: JsonLdNode | JsonLdNode[] }) {
+export async function JsonLd({ data }: { data: JsonLdNode | JsonLdNode[] }) {
   const json = JSON.stringify(data).replace(/</g, "\\u003c");
-  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: json }} />;
+  const nonce = await getNonce();
+  return (
+    <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: json }} />
+  );
 }

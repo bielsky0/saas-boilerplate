@@ -7,6 +7,11 @@ import createNextIntlPlugin from "next-intl/plugin";
 // missing/invalid variable aborts `next dev`/`next build` with a clear error
 // instead of failing later at runtime. See src/lib/env/server.ts (spec 19.1).
 import "./src/lib/env/server";
+// Note the RELATIVE path, and that the target module has no imports of its own:
+// Next transpiles this config with a loader that does not resolve the `@/*`
+// tsconfig alias, so an aliased import anywhere in its graph breaks the build.
+// See the header of src/lib/security/headers.ts.
+import { STATIC_SECURITY_HEADERS } from "./src/lib/security/headers";
 
 const nextConfig: NextConfig = {
   // Emit a self-contained server bundle so the app runs on Vercel *and* as a
@@ -17,6 +22,35 @@ const nextConfig: NextConfig = {
     // 403/401 responses from server components, actions, and route handlers
     // (spec 4.2). See src/features/organizations/context.ts.
     authInterrupts: true,
+  },
+  /*
+   * Security headers (spec 22.1).
+   *
+   * These four are constant, so they are set HERE rather than in the proxy —
+   * because the proxy's matcher skips every path containing a dot, which is
+   * `/robots.txt`, `/sitemap.xml`, `/.well-known/*` and everything in `public/`.
+   * Setting them here is what makes "on every response" true rather than
+   * "on every response the guard happened to touch".
+   *
+   * The Content-Security-Policy is deliberately NOT here: it carries a
+   * per-request nonce, so it can only be built in `src/proxy.ts`. Setting a
+   * nonce-less copy here as well would not be belt-and-braces — the browser
+   * INTERSECTS repeated CSP headers, so the weaker copy would veto the real one
+   * and stop every script on the site. One CSP, one place.
+   *
+   * `output: "standalone"` means we cannot lean on Vercel-level header config:
+   * this has to work identically in a Docker container. `headers()` does.
+   */
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: Object.entries(STATIC_SECURITY_HEADERS).map(([key, value]) => ({
+          key,
+          value,
+        })),
+      },
+    ];
   },
 };
 

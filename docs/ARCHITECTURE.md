@@ -506,6 +506,40 @@ permission)` from `src/features/organizations/context.ts` as the FIRST line —
   `src/app/(app)/orgs/[slug]/settings/page.tsx`. UI gating via `hasPermission` is
   cosmetic only. The active tenant is always derived from the `/orgs/[slug]` URL
   (stateless, refresh-safe — spec 3.5), never from hidden session state.
+- **Add a third-party origin (script, API, image) — spec 22.1:** the CSP is
+  default-deny, so a new integration is invisible until you allow it. Do it with
+  env, not code: `CSP_EXTRA_SCRIPT_SRC` / `_STYLE_SRC` / `_CONNECT_SRC` /
+  `_IMG_SRC` (space-separated) append to the matching directive. Set
+  `CSP_MODE=report-only` while wiring it up to see violations without breakage,
+  then back to `enforce`. Policy lives in `src/lib/security/csp.ts`; the four
+  constant headers in `src/lib/security/headers.ts`. Things worth knowing before
+  you debug the wrong layer:
+  - **The bucket origin is derived, not configured.** `csp.ts` computes it from
+    the `S3_*` block with the same precedence as the storage adapter, because the
+    browser uploads DIRECTLY to the bucket. Do not add it to `CSP_EXTRA_*`.
+  - **`script-src` uses `'strict-dynamic'`**, so supporting browsers IGNORE host
+    allowlists there. Load third-party scripts from an already-nonced script;
+    `CSP_EXTRA_SCRIPT_SRC` only helps browsers without `'strict-dynamic'`.
+  - **Rendering your own inline `<script>`/`<style>`?** It needs the nonce:
+    `await getNonce()` from `src/lib/security/nonce.ts`. Reference:
+    `src/features/content/components/json-ld.tsx`. Next nonces its own framework
+    and bundle scripts automatically by parsing the CSP header. Note browsers
+    hide the value — `getAttribute("nonce")` reads `""` while `el.nonce` has it,
+    which matters when writing tests.
+  - **`style-src` carries `'unsafe-inline'` deliberately** (sonner injects a
+    stylesheet with no nonce hook). `script-src` is the strict one and must stay
+    that way — `e2e/security-headers.spec.ts` asserts exactly that, scoped to
+    `script-src`, and the assertion is worthless if widened to the whole header.
+  - **The four constant headers are set in `next.config.ts`, not the proxy**,
+    because the proxy matcher skips every path containing a dot (`robots.txt`,
+    `sitemap.xml`, `.well-known/`, `public/`). The CSP is the opposite — proxy
+    only, since it carries a per-request nonce. Never set the CSP in both: repeat
+    CSP headers are INTERSECTED, so a nonce-less copy would veto the real one and
+    stop every script on the site.
+  - **`upgrade-insecure-requests` is emitted only when `BETTER_AUTH_URL` is
+    https.** On an http origin it rewrites Better Auth's absolute redirects to a
+    port nothing serves, and sign-in dies on a blank "This page couldn't load"
+    with no violation logged anywhere.
 
 ## Common commands
 

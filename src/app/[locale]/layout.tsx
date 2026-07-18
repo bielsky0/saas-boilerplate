@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui";
 import { ImpersonationBanner } from "@/features/admin";
 import { LOCALES, OG_LOCALE, isLocale } from "@/lib/i18n";
+import { getNonce } from "@/lib/security/nonce";
 import { site } from "@/lib/site";
 
 const geistSans = Geist({
@@ -98,6 +99,11 @@ export default async function RootLayout({ children, params }: LayoutProps<"/[lo
   // the segment. Must come before anything that translates.
   setRequestLocale(locale);
 
+  // CSP nonce minted by the proxy (spec 22.1). Next nonces its own framework and
+  // bundle scripts by parsing the CSP header; this is for the one inline script
+  // we do not own — see ThemeProvider below.
+  const nonce = await getNonce();
+
   return (
     <html
       lang={locale}
@@ -110,11 +116,20 @@ export default async function RootLayout({ children, params }: LayoutProps<"/[lo
           module is `server-only`, so a tenth language costs the client nothing.
         */}
         <NextIntlClientProvider>
+          {/*
+            `nonce` (spec 22.1) is what lets the strict CSP stay strict. next-themes
+            renders a BLOCKING inline script to paint the right theme before
+            hydration, and `disableTransitionOnChange` injects a <style> element at
+            runtime; it applies this nonce to both. Without it the choice would be
+            `script-src 'unsafe-inline'` — which is most of the CSP's value — or a
+            dark-mode flash on every load.
+          */}
           <ThemeProvider
             attribute="class"
             defaultTheme="system"
             enableSystem
             disableTransitionOnChange
+            nonce={nonce}
           >
             {/*
               Impersonation disclosure (spec 6.2) lives at the ROOT so there is no

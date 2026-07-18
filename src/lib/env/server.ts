@@ -115,6 +115,30 @@ export const env = createEnv({
     // (spec 21.3). Unset = derived from endpoint+bucket (path-style). Set it when a
     // CDN or custom domain fronts the bucket.
     S3_PUBLIC_URL: z.string().optional(),
+    // Security headers / CSP (spec 22.1). Defaults to "enforce" because a policy
+    // that ships disabled is a policy nobody notices is broken — the E2E suite
+    // proves the app renders under it before merge, so enforcing is the honest
+    // default rather than an aspiration. "report-only" swaps the header name to
+    // Content-Security-Policy-Report-Only (violations logged by the browser,
+    // nothing blocked) and exists so an operator adding a third-party integration
+    // can diagnose without redeploying code; "off" omits the CSP header entirely.
+    // The four static headers from next.config.ts are set in ALL three modes.
+    CSP_MODE: z.enum(["enforce", "report-only", "off"]).default("enforce"),
+    // Space-separated extra CSP sources, appended to the matching directive
+    // (spec 22.1: "every new external integration requires a deliberate addition
+    // to the list, not automatic permission"). Empty by default — the boilerplate
+    // ships with no third-party origins. The bucket origin is NOT configured here:
+    // it is derived from the S3_* block above, so storage works in every
+    // deployment without a second place to keep in sync. See src/lib/security/csp.ts.
+    //
+    // ⚠️ CSP_EXTRA_SCRIPT_SRC: script-src uses 'strict-dynamic', which makes
+    // browsers that support it IGNORE host allowlists in that directive. A host
+    // added here only helps legacy browsers; the modern path is for a nonced
+    // script to load the third party, which 'strict-dynamic' already permits.
+    CSP_EXTRA_SCRIPT_SRC: z.string().default(""),
+    CSP_EXTRA_STYLE_SRC: z.string().default(""),
+    CSP_EXTRA_CONNECT_SRC: z.string().default(""),
+    CSP_EXTRA_IMG_SRC: z.string().default(""),
   },
   // Server vars are read straight from process.env in the Node runtime.
   experimental__runtimeEnv: {},
