@@ -13,6 +13,7 @@ import { db } from "@/lib/db";
 import { invitation, membership, organization } from "@/lib/db/schema";
 import { clientEnv } from "@/lib/env/client";
 import { storedLocaleForEmail, toLocale } from "@/lib/i18n/user-locale";
+import type { FormState } from "@/lib/validation";
 import { requireOrgPermission } from "./context";
 import {
   ensurePersonalAccount,
@@ -33,7 +34,14 @@ import { resolveUniqueSlug } from "./slug";
  * transaction that locks the owner rows (`FOR UPDATE`).
  */
 
-export type ActionState = { error?: string; success?: string };
+/**
+ * The shared shape from `@/lib/validation` (spec 22.2), kept under this name
+ * because the org components import `ActionState` from the action they call and
+ * renaming them all would buy nothing. An alias, not a copy: a field added to
+ * `FormState` arrives here, which is the point — this type used to be written
+ * out identically in four feature files.
+ */
+export type ActionState = FormState;
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (spec 3.3)
 

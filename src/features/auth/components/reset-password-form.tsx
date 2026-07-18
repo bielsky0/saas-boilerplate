@@ -16,7 +16,11 @@ export function ResetPasswordForm({ token }: { token: string }) {
   return (
     <form action={formAction} className="flex flex-col gap-4" noValidate>
       <input type="hidden" name="token" value={token} />
-      <FormField label={t("fields.newPassword")} htmlFor="password">
+      <FormField
+        label={t("fields.newPassword")}
+        htmlFor="password"
+        error={state.fieldErrors?.password}
+      >
         <Input
           id="password"
           name="password"
@@ -24,6 +28,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           autoComplete="new-password"
           required
           minLength={8}
+          aria-invalid={state.fieldErrors?.password ? true : undefined}
         />
         <p className="text-muted-foreground text-xs">{t("shared.passwordHint")}</p>
       </FormField>

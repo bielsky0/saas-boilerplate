@@ -4,6 +4,7 @@ import { resolveStorageOwner } from "@/features/storage/context";
 import { createUpload } from "@/features/storage/presign";
 import { presignInputSchema } from "@/features/storage/schema";
 import { storageErrorResponse } from "@/features/storage/http";
+import { invalidJson, validationFailed } from "@/lib/validation/http";
 
 /**
  * Presigned upload endpoint (spec 21.2).
@@ -19,26 +20,17 @@ import { storageErrorResponse } from "@/features/storage/http";
  *   - `slug` absent  → the caller's personal account.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const body = (await request.json().catch(() => null)) as
-    (Record<string, unknown> & { slug?: unknown }) | null;
-  if (!body) {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const slug = typeof body.slug === "string" ? body.slug : null;
+  const body: unknown = await request.json().catch(() => null);
+  if (!body) return invalidJson();
 
   const parsed = presignInputSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid upload", issues: parsed.error.flatten().fieldErrors },
-      { status: 422 },
-    );
-  }
+  if (!parsed.success) return validationFailed(parsed.error, "Invalid upload");
 
-  const { owner, userId } = await resolveStorageOwner(slug, "storage.upload");
+  const { slug, ...input } = parsed.data;
+  const { owner, userId } = await resolveStorageOwner(slug ?? null, "storage.upload");
 
   try {
-    const result = await createUpload(owner, userId, parsed.data);
+    const result = await createUpload(owner, userId, input);
     return NextResponse.json({ fileId: result.fileId, upload: result.upload }, { status: 201 });
   } catch (err) {
     const mapped = storageErrorResponse(err);

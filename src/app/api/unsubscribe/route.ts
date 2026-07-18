@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { suppress } from "@/features/emails/data";
 import { verifyUnsubscribeToken } from "@/features/emails/suppression";
+import { unsubscribeTokenSchema } from "@/features/emails/schema";
+import { apiError } from "@/lib/validation/http";
 
 /**
  * RFC 8058 one-click unsubscribe (spec 10.3).
@@ -26,15 +28,20 @@ import { verifyUnsubscribeToken } from "@/features/emails/suppression";
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = request.nextUrl;
-  const token = verifyUnsubscribeToken(
-    searchParams.get("e"),
-    searchParams.get("c"),
-    searchParams.get("t"),
-  );
 
-  if (!token) {
-    return NextResponse.json({ error: "Invalid unsubscribe link" }, { status: 400 });
-  }
+  // Shape first (§22.2), signature second. Both failures answer identically:
+  // a link that is missing a parameter and a link with a forged HMAC are the
+  // same event to anyone who should be here, and distinguishing them only
+  // helps someone probing the format.
+  const parsed = unsubscribeTokenSchema.safeParse({
+    e: searchParams.get("e"),
+    c: searchParams.get("c"),
+    t: searchParams.get("t"),
+  });
+  if (!parsed.success) return apiError("Invalid unsubscribe link", 400);
+
+  const token = verifyUnsubscribeToken(parsed.data.e, parsed.data.c, parsed.data.t);
+  if (!token) return apiError("Invalid unsubscribe link", 400);
 
   await suppress(token.email, token.category, "unsubscribe");
   return NextResponse.json({ unsubscribed: true });

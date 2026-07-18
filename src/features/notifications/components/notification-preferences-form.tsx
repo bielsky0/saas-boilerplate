@@ -4,10 +4,11 @@ import { useTranslations } from "next-intl";
 import { useActionState, useEffect } from "react";
 
 import { Button, FormMessage, toast } from "@/components/ui";
-import { updateNotificationPreferencesAction, type ActionState } from "../actions";
+import type { FormState } from "@/lib/validation";
+import { updateNotificationPreferencesAction } from "../actions";
 import { NOTIFICATION_TYPES, isSuppressibleType, type NotificationType } from "../types";
 
-const initial: ActionState = {};
+const initial: FormState = {};
 
 /**
  * In-app notification preferences (spec 23.3). One checkbox per suppressible type

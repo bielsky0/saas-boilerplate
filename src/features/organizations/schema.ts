@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { NamespaceTranslator } from "@/lib/i18n";
+import { SLUG_MAX, SLUG_MIN, SLUG_PATTERN } from "@/lib/validation";
 
 /**
  * Shared org validation schemas (spec 3.2–3.4, 16.1).
@@ -17,14 +18,23 @@ import type { NamespaceTranslator } from "@/lib/i18n";
 
 type ValidationTranslator = NamespaceTranslator<"organizations.validation">;
 
-/** Slug rule: lowercase letters, digits, single hyphens; 2–48 chars. */
+/**
+ * Slug rule: lowercase letters, digits, single hyphens; 2–48 chars.
+ *
+ * The rule itself lives in `@/lib/validation` and is shared with `slugParam`,
+ * the untranslated version the API routes and server actions hold a wire slug
+ * to. This function only dresses it in messages. Keeping the pattern and the
+ * bounds in one constant is what stops the form's rule and the API's rule from
+ * drifting — before, the regex was written out here and nowhere else, so the
+ * API simply had no rule at all.
+ */
 export function slugSchema(t: ValidationTranslator) {
   return z
     .string()
     .trim()
-    .min(2, t("slugMin"))
-    .max(48, t("slugMax"))
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, t("slugFormat"));
+    .min(SLUG_MIN, t("slugMin"))
+    .max(SLUG_MAX, t("slugMax"))
+    .regex(SLUG_PATTERN, t("slugFormat"));
 }
 
 export function createOrgSchema(t: ValidationTranslator) {

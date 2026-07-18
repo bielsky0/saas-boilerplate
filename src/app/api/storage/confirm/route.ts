@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { resolveStorageOwner } from "@/features/storage/context";
 import { confirmUpload } from "@/features/storage/presign";
 import { confirmInputSchema } from "@/features/storage/schema";
+import { apiError, invalidJson, validationFailed } from "@/lib/validation/http";
 
 /**
  * Upload confirmation (spec 21.2, step 5). Flips the pending row created at
@@ -12,23 +13,15 @@ import { confirmInputSchema } from "@/features/storage/schema";
  * Body: { slug?, fileId }.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const body = (await request.json().catch(() => null)) as
-    (Record<string, unknown> & { slug?: unknown }) | null;
-  if (!body) {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const slug = typeof body.slug === "string" ? body.slug : null;
+  const body: unknown = await request.json().catch(() => null);
+  if (!body) return invalidJson();
 
   const parsed = confirmInputSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request" }, { status: 422 });
-  }
+  if (!parsed.success) return validationFailed(parsed.error);
 
-  const { owner } = await resolveStorageOwner(slug, "storage.upload");
+  const { owner } = await resolveStorageOwner(parsed.data.slug ?? null, "storage.upload");
   const ok = await confirmUpload(owner, parsed.data.fileId);
-  if (!ok) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  if (!ok) return apiError("Not found", 404);
+
   return NextResponse.json({ ok: true });
 }

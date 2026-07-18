@@ -2,6 +2,7 @@
 
 import { isSuppressibleCategory } from "./categories";
 import { suppress } from "./data";
+import { unsubscribeTokenSchema } from "./schema";
 import { verifyUnsubscribeToken } from "./suppression";
 
 /**
@@ -14,25 +15,28 @@ import { verifyUnsubscribeToken } from "./suppression";
 
 export type UnsubscribeState = { error?: string; done?: boolean };
 
+const INVALID = "This unsubscribe link is not valid." as const;
+
 export async function unsubscribeAction(
   _prev: UnsubscribeState,
   formData: FormData,
 ): Promise<UnsubscribeState> {
-  const e = formData.get("e");
-  const c = formData.get("c");
-  const t = formData.get("t");
+  // One message for a malformed link, a forged signature, and a category that
+  // cannot be suppressed alike: none is actionable by the recipient, and
+  // distinguishing them only helps someone probing the format. This is why the
+  // parse result is discarded rather than turned into `fieldErrors` — the
+  // deliberate exception to §22.2's field-level rule, for the same
+  // anti-enumeration reason `signInAction` keeps its message whole-form.
+  const parsed = unsubscribeTokenSchema.safeParse({
+    e: formData.get("e"),
+    c: formData.get("c"),
+    t: formData.get("t"),
+  });
+  if (!parsed.success) return { error: INVALID };
 
-  const token = verifyUnsubscribeToken(
-    typeof e === "string" ? e : null,
-    typeof c === "string" ? c : null,
-    typeof t === "string" ? t : null,
-  );
-  // One message for a forged signature and a malformed link alike: neither is
-  // actionable by the recipient, and distinguishing them only helps someone
-  // probing the format.
-  if (!token) return { error: "This unsubscribe link is not valid." };
-  if (!isSuppressibleCategory(token.category))
-    return { error: "This unsubscribe link is not valid." };
+  const token = verifyUnsubscribeToken(parsed.data.e, parsed.data.c, parsed.data.t);
+  if (!token) return { error: INVALID };
+  if (!isSuppressibleCategory(token.category)) return { error: INVALID };
 
   await suppress(token.email, token.category, "unsubscribe");
   return { done: true };

@@ -452,6 +452,68 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
   `requireSession()` in `src/lib/auth/index.ts` before doing anything. Reference:
   the `src/app/(app)/dashboard/page.tsx` server component and the sign-out server
   action in `src/features/auth/actions.ts`.
+- **Validate an input — spec 22.2.** Validation is a NAMED LAYER, not a habit:
+  every value that crosses the trust boundary passes a zod schema **before** any
+  business logic or authorization side effect. The shared parts live in
+  `src/lib/validation/` (`state.ts` = the `FormState` shape, `http.ts` = the JSON
+  envelope, `primitives.ts` = wire vocabulary); the RULES stay in each feature's
+  `schema.ts`. Five rules:
+  1. **Parse first, authorize second.** `resolveStorageOwner`/
+     `resolveNotificationOwner`/`requireOrgPermission` are handed values that
+     already have a shape. Reference: `src/app/api/storage/presign/route.ts`.
+  2. **Factory if a human reads the message, constant if the wire does.** A form
+     schema takes a `NamespaceTranslator` and returns translated messages
+     (`features/auth/schema.ts`); an API schema does not, because a 422 for a
+     hand-built request has no reader to translate for (`features/storage/schema.ts`).
+     The split is not stylistic — a factory exists **only** to localize.
+  3. **A server action argument is an input.** Next's own docs: an action "is
+     reachable to anyone who can send the same POST". `slug: string | null`
+     describes what our UI sends and constrains nobody else. Reference:
+     `markReadSchema` in `features/notifications/schema.ts`.
+  4. **Field errors are for FORMAT failures only.** `invalid()` returns both
+     `error` and `fieldErrors`; render the latter next to the input via
+     `FormField`'s `error` prop. **⚠️ Never for anti-enumeration paths (§2.1)** —
+     `signInAction`, `requestPasswordResetAction` and `unsubscribeAction` discard
+     the zod detail on purpose, because "Enter your password." tells an attacker
+     the email parsed fine. Reference: `sign-up-form.tsx` (does) vs
+     `sign-in-form.tsx` (must not).
+  5. **A tenant slug is an authority argument.** It selects whose data the request
+     touches, so it goes THROUGH the schema (`optionalSlugParam`), never beside it.
+     It used to be read out-of-band as `typeof body.slug === "string"`, which
+     accepts `""` and anything else.
+- **⚠️ The validation layer is landed but not fully adopted — deliberate, and
+  here is the list.** §22.2 was implemented as a layer plus the public and
+  zero-validation surfaces, not as a repo-wide retrofit, because a sweep touching
+  every endpoint in one change is unreviewable and the cost of arriving late is
+  low (see below). Covered today: all four auth actions, both storage routes, both
+  unsubscribe entry points, the notification mark-read actions, every job payload,
+  and the Stripe webhook. **Not covered, in rough risk order:**
+  - `src/app/api/storage/file/[id]/route.ts` — the `id` path param and `?slug=`
+    are read raw.
+  - `src/app/api/notifications/route.ts` — `?slug=` is passed straight to
+    `resolveNotificationOwner`.
+  - `src/features/organizations/actions.ts` (org settings/slug update) — parses
+    field-by-field via `createOrgSchema(tv).shape.name` instead of one object
+    parse, so a partial form yields no coherent `fieldErrors`.
+  - `src/lib/i18n/actions.ts` — a hand-rolled `isLocale()` guard. Deliberate and
+    already documented there; listed only so the inventory is complete.
+  - The `str()` helper duplicated in `admin/actions.ts` and
+    `organizations/actions.ts` — a `typeof` guard doing a schema's job.
+  - Every form except sign-up and reset-password still renders the single
+    whole-form `FormState.error`, not `fieldErrors`.
+
+  **The cost, stated:** an unvalidated `slug` or `id` reaches an owner-scoped
+  query as arbitrary bytes. That is a robustness gap, not an isolation gap — the
+  authorization guards and the owner-scoped `where` clauses are what enforce
+  tenancy, and they run regardless. Nothing on this list can read another
+  tenant's data; the worst case is a confusing 404 or a wasted query.
+
+  **The seam:** every item above is now a CALL-SITE change — the schema helpers,
+  the envelope and the `FormField error` prop all exist and are proven by the
+  items already converted. None of it needs new infrastructure, which is exactly
+  why deferring it is cheap and why this list is honest rather than load-bearing.
+  Do them one feature at a time, and delete the line here when you do.
+
 - **Soft delete + retention (§11.3):** set `deletedAt`; never hard-delete from
   feature code. `organization`, `personal_account` and `user` carry the flag.
   Policy and the retention window live in `src/features/admin/retention.ts`.

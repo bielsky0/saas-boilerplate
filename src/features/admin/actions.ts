@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { adminAuthAdapter, authAdapter } from "@/lib/adapters/auth";
 import { db } from "@/lib/db";
 import { membership, organization, personalAccount, user } from "@/lib/db/schema";
+import type { FormState } from "@/lib/validation";
 import { recordAudit } from "./audit";
 import { requireSuperAdmin } from "./context";
 import { countSuperAdmins, getUserDetail, getUserEmailById, listSolelyOwnedOrgs } from "./data";
@@ -33,7 +34,9 @@ import {
  * Read `./audit.ts`'s header before touching the ordering in any of these.
  */
 
-export type ActionState = { error?: string; success?: string };
+/** The shared shape from `@/lib/validation` (spec 22.2) — see the note in
+ * `features/organizations/actions.ts` on why the alias keeps this name. */
+export type ActionState = FormState;
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
 

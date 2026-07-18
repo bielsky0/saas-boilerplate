@@ -11,6 +11,7 @@ import { env } from "@/lib/env/server";
 import { LOCALE_COOKIE, type Locale, withLocale } from "@/lib/i18n/config";
 import { storedLocaleForEmail } from "@/lib/i18n/user-locale";
 import { LOGIN_RULE, loginRateLimitKey } from "@/lib/security/rate-limit";
+import { type FormState as SharedFormState, invalid } from "@/lib/validation";
 import { forgotPasswordSchema, resetPasswordSchema, signInSchema, signUpSchema } from "./schema";
 
 /**
@@ -78,7 +79,20 @@ import { forgotPasswordSchema, resetPasswordSchema, signInSchema, signUpSchema }
  * by definition a stream of failures — is targeted exactly.
  */
 
-export type FormState = { error?: string };
+/**
+ * The shared shape from `@/lib/validation` (spec 22.2) — it used to be declared
+ * here and, separately and identically, in three other feature action files.
+ * Kept under this name so the auth forms keep importing their state type from
+ * the action they call.
+ *
+ * ⚠️ An ALIAS DECLARATION, not `export type { FormState }`. In a `"use server"`
+ * file the two are not interchangeable: Turbopack's server-actions transform
+ * reads the export list from the source, and a type RE-EXPORT survives into it
+ * as a runtime action export, failing the build with "Export FormState doesn't
+ * exist in target module". `tsc --noEmit` passes either way, so the build is the
+ * only thing that catches it. An alias is erased before the transform sees it.
+ */
+export type FormState = SharedFormState;
 
 /**
  * Is this client currently locked out (spec 2.1)?
@@ -110,8 +124,12 @@ export async function signUpAction(_prev: FormState, formData: FormData): Promis
     password: formData.get("password"),
     name: formData.get("name") || undefined,
   });
+  // Field-level (§22.2). Safe HERE and not on sign-in: these are FORMAT rules
+  // about a password the user just chose and can see, so naming the field
+  // discloses nothing they do not already know. `invalid()` also keeps `error`
+  // populated, so the whole-form message this used to return is unchanged.
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? t("generic") };
+    return invalid(parsed.error, t("generic"));
   }
 
   const requestHeaders = await headers();
@@ -313,7 +331,16 @@ export async function requestPasswordResetAction(
   return { sent: true };
 }
 
-export type ResetPasswordState = { error?: string };
+/**
+ * Now the shared shape, because this action DOES return field errors. Kept as a
+ * named alias rather than replaced at the call sites: the form reads better
+ * importing the state of the action it calls.
+ *
+ * `ForgotPasswordState` above is deliberately NOT this — it carries `sent` and
+ * never reports a field, since reporting anything about the address would make
+ * that form the enumeration oracle its header explains it must not be.
+ */
+export type ResetPasswordState = FormState;
 
 /**
  * Step 2: consume the token and set the new password.
@@ -333,8 +360,11 @@ export async function resetPasswordAction(
     token: formData.get("token"),
     password: formData.get("password"),
   });
+  // Same reasoning as sign-up: the password rules are format rules about a value
+  // the user just typed. The `token` field also appears in `fieldErrors`, which
+  // is harmless — it is a hidden input, so no control renders its message.
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? t("generic") };
+    return invalid(parsed.error, t("generic"));
   }
 
   const result = await authAdapter.resetPassword(

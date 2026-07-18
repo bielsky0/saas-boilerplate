@@ -24,13 +24,25 @@ export function Label({ className, ...props }: ComponentProps<typeof LabelRoot>)
   );
 }
 
+/**
+ * `error` takes the field's slice of `FormState.fieldErrors` (spec 22.2) — an
+ * ARRAY, because a value can break several rules at once and a password failing
+ * both the length and the digit rule should say both rather than make the user
+ * resubmit to discover the second.
+ *
+ * Passing `undefined` renders nothing, which is what every form that has not
+ * been migrated to field-level errors does. Those keep rendering the single
+ * whole-form `FormState.error` below the fields, unchanged.
+ */
 export function FormField({
   label,
   htmlFor,
+  error,
   children,
 }: {
   label: string;
   htmlFor: string;
+  error?: string[];
   children: ReactNode;
 }) {
   return (
@@ -39,6 +51,13 @@ export function FormField({
         {label}
       </Label>
       {children}
+      {error?.length ? (
+        <div id={`${htmlFor}-error`}>
+          {error.map((message) => (
+            <FormMessage key={message}>{message}</FormMessage>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
