@@ -1,7 +1,15 @@
 import { z } from "zod";
 
 import type { NamespaceTranslator } from "@/lib/i18n";
-import { SLUG_MAX, SLUG_MIN, SLUG_PATTERN } from "@/lib/validation";
+import {
+  RESERVED_SUBDOMAINS,
+  SLUG_MAX,
+  SLUG_MIN,
+  SLUG_PATTERN,
+  SUBDOMAIN_MAX,
+  SUBDOMAIN_MIN,
+  SUBDOMAIN_PATTERN,
+} from "@/lib/validation";
 
 /**
  * Shared org validation schemas (spec 3.2–3.4, 16.1).
@@ -37,11 +45,66 @@ export function slugSchema(t: ValidationTranslator) {
     .regex(SLUG_PATTERN, t("slugFormat"));
 }
 
+/**
+ * Subdomain rule (langlion §1.2, decyzja D10) — the academy's public address.
+ *
+ * Like `slugSchema`, the rule lives in `@/lib/validation` and this only dresses
+ * it in messages. Two checks beyond the pattern: reserved labels, and a rejection
+ * of anything that survived `.toLowerCase()` unchanged but is still not a legal
+ * DNS label.
+ *
+ * Uniqueness is NOT checked here. It needs a database round-trip, so it belongs
+ * to the action — see `createOrgAction`, which surfaces a taken subdomain as a
+ * field error rather than letting the UNIQUE constraint surface as a 500.
+ */
+export function subdomainSchema(t: ValidationTranslator) {
+  return z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(SUBDOMAIN_MIN, t("subdomainMin"))
+    .max(SUBDOMAIN_MAX, t("subdomainMax"))
+    .regex(SUBDOMAIN_PATTERN, t("subdomainFormat"))
+    .refine((value) => !RESERVED_SUBDOMAINS.includes(value), t("subdomainReserved"));
+}
+
+/**
+ * Timezone and currency are validated against ICU's own tables rather than a
+ * hand-maintained list: Node ships full ICU, so `Intl.supportedValuesOf` is the
+ * authoritative set and it tracks tzdata updates for free. A typo'd zone would
+ * otherwise only surface much later, as sessions generated an hour off.
+ */
+export function timezoneSchema(t: ValidationTranslator) {
+  return z
+    .string()
+    .trim()
+    .refine((value) => Intl.supportedValuesOf("timeZone").includes(value), t("timezoneInvalid"));
+}
+
+export function currencySchema(t: ValidationTranslator) {
+  return z
+    .string()
+    .trim()
+    .toUpperCase()
+    .refine((value) => Intl.supportedValuesOf("currency").includes(value), t("currencyInvalid"));
+}
+
+/**
+ * Creating an organization = creating an academy (langlion §1.2).
+ *
+ * `subdomain`, `timezone` and `currency` are REQUIRED with no default, mirroring
+ * the columns (Constraint 5, US-24.1/AC1). The form supplies a sensible
+ * suggestion for the timezone, but a suggestion the operator can see and change
+ * is a different thing from a default they never notice.
+ */
 export function createOrgSchema(t: ValidationTranslator) {
   return z.object({
     name: z.string().trim().min(2, t("nameMin")).max(120),
     // Optional: if omitted the server derives it from the name.
     slug: slugSchema(t).optional(),
+    subdomain: subdomainSchema(t),
+    timezone: timezoneSchema(t),
+    currency: currencySchema(t),
   });
 }
 

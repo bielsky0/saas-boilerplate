@@ -53,3 +53,62 @@ export const optionalSlugParam = slugParam.nullish();
  * query that follows; this only stops junk reaching it.
  */
 export const idParam = z.string().trim().min(1).max(255);
+
+/**
+ * A DNS label for an academy's public subdomain (langlion §1.2, decyzja D10).
+ *
+ * Separate from `SLUG_PATTERN` even though the two look alike, because they
+ * answer to different authorities. A slug is ours and routes `/orgs/[slug]`; a
+ * subdomain is DNS's and becomes `{subdomain}.langlion.com`, so its rule is
+ * RFC 1035's: letters, digits and hyphens, never leading or trailing, 63 chars
+ * max. Three chars minimum is ours, not DNS's — one- and two-letter subdomains
+ * are the ones worth keeping in reserve.
+ *
+ * Unlike a slug, consecutive hyphens are legal here; `--` is only special at
+ * positions 3–4 (punycode), and rejecting it outright would be a rule we would
+ * have to explain to anyone who hits it.
+ */
+export const SUBDOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+export const SUBDOMAIN_MIN = 3;
+export const SUBDOMAIN_MAX = 63;
+
+/**
+ * Labels an academy may not claim, because platform infrastructure answers on
+ * them (or will).
+ *
+ * This list is a one-way ratchet: once an academy has printed
+ * `{subdomain}.langlion.com` on a flyer and parents have the link, taking it back
+ * is not a migration we can perform. Adding a name here later does not free one
+ * already in use, so the list is deliberately broader than what is wired up today.
+ */
+export const RESERVED_SUBDOMAINS: readonly string[] = [
+  "www",
+  "app",
+  "api",
+  "admin",
+  "auth",
+  "mail",
+  "smtp",
+  "cdn",
+  "static",
+  "assets",
+  "media",
+  "blog",
+  "docs",
+  "help",
+  "support",
+  "status",
+  "billing",
+  "dev",
+  "staging",
+  "test",
+];
+
+/** A subdomain arriving over the wire (e.g. resolved from a Host header). */
+export const subdomainParam = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(SUBDOMAIN_MIN)
+  .max(SUBDOMAIN_MAX)
+  .regex(SUBDOMAIN_PATTERN);

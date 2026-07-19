@@ -2,6 +2,8 @@
 
 **Wersja dokumentu: 14** — integracja Dodatku v14: **Stripe Connect i konfiguracja płatności per organizacja (EPIK 30)**, budowana na Wersji 13 (limity planu i feature gating — EPIK 29), Wersji 12 (waluta i kwoty pieniężne — EPIK 24, obsługa nieudanej płatności subskrypcyjnej — EPIK 25, Notification Center jako dedykowana encja domenowa — EPIK 26, ręczne fakturowanie bez automatyzacji Stripe Tax — EPIK 27, regulaminy i akceptacje per typ grupy — EPIK 28), oraz jawna integracja z fundamentem Next.js SaaS Boilerplate.
 
+**Rewizja 14.2 (2026-07-19):** adresowanie dwupoziomowe — `organization.subdomain` (unikalny globalnie, wymóg DNS) dla witryny akademii oraz `group_type.slug` (unikalny per organizacja) dla pojedynczej oferty; patrz §1.2 (`organization`) i §2.27. Dodatkowo §2.28: encja `session` nosi w implementacji nazwę `class_session` z powodu kolizji z tabelą sesji logowania fundamentu.
+
 **Rewizja 14.1 (2026-07-19):** tożsamość klienta (rodzica) jako odrębna encja domenowa `client` — czwarty świadomy wyjątek od reguły reużycia boilerplate'u. Klient NIE korzysta z boilerplate'owego User/Membership; unikalność e-maila per `(organization_id, email)`, logowanie przez domenowy OTP scoped per organizacja. Patrz §1.2 (`client`), §2.8, §2.19. Odwołania „boilerplate §X" wskazują na `docs/boilerplate-spec.md`.
 
 **Format:** Model danych → Opis funkcjonalności → User Stories i Acceptance Criteria (wszystkie ścieżki)
@@ -87,6 +89,8 @@ organization (1) ──< group_type (N) ──< group_type_recurrence (N) ──
 |---|---|---|
 | id | PK | |
 | name | string | |
+| slug | string, unikalny globalnie | identyfikator panelu personelu: `/orgs/{slug}`. Odrębny od `subdomain` poniżej — patrz §2.27 |
+| subdomain | string, unikalny **globalnie** (rewizja 14.2) | etykieta DNS publicznej witryny akademii: `{subdomain}.langlion.com`. Wymóg globalnej unikalności pochodzi od DNS, nie od nas. Pole wymagane, **bez wartości domyślnej** i **nigdy nieautogenerowane z `name`** (kolizje nazw akademii są realne) — ta sama zasada co `currency`. Walidacja: etykieta DNS wg RFC 1035, 3–63 znaki, plus lista nazw zarezerwowanych (`www`, `api`, `admin`, `cdn`…). Patrz §2.27 |
 | timezone | string (IANA) | np. `Europe/Warsaw` — jedna akademia = jedna strefa czasowa, niezależnie od liczby lokalizacji fizycznych |
 | currency | string (ISO 4217) | np. PLN, EUR — jedna akademia = jedna waluta. Multi-currency w ramach jednej organizacji świadomie poza zakresem. Pole wymagane, bez wartości domyślnej |
 | plan_id | FK → `plan`, wymagane (v13) | plan przypisany organizacji; każda organizacja ma zawsze jakiś plan, w tym darmowy/trial jako wartość domyślna przy tworzeniu organizacji |
@@ -688,9 +692,28 @@ Jeśli Stripe później oznaczy konto jako `restricted` (np. Stripe zażądał d
 - Panel Ownera pokazuje stały wskaźnik statusu Connect (aktywne / wymaga uwagi / niepołączone) niezależnie od tego, czy powiadomienie zostało przeczytane — status jest zawsze widoczny, nie tylko zdarzeniowo zgłaszany.
 - Odłączenie Connected Account (Owner odłącza ręcznie, albo Stripe usuwa konto) jest traktowane tak samo jak `restricted` — blokada nowych płatności online, bez wpływu na dane historyczne.
 
----
+### 2.27 Adresowanie: subdomena akademii i slug oferty (rewizja 14.2)
 
-## 3. User Stories i Acceptance Criteria
+System operuje **dwoma poziomami identyfikatorów** o różnym zasięgu unikalności. Rozróżnienie jest istotne, bo mylenie ich prowadzi albo do kolizji między akademiami, albo do niepotrzebnego wycieku informacji o cudzej ofercie.
+
+| Poziom | Pole | Zasięg unikalności | Rola |
+|---|---|---|---|
+| 1 | `organization.subdomain` | **globalny** (wymóg DNS) | identyfikuje akademię: `akademia-a.langlion.com` |
+| 2 | `group_type.slug` | **per `organization_id`** | identyfikuje ofertę w obrębie akademii: `.../zapisy/obozy-2026` |
+
+Pełny URL publicznej rejestracji: `{organization.subdomain}.langlion.com/zapisy/{group_type.slug}`. Prefiks `/zapisy/` jest stały w routingu; `group_type.slug` przechowuje wyłącznie człon oferty (`obozy-2026`).
+
+Uzasadnienie poziomu 1: cała witryna akademii (docelowo kreator stron per akademia) żyje pod jej subdomeną, a docelowo pod własną domeną klienta przez CNAME. Uzasadnienie poziomu 2: jedna akademia prowadzi równolegle wiele aktywnych ofert i linków rejestracyjnych (§EPIK 2, US-2.3 — kilka `group_type` naraz), a dwie różne akademie mogą zasadnie prowadzić ofertę o tej samej nazwie.
+
+`organization.subdomain` jest odrębny od `organization.slug`, który pozostaje identyfikatorem panelu personelu (`/orgs/{slug}`). Oba są globalnie unikalne, ale odpowiadają przed różnymi autorytetami — DNS kontra routing wewnętrzny — więc scalenie ich związałoby przyszłą regułę DNS z adresami panelu.
+
+**Middleware rozpoznający organizację z subdomeny nie jest częścią Fazy 0** — Faza 0 dostarcza wyłącznie kolumnę z walidacją i unikalnością. Rozpoznawanie tenanta z nagłówka `Host`, obsługa domen własnych przez CNAME, wildcard DNS/TLS oraz zachowanie na `localhost` w dev i e2e to osobna praca, blokująca przed EPIK 4 (publiczna rejestracja klienta), nie przed Fazą 0. Panel akademii do tego czasu działa wyłącznie na `/orgs/{slug}` i subdomeny nie potrzebuje.
+
+### 2.28 Nazewnictwo encji `session` w implementacji (rewizja 14.2)
+
+Encja opisywana w tym dokumencie jako `session` (Realizacja, §1.2) nosi w implementacji nazwę **`class_session`** (stała TS `classSession`). Powód jest zewnętrzny wobec domeny: fundament boilerplate'owy (Better Auth) zajmuje nazwę `session` na sesje logowania personelu — zarówno tabelę SQL, jak i eksport TS.
+
+Kolizja nie jest głośna: `export *` z dwóch modułów eksportujących tę samą nazwę czyni ją niejednoznaczną, a moduły ES rozwiązują to przez ciche pominięcie. W praktyce oznaczało to, że generator migracji pominął tabelę domenową, generując jednocześnie klucz obcy z `booking` wskazujący na tabelę sesji logowania. Zmiana nazwy jest świadomym odejściem od dosłownego brzmienia specyfikacji; **każde odwołanie do `session` w tym dokumencie oznacza `class_session` w kodzie**.
 
 Konwencja: Jako `<rola>`, chcę `<cel>`, aby `<korzyść>`. AC w formacie Given/When/Then. Numeracja `US-<EPIK>.<nr>` odpowiada sekcjom specyfikacji technicznej.
 

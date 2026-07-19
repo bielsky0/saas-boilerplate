@@ -152,7 +152,14 @@
       "slugMax": "Slug może mieć najwyżej 48 znaków.",
       "slugFormat": "Użyj małych liter, cyfr i myślników.",
       "nameMin": "Nazwa musi mieć co najmniej 2 znaki.",
-      "emailInvalid": "Podaj poprawny adres e-mail."
+      "emailInvalid": "Podaj poprawny adres e-mail.",
+      "subdomainMin": "Subdomena musi mieć co najmniej 3 znaki.",
+      "subdomainMax": "Subdomena może mieć najwyżej 63 znaki.",
+      "subdomainFormat": "Użyj małych liter, cyfr i myślników (nie na początku ani na końcu).",
+      "subdomainReserved": "Ta subdomena jest zarezerwowana. Wybierz inną.",
+      "subdomainTaken": "Ta subdomena jest już zajęta. Wybierz inną.",
+      "timezoneInvalid": "Wybierz poprawną strefę czasową.",
+      "currencyInvalid": "Wybierz poprawną walutę."
     },
     "errors": {
       "generic": "Coś poszło nie tak. Spróbuj ponownie.",
@@ -180,7 +187,13 @@
       "slugOptional": "Slug (opcjonalnie)",
       "email": "E-mail",
       "role": "Rola",
-      "slugPlaceholder": "generowany z nazwy"
+      "slugPlaceholder": "generowany z nazwy",
+      "subdomain": "Subdomena",
+      "subdomainHint": "Twój publiczny adres: {subdomain}.langlion.com",
+      "timezone": "Strefa czasowa",
+      "timezoneHint": "Wszystkie godziny zajęć są prezentowane w tej strefie.",
+      "currency": "Waluta",
+      "currencyHint": "Nie można jej zmienić po pojawieniu się transakcji."
     },
     "create": {
       "submit": "Utwórz organizację",
@@ -512,6 +525,45 @@
       "incomplete": "Niekompletna",
       "incomplete_expired": "Wygasła",
       "paused": "Wstrzymana"
+    }
+  },
+  "locations": {
+    "validation": {
+      "nameMin": "Nazwa lokalizacji musi mieć co najmniej 2 znaki."
+    }
+  },
+  "groups": {
+    "validation": {
+      "nameMin": "Nazwa musi mieć co najmniej 2 znaki.",
+      "slugMin": "Slug musi mieć co najmniej 2 znaki.",
+      "slugMax": "Slug może mieć najwyżej 48 znaków.",
+      "slugFormat": "Użyj małych liter, cyfr i myślników.",
+      "priceInvalid": "Cena musi być liczbą całkowitą w groszach.",
+      "purchaseModesRequired": "Wybierz co najmniej jeden tryb zakupu.",
+      "billingTypesRequired": "Wybierz co najmniej jeden typ rozliczenia pakietów.",
+      "startTimeFormat": "Podaj godzinę w formacie 24-godzinnym, np. 17:00.",
+      "durationInvalid": "Czas trwania musi być dodatnią liczbą minut.",
+      "capacityInvalid": "Pojemność musi być liczbą dodatnią.",
+      "startDateFormat": "Podaj datę w formacie RRRR-MM-DD.",
+      "occurrencesRequired": "Wzorzec cykliczny wymaga liczby powtórzeń."
+    }
+  },
+  "schedule": {
+    "validation": {
+      "capacityInvalid": "Pojemność musi być liczbą dodatnią.",
+      "endBeforeStart": "Godzina zakończenia musi być późniejsza niż rozpoczęcia.",
+      "bothTimesRequired": "Zmień godzinę rozpoczęcia i zakończenia razem."
+    }
+  },
+  "clients": {
+    "validation": {
+      "emailInvalid": "Podaj poprawny adres e-mail.",
+      "athleteNameMin": "Imię uczestnika musi mieć co najmniej 2 znaki."
+    }
+  },
+  "bookings": {
+    "validation": {
+      "athleteRequired": "Wybierz uczestnika."
     }
   }
 }

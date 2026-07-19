@@ -92,6 +92,24 @@ export async function isSlugTaken(slug: string): Promise<boolean> {
   return Boolean(row);
 }
 
+/**
+ * Whether a subdomain is already in use (langlion §1.2, decyzja D10).
+ *
+ * Same shape as `isSlugTaken` and for the same reason: soft-deleted orgs are
+ * included, because the UNIQUE constraint spans them. Freeing a deleted academy's
+ * subdomain would be worse than holding it anyway — the DNS name may still be
+ * cached, linked, or printed on something, so handing it to a different academy
+ * would silently route one academy's parents to another's registration form.
+ */
+export async function isSubdomainTaken(subdomain: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.subdomain, subdomain))
+    .limit(1);
+  return Boolean(row);
+}
+
 /** The caller's membership in an org, or null. */
 export async function getMembership(organizationId: string, userId: string) {
   const [row] = await db

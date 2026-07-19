@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint, typecheck & build
+    name: Lint, typecheck, unit tests & build
     runs-on: ubuntu-latest
     env:
       # The build imports the env schema (fail-fast validation), so provide
@@ -48,6 +48,12 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # Vitest, not Playwright: these cover pure logic (timezone expansion for
+      # session generation) with no database and no build, so they belong in the
+      # fast job. The e2e job below owns everything that touches Postgres.
+      - name: Unit tests
+        run: pnpm test
+
       - name: Build
         run: pnpm build
 
@@ -69,7 +75,13 @@ jobs:
     env:
       # Real Postgres service below; log email adapter so the verification link
       # is captured in-process and read via /api/dev/emails (no SMTP).
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/e2e
+      #
+      # Two roles, mirroring docker-compose.yml (langlion Faza 0, decyzja D2): the
+      # app runs as the unprivileged `saas_school`, so RLS policies actually apply
+      # to it, while migrations run as the owner `postgres`. Provisioned by the
+      # step below, because a `services:` container cannot run init SQL.
+      DATABASE_URL: postgresql://saas_school:saas_school@localhost:5432/e2e
+      DATABASE_MIGRATION_URL: postgresql://postgres:postgres@localhost:5432/e2e
       BETTER_AUTH_SECRET: ci-e2e-secret-not-a-real-secret
       EMAIL_PROVIDER: log
       NEXT_PUBLIC_APP_URL: http://localhost:3000
@@ -106,6 +118,18 @@ jobs:
 
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium
+
+      # The postgres `services:` container has no way to mount
+      # docker-entrypoint-initdb.d, so the role docker-compose.yml creates on a
+      # fresh volume is created here by hand instead. Must precede db:migrate: the
+      # RLS migration GRANTs to this role and aborts if it is missing.
+      - name: Provision unprivileged application role (RLS)
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d e2e -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE saas_school LOGIN PASSWORD 'saas_school' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+          GRANT CONNECT ON DATABASE e2e TO saas_school;
+          CREATE EXTENSION IF NOT EXISTS btree_gist;
+          SQL
 
       - name: Apply database migrations
         run: pnpm db:migrate

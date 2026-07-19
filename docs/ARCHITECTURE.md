@@ -789,6 +789,7 @@ Authenticated traffic is unaffected — it keys on the session.
 | `pnpm dev`                     | Run the app locally                      |
 | `pnpm build` / `pnpm start`    | Production build / serve                 |
 | `pnpm lint` / `pnpm typecheck` | ESLint / `tsc --noEmit`                  |
+| `pnpm test`                    | Vitest unit tests (pure logic, no DB)    |
 | `pnpm test:e2e`                | Playwright E2E (auth flows)              |
 | `pnpm format`                  | Prettier write                           |
 | `pnpm db:up` / `pnpm db:down`  | Start / stop local Postgres (Docker)     |
@@ -798,10 +799,148 @@ Authenticated traffic is unaffected — it keys on the session.
 
 ## Local setup
 
-1. `cp .env.example .env` and adjust if needed (set a real `BETTER_AUTH_SECRET`).
+1. Create `.env` (it is gitignored). The database block needs **two** URLs — see
+   "Two database URLs (RLS)" below — plus a real `BETTER_AUTH_SECRET`:
+
+   ```
+   DATABASE_URL=postgresql://saas_school:saas_school@localhost:5433/saas_boilerplate
+   DATABASE_MIGRATION_URL=postgresql://postgres:postgres@localhost:5433/saas_boilerplate
+   BETTER_AUTH_SECRET=...            # openssl rand -base64 32
+   BETTER_AUTH_URL=http://localhost:3000
+   NEXT_PUBLIC_APP_URL=http://localhost:3000
+   EMAIL_PROVIDER=log
+   S3_ENDPOINT=http://localhost:9100
+   S3_REGION=us-east-1
+   S3_BUCKET=saas-boilerplate
+   S3_ACCESS_KEY_ID=minioadmin
+   S3_SECRET_ACCESS_KEY=minioadmin
+   S3_FORCE_PATH_STYLE=true
+   ```
+
+   Port **5433**, not the default 5432: `docker-compose.yml` namespaces the host
+   port and container name to this project so it can run next to an upstream
+   saas-boilerplate checkout.
+
 2. `pnpm install`
 3. `pnpm db:up` then `pnpm db:migrate`
 4. `pnpm dev` → http://localhost:3000
+
+### Two database URLs (RLS)
+
+The app and the migrations connect as **different Postgres roles**, and this is
+load-bearing rather than tidiness:
+
+| Variable                 | Role          | Used by             | Properties                                       |
+| ------------------------ | ------------- | ------------------- | ------------------------------------------------ |
+| `DATABASE_URL`           | `saas_school` | the running app     | NOSUPERUSER, NOBYPASSRLS, owns nothing, DML only |
+| `DATABASE_MIGRATION_URL` | `postgres`    | drizzle-kit, studio | schema owner, runs DDL, implicit BYPASSRLS       |
+
+Row-Level Security is bypassed outright by a superuser, and by a table's owner
+unless the table also carries `FORCE ROW LEVEL SECURITY`. Connecting the app as
+`postgres` — which is both — would leave every policy in the schema decorative
+while looking perfectly configured. That is the failure mode US-1.1/AC1 exists to
+catch, so `e2e/langlion-rls.spec.ts` asserts the connected role is genuinely
+neither superuser nor BYPASSRLS. If that assertion fails, the isolation tests
+around it are not testing anything.
+
+`DATABASE_MIGRATION_URL` is deliberately **not** in `src/lib/env/server.ts`: the
+running app should have no way to read the owner's credentials. `drizzle.config.ts`
+reads it from `process.env` directly and throws if it is absent — a silent
+fallback to `DATABASE_URL` would run DDL as the unprivileged role and surface as
+"permission denied for schema public", which says nothing about the real cause.
+
+Two operational consequences:
+
+- **`pnpm db:studio` must be pointed at the migration URL.** On the app role it
+  shows zero rows in every RLS-covered table, which looks like data loss.
+- **`btree_gist`** (required by the `EXCLUDE` constraints in §5.1/§5.3) is not a
+  _trusted_ extension in PG16, so creating it needs superuser. On managed hosting
+  (Supabase/Neon/RDS) a DBA enables it out of band.
+
+The `saas_school` role is created by `docker/postgres-init/01-app-role.sql`, which
+the Postgres image runs **only when initialising an empty data directory**. A
+volume created before that file existed will not have the role, and the grant
+migration then aborts with a message naming the fix. Recreate the volume:
+
+```
+docker compose down -v && pnpm db:up && pnpm db:migrate
+```
+
+or, to keep existing local data, create the role by hand:
+
+```
+docker exec saas_school_postgres psql -U postgres -d saas_boilerplate \
+  -c "CREATE ROLE saas_school LOGIN PASSWORD 'saas_school' NOSUPERUSER NOBYPASSRLS;" \
+  -c "CREATE EXTENSION IF NOT EXISTS btree_gist;"
+```
+
+### Row-Level Security (spec §1.3, US-1.1)
+
+The langlion domain tables — `location`, `group_type`, `group_type_recurrence`,
+`class_session`, `client`, `athlete`, `booking` — carry RLS policies keyed on a
+per-transaction setting. All access goes through one function:
+
+```ts
+import { withTenant } from "@/lib/db/tenant";
+
+await withTenant(ctx.org.id, async (tx) => listLocations(tx, ctx.org.id));
+```
+
+**RLS is the second line, not the first.** `data.ts` functions still take an
+explicit `organizationId` and still filter by it. That filter is what uses the
+index, and US-1.1/AC1 is about isolation holding on the day someone forgets it —
+a policy that is never load-bearing is a policy nobody notices has broken. The
+apparent redundancy is the point.
+
+`data.ts` functions take a `TenantDb` rather than reaching for `db`, so calling
+one outside a tenant context is a compile error. The rejected alternative was
+ambient context via `AsyncLocalStorage` (the shape `src/lib/logger.ts` uses): a
+forgotten `withTenant` would then degrade to an empty result set, which is
+indistinguishable from "no rows matched".
+
+To cross tenants deliberately, use `withSystemBypass(reason, fn)` from
+`@/lib/db/system`. It is fenced by `no-restricted-imports`, so every consumer is
+listed in `eslint.config.mjs` and "who can read everything?" stays greppable.
+
+#### Objects Drizzle cannot see
+
+Three kinds of database object in this schema exist only in hand-written
+migration SQL and are absent from `migrations/meta/*_snapshot.json`:
+
+| Object                               | Where                        |
+| ------------------------------------ | ---------------------------- |
+| `EXCLUDE` constraints (§5.1, §5.3)   | `0014_lively_sumo.sql`       |
+| RLS policies + `FORCE`               | `0015_rls_langlion_core.sql` |
+| `GRANT`s, `ALTER DEFAULT PRIVILEGES` | `0012_grant_app_role.sql`    |
+
+This is safe in one direction and dangerous in the other. `drizzle-kit generate`
+diffs the TS schema against the snapshot, never against the live database, so it
+cannot propose dropping what it cannot see.
+
+> **`drizzle-kit push` is banned.** Unlike `generate`, it introspects the live
+> database, so it would see these objects as drift and propose dropping them —
+> silently taking tenant isolation and the concurrency guards with it. There is
+> deliberately no `db:push` script. Do not add one.
+
+The remaining hazard is a future migration that `ALTER`s the **type** of a column
+participating in an `EXCLUDE`; it will either fail or drop the constraint by
+cascade. The affected columns are listed by name in the headers of
+`schema/class-sessions.ts` and `schema/bookings.ts`.
+
+#### Adding a table to the langlion domain
+
+1. Give it a NOT NULL `organizationId` and an index on it.
+2. Add `UNIQUE (id, organizationId)` — it is the target every composite foreign
+   key in this domain points at, which is what makes "the child belongs to the
+   parent's academy" structural rather than a rule to remember.
+3. Add `ENABLE` + `FORCE ROW LEVEL SECURITY` and both policies, copying
+   `0015_rls_langlion_core.sql`. Without `FORCE`, the owner is exempt.
+4. **Check the export name is not already taken.** `export *` from two schema
+   modules exporting the same binding is not an error — the name becomes
+   ambiguous and is silently omitted, and `drizzle-kit` then skips your table
+   while still emitting foreign keys against the _other_ table of that name. This
+   already happened once: the spec's `session` collides with Better Auth's, hence
+   `class_session`.
 
 With `EMAIL_PROVIDER=log` (the default) no mail is sent — sign up and the
 verification link is printed to the server console (and captured in-process for

@@ -20,6 +20,24 @@ Ten plik jest **jedynym trwałym źródłem prawdy o planie i postępie** międz
 4. **Role personelu: statyczne, predefiniowane** — rozszerzenie mapy w `src/features/rbac/index.ts` o `reception`/`trainer`/`secretariat` + uprawnienia domenowe z §2.10. Mechanizm ról custom w DB (boilerplate §4.3) NIE jest budowany — mapa statyczna pozostaje jedynym źródłem prawdy i pozwala dodać DB-backed role później bez migracji danych.
 5. **Postgres RLS na wszystkich tabelach tenantowych** (US-1.1/AC1 traktowane jako twardy wymóg): infrastruktura + polityki na tabelach langlion w Fazie 0, retrofit tabel boilerplate'u jako osobna Faza 1.
 
+### Rozstrzygnięcia podjęte w trakcie Fazy 0 (2026-07-19)
+
+| #   | Decyzja                                                                                                                                   | Uzasadnienie                                                                                                                                                                                                                |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | **Vitest** jako drugi runner obok Playwrighta (`pnpm test`, krok w jobie `quality`)                                                       | Repo nie miało żadnego runnera unit-testów; logika stref czasowych wymaga testu bez bazy i bez `pnpm build`. Podział wymuszony rozszerzeniem: `.test.ts` w `src/` = Vitest, `.spec.ts` w `e2e/` = Playwright                |
+| D2  | **Dwa URL-e bazy**: `DATABASE_URL` → rola `saas_school` (NOSUPERUSER, NOBYPASSRLS, nie-właściciel), `DATABASE_MIGRATION_URL` → właściciel | Aplikacja łączyła się jako `postgres` (superuser + właściciel), co czyniłoby RLS dekoracją. Zweryfikowane testem `usesuper=false`/`rolbypassrls=false`                                                                      |
+| D3  | Mini-UI (subdomena + strefa + waluta) na `/orgs/new`                                                                                      | Constraint 5 zabrania DEFAULT-u; wariant „stała z TODO" wprowadzałby de facto default                                                                                                                                       |
+| D4  | `booking` → `class_session` **złożony FK z `ON UPDATE CASCADE`** na `(id, organizationId, startTime, endTime)`                            | Daje semantykę US-3.4/AC3 strukturalnie zamiast konwencji „pamiętaj o tej samej transakcji". Zweryfikowane: przesunięcie sesji aktualizuje denorm w `booking` bez kodu aplikacyjnego                                        |
+| D5  | EXCLUDE na `class_session` z `WHERE "status" <> 'cancelled'`                                                                              | Odejście od dosłownego §5.1. Bez tego odwołana sesja blokuje slot trenera na zawsze — ujawniłoby się dopiero w F7 (US-19.2) i wymagałoby migracji danych                                                                    |
+| D6  | Nazwa roli aplikacyjnej: **`saas_school`**                                                                                                | —                                                                                                                                                                                                                           |
+| D7  | `DATABASE_MIGRATION_URL` **poza** `src/lib/env/server.ts`, tylko w `drizzle.config.ts` (fail-fast, bez fallbacku)                         | Aplikacja nie powinna móc odczytać poświadczeń właściciela. Cichy fallback objawiłby się jako „permission denied for schema public"                                                                                         |
+| D8  | Bypass RLS przez **GUC** `app.bypass_rls` (`withSystemBypass`), nie drugą rolę/pulę; ogrodzony `no-restricted-imports`                    | Druga rola łamie „`src/lib/db/index.ts` to jedyne miejsce otwarcia połączenia". W F0 jedynym konsumentem jest sonda testowa. Ścieżka do drugiej roli udokumentowana jako opcja na F1                                        |
+| D9  | `athlete` i `group_type_recurrence` dostają `organizationId` (§1.2 ich nie wymienia)                                                      | Wymusza reguła z nagłówka `schema/index.ts`; polityka RLS bez lokalnej kolumny właściciela kosztowałaby podzapytanie na każdym wierszu                                                                                      |
+| D10 | **Identyfikatory dwupoziomowe**: `organization.subdomain` globalnie unikalny (DNS), `group_type.slug` unikalny per organizacja            | Patrz §2.27 specyfikacji (rewizja 14.2)                                                                                                                                                                                     |
+| D11 | Encja `session` nazwana w implementacji **`class_session`**                                                                               | Wymuszone kolizją z tabelą Better Auth. Kolizja była cicha (`export *` czyni nazwę niejednoznaczną → moduły ES ją pomijają), a wygenerowana migracja wskazywała FK z `booking` na sesje logowania. Patrz §2.28 specyfikacji |
+| D12 | Postgres tego projektu na porcie **5433**, kontenery `saas_school_*`; MinIO na **9100/9101**                                              | Port 5432 i domyślne nazwy zajmuje równolegle działające repo `saas-boilerplate`. Namespace zamiast zatrzymywania cudzego środowiska                                                                                        |
+| D13 | GRANT-y dla roli aplikacyjnej w osobnej migracji `0012`, przed tabelami i politykami                                                      | Plan umieszczał je w Kroku 6, co zostawiłoby repo w stanie niedziałającym przez trzy kroki — po utworzeniu roli aplikacja nie mogła odczytać żadnej tabeli                                                                  |
+
 ---
 
 ## Stan na start (audyt z 2026-07-19)
@@ -57,14 +75,14 @@ Kolejność oparta na §5 specyfikacji („Kolejność implementacji"), skorygow
 
 ### Faza 0 — Fundament domeny: dokumenty + rdzeń modelu danych + infrastruktura RLS
 
-**Status:** nierozpoczęta
+**Status:** ✅ **zakończona** (2026-07-19)
 **Cel:** encje rdzenia z ochroną współbieżności na poziomie bazy i RLS jako drugą linią obrony; uporządkowana dokumentacja. Backend-only (bez UI) — nie zmienia zachowania istniejącego produktu.
 **Pokrywa:** spec §5 pkt 1–2; EPIK 1 (US-1.1, US-1.2); Zasady nadrzędne #1–#3 (fundament pod nie); §2.14 (kwoty integer od startu).
 **Zależności:** brak (fundament boilerplate istnieje).
 
-**Zadania:**
+**Zadania:** (wszystkie wykonane — szczegóły realizacji w „Raport z realizacji Fazy 0" poniżej)
 
-1. **Dokumenty** *(część wykonana 2026-07-19 przy tworzeniu tego planu)*:
+1. **Dokumenty** _(część wykonana 2026-07-19 przy tworzeniu tego planu)_:
    - [x] `docs/boilerplate-spec.md` — przywrócona specyfikacja boilerplate'u
    - [x] `docs/specyfikacja.md` — rewizja 14.1 (encja `client`)
    - [x] `docs/plan-implementacji.md` — ten plik
@@ -86,6 +104,33 @@ Kolejność oparta na §5 specyfikacji („Kolejność implementacji"), skorygow
 
 **Definicja ukończenia (DoD):** migracje przechodzą od zera (`pnpm db:migrate` na czystej bazie) i na istniejącej bazie dev; wszystkie testy z pkt 6 zielone; istniejąca suita e2e bez regresji; dokumenty z pkt 1 w repo.
 
+#### Raport z realizacji Fazy 0 (2026-07-19) — referencja względem DoD
+
+| Kryterium DoD                                                 | Wynik                                                                                                                                                                            |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Migracje od zera na czystej bazie                             | ✅ `docker compose down -v && pnpm db:up && pnpm db:migrate` — przechodzi; init-SQL tworzy rolę na świeżym wolumenie                                                             |
+| Migracje na istniejącej bazie dev                             | ✅ trójstopniowy backfill (`ADD` nullable → `UPDATE` → `SET NOT NULL`) zastosowany na niepustej `organization`                                                                   |
+| Constraint trenera (§5.1)                                     | ✅ `class_session_trainer_no_overlap_excl` — kolizja `23P01`; sesje przylegające przechodzą (dowód na `'[)'`); sesja `cancelled` zwalnia slot (D5)                               |
+| Constraint zawodnika (§5.3)                                   | ✅ `booking_athlete_no_overlap_excl` — kolizja `23P01`; `cancelled` zwalnia termin                                                                                               |
+| Idempotencja generowania (§4.4)                               | ✅ `class_session_recurrence_start_uq` — powtórka `23505`; sesje bez wzorca (NULL) nie kolidują                                                                                  |
+| RLS blokuje cross-tenant przy pominiętym filtrze (US-1.1/AC1) | ✅ sonda `/api/dev/rls-probe` wykonuje zapytania **bez** `organizationId`: kontekst tenanta → tylko jego wiersze; brak kontekstu → 0 wierszy; zapis do cudzego tenanta → `42501` |
+| Środowisko faktycznie egzekwuje RLS                           | ✅ test twardo asertuje `usesuper=false`, `rolbypassrls=false` oraz `relrowsecurity`+`relforcerowsecurity` na wszystkich 7 tabelach — bez tego pozostałe testy RLS byłyby puste  |
+| Brak wycieku kontekstu przez pulę połączeń                    | ✅ osobny test: po `withTenant` natychmiastowe zapytanie bez kontekstu zwraca 0 wierszy (łapie `set_config(..., false)`)                                                         |
+| Logika stref czasowych (US-1.2/AC1)                           | ✅ 13 testów Vitest: 40 tygodni przez obie zmiany czasu daje stale 17:00 lokalnie; przypięte godziny nieistniejąca/dwuznaczna, strefa +05:30, krok tygodniowy 167 h              |
+| Istniejąca suita e2e bez regresji                             | ✅ `136 passed, 3 skipped, 0 failed` (`--workers=1`, konfiguracja CI)                                                                                                            |
+| `lint` / `typecheck` / `test` / `format:check`                | ✅ wszystkie zielone                                                                                                                                                             |
+
+**Weryfikacja D4 (denormalizacja czasów):** przesunięcie `class_session.startTime` o godzinę zaktualizowało `booking.sessionStartTime`/`sessionEndTime` przez `ON UPDATE CASCADE`, bez udziału kodu aplikacyjnego — ryzyko „łatwe do pominięcia" z sekcji Ryzyka jest tym samym zdjęte na poziomie schematu, nie konwencji.
+
+**Odstępstwa od pierwotnego planu Fazy 0:**
+
+- GRANT-y dla roli aplikacyjnej wydzielone do migracji `0012`, przed tabelami i politykami (D13) — plan umieszczał je w Kroku 6, co pozostawiłoby repo niedziałające przez trzy kroki.
+- Encja `session` → `class_session` (D11) — wymuszone kolizją z Better Auth, wykrytą dzięki temu, że wygenerowana migracja pominęła tabelę, generując FK na tabelę sesji logowania.
+- Namespace portów i kontenerów Dockera (D12) — port 5432 zajęty przez równolegle działające repo.
+- `organization.subdomain` (D10) — dołożone w trakcie fazy na wniosek użytkownika, wraz z rewizją 14.2 specyfikacji.
+
+**Nowe artefakty:** `vitest.config.ts`; `docker/postgres-init/01-app-role.sql`; `src/lib/db/{tenant,system}.ts`; `src/lib/db/schema/{locations,group-types,group-type-recurrences,class-sessions,clients,athletes,bookings}.ts`; `src/features/{locations,groups,schedule,clients,bookings}/{data,schema}.ts`; `src/features/schedule/recurrence.ts` + test; `src/app/api/dev/{rls-probe,seed-langlion}/`; `e2e/langlion-{rls,constraints}.spec.ts`; migracje `0012`–`0015`.
+
 ---
 
 ### Faza 1 — ⚠️ RLS retrofit tabel tenantowych boilerplate'u
@@ -93,7 +138,7 @@ Kolejność oparta na §5 specyfikacji („Kolejność implementacji"), skorygow
 **Status:** nierozpoczęta
 **Cel:** rozszerzenie drugiej linii obrony (RLS) na istniejące tabele tenantowe boilerplate'u. Wąska, ryzykowna — dotyka współdzielonej infrastruktury danych.
 **Pokrywa:** US-1.1/AC1 w pełnym zakresie; boilerplate §11.2 (rekomendacja RLS).
-**Zależności:** F0 (infrastruktura RLS: rola, wrapper, wzorzec polityk).
+**Zależności:** F0 ✅ (dostarczone: rola `saas_school` bez BYPASSRLS + dwa URL-e, `withTenant`/`withSystemBypass`, migracja `0015_rls_langlion_core.sql` jako gotowy wzorzec `ENABLE`+`FORCE`+dwie polityki do skopiowania per tabela, fence ESLint na bypass, oraz `e2e/langlion-rls.spec.ts` jako szablon testu izolacji — w tym asercja, że rola faktycznie nie jest superuserem).
 **Zakres:** polityki RLS + FORCE na `membership`, `invitation`, `file`, `notification`, `billing_customer`, `subscription`, `billing_payment`, `webhook_event`, `personal_account` (właściciel XOR wymaga polityk dwugałęziowych org/account); przegląd DAL-i pod kątem transakcyjnego kontekstu; jawny bypass dla `features/admin/data.ts` (cross-tenant by design), jobów systemowych i webhooków. Tabele systemowe (auth, `audit_log`, `job`, `email_suppression`, `rate_limit`) świadomie POZA RLS — zgodnie z regułą wyjątków w `ARCHITECTURE.md`.
 **DoD:** polityki aktywne na wszystkich tabelach tenantowych; testy izolacji cross-tenant dla tabel boilerplate'u; CAŁA istniejąca suita e2e zielona (admin, billing webhooki, notyfikacje, storage, joby — to jest właściwy test tej fazy).
 
@@ -104,7 +149,8 @@ Kolejność oparta na §5 specyfikacji („Kolejność implementacji"), skorygow
 **Status:** nierozpoczęta
 **Cel:** admin akademii tworzy lokalizacje, typy grup i wzorce; zapis wzorca cyklicznego generuje sezon; edycja wzorca w sezonie działa bezpiecznie.
 **Pokrywa:** EPIK 2, 3, 22 (część administracyjna); §2.1 (silnik Schedule-First), §2.2, §2.12; §2.10 (role i uprawnienia domenowe — pierwsza partia).
-**Zależności:** F0.
+**Zależności:** F0 ✅ (tabele, constrainty §5.1/§5.3/§4.4, `withTenant`, szkielety `features/{locations,groups,schedule}`, oraz `features/schedule/recurrence.ts` — przetestowana ekspansja wzorca tygodniowego na instanty UTC, gotowa do wpięcia w job generowania sezonu).
+**Uwaga wdrożeniowa:** handler joba `sessions.generate` biegnie PO transakcji, która go zakolejkowała, więc musi otworzyć własny kontekst przez `withTenant(payload.organizationId, …)`. Zapomniany kontekst nie rzuca błędu — job zobaczy zero wierszy i uzna, że nie ma pracy.
 **Zakres:** rozszerzenie mapy RBAC o role `reception`/`trainer`/`secretariat` i uprawnienia `group_types.manage`, `sessions.generate_season`, `sessions.manage`, `locations.manage` (Rozstrzygnięcie #4); UI CRUD w `/orgs/[slug]/…` za `requireOrgPermission`; job `sessions.generate` (idempotentny przez unique §4.4, dogenerowuje wyłącznie brakujące); edycja wzorca w sezonie: UPDATE przyszłych nieodbytych sesji z `SELECT … FOR UPDATE` per sesja, pominięcie `is_manually_adjusted`, aktualizacja denorm czasów w `booking` w tej samej tx, lista pominiętych z powodem (US-3.4 AC1–AC10; powiadomienia klientów = e-mail, Rozstrzygnięcie #3); grafik/lista sesji z filtrem lokalizacji; konflikt trenera przy generowaniu/edycji = twarda blokada (Force Override dopiero F18); audyt zmian przez `recordAudit`.
 **DoD:** e2e: pełny przepływ admina (lokalizacja → typ → wzorzec → sezon w tle → przedłużenie bez duplikatów → edycja godziny/lokalizacji w sezonie z pominięciem ręcznie skorygowanej sesji); AC z US-2.x, US-3.x, US-22.1–22.4 (część admin) pokryte; suita zielona.
 
@@ -216,11 +262,11 @@ Kolejność oparta na §5 specyfikacji („Kolejność implementacji"), skorygow
 **Pokrywa:** EPIK 9, 10, 23, 25; §2.5, §2.6, §2.13, §2.15; spec §5 pkt 9.
 **Zależności:** F4 (kredyty), F6 (recepcja), F11 (checkout online).
 **Zakres (podfazami wewnątrz, w tej kolejności):**
-  a) `product_template` (walidacja Constraint 4: `billing_type` ⊆ `allowed_billing_types`; feature gating `subscriptions_enabled` z F9; blokada online-template przy braku Connect) + `credit_purchase`;
-  b) zakup gotówką (US-10.x): zatwierdzenie recepcji = źródło prawdy, job w tle: rozliczenie zaległych `booked_offline` FIFO → auto-fill §7.5a (jednorazowa, nieponawiana próba per termin, przez pełną ochronę §5) → reszta do portfela;
-  c) pakiety online one-time na Connected Account (webhook → kredyty → auto-fill);
-  d) subskrypcje: `stripe_subscription_id` na Connected Account, `invoice.paid` → kredyty + auto-fill (idempotencja §12.3/US-9.2), `invoice.payment_failed` → `subscription_status=past_due` + e-mail z linkiem do Customer Portal (US-25.x; kredyty nigdy nie są cofane), `customer.subscription.deleted` → `canceled`;
-  e) nieretroaktywność zmian polityki (US-23.5/23.6) + ostrzeżenie „package bez aktywnego template" (US-23.4).
+a) `product_template` (walidacja Constraint 4: `billing_type` ⊆ `allowed_billing_types`; feature gating `subscriptions_enabled` z F9; blokada online-template przy braku Connect) + `credit_purchase`;
+b) zakup gotówką (US-10.x): zatwierdzenie recepcji = źródło prawdy, job w tle: rozliczenie zaległych `booked_offline` FIFO → auto-fill §7.5a (jednorazowa, nieponawiana próba per termin, przez pełną ochronę §5) → reszta do portfela;
+c) pakiety online one-time na Connected Account (webhook → kredyty → auto-fill);
+d) subskrypcje: `stripe_subscription_id` na Connected Account, `invoice.paid` → kredyty + auto-fill (idempotencja §12.3/US-9.2), `invoice.payment_failed` → `subscription_status=past_due` + e-mail z linkiem do Customer Portal (US-25.x; kredyty nigdy nie są cofane), `customer.subscription.deleted` → `canceled`;
+e) nieretroaktywność zmian polityki (US-23.5/23.6) + ostrzeżenie „package bez aktywnego template" (US-23.4).
 **DoD:** e2e na AC EPIK 9/10/23/25 (w tym częściowy auto-fill z powiadomieniem e-mail, podwójny webhook odnowienia bez duplikatów); suita zielona.
 
 ---
@@ -313,20 +359,24 @@ Kolejność oparta na §5 specyfikacji („Kolejność implementacji"), skorygow
 
 ### Otwarte pytania (zadać użytkownikowi PRZED wskazaną fazą)
 
-| Pytanie | Kiedy rozstrzygnąć |
-|---|---|
-| Mechanizm sesji klienta: podpisane cookie scoped per organizacja vs token; czas życia; wylogowanie | start F3 |
-| Los `src/features/billing/plans.ts` i tabeli cen na landing po przejściu na plany w DB | start F9 |
-| Próg ostrzegawczy 90% dla `plan_limit_approaching` — globalny czy per `limit_key` (spec §8 pkt 7) | przed US-29.3 (F9/F14) |
-| Wymuszenie re-akceptacji regulaminu przy nowej wersji (US-28.3/AC2) — potwierdzenie prawne | przed F17 |
-| Formuła zwrotu przy przyszłych promocjach/cenach warstwowych (spec §8 pkt 1) | przy wprowadzaniu promocji; nie blokuje F16 |
-| Zwrot `price_difference < 0` w swapie: zależność F15 od F16 czy wspólny mechanizm budowany w F15 | start F15 |
+| Pytanie                                                                                                                                                                                                                                                               | Kiedy rozstrzygnąć                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Mechanizm sesji klienta: podpisane cookie scoped per organizacja vs token; czas życia; wylogowanie                                                                                                                                                                    | start F3                                                                         |
+| **Routing subdomenowy** (rewizja 14.2, §2.27): rozpoznanie tenanta z nagłówka `Host` w `src/proxy.ts`, domeny własne przez CNAME, wildcard DNS/TLS, zachowanie na `localhost` w dev i e2e. Kolumna `organization.subdomain` istnieje od F0; brakuje samego middleware | **zależność blokująca przed EPIK 4** (publiczna rejestracja) — nie blokuje F1–F3 |
+| Los `src/features/billing/plans.ts` i tabeli cen na landing po przejściu na plany w DB                                                                                                                                                                                | start F9                                                                         |
+| Próg ostrzegawczy 90% dla `plan_limit_approaching` — globalny czy per `limit_key` (spec §8 pkt 7)                                                                                                                                                                     | przed US-29.3 (F9/F14)                                                           |
+| Wymuszenie re-akceptacji regulaminu przy nowej wersji (US-28.3/AC2) — potwierdzenie prawne                                                                                                                                                                            | przed F17                                                                        |
+| Formuła zwrotu przy przyszłych promocjach/cenach warstwowych (spec §8 pkt 1)                                                                                                                                                                                          | przy wprowadzaniu promocji; nie blokuje F16                                      |
+| Zwrot `price_difference < 0` w swapie: zależność F15 od F16 czy wspólny mechanizm budowany w F15                                                                                                                                                                      | start F15                                                                        |
 
 ### Ryzyka techniczne
 
-- **RLS + pooling połączeń:** `SET LOCAL` działa tylko w transakcji — każdy odczyt/zapis tenantowy langlion musi iść przez transakcyjny wrapper; retrofit boilerplate'u (F1) dotknie wielu DAL-i; ścieżki cross-tenant (super admin, joby, webhooki) wymagają jawnego, udokumentowanego bypassu. To największe ryzyko regresji w całym planie — stąd F1 jako osobna faza z pełną suitą e2e jako kryterium.
+- **RLS + pooling połączeń:** wzorzec ustalony w F0 i gotowy do skopiowania w F1: `withTenant` (`src/lib/db/tenant.ts`) używa `set_config('app.organization_id', …, true)` — funkcji, nie `SET LOCAL`, bo `SET LOCAL` nie przyjmuje placeholdera i wymuszałby sklejanie stringa z `orgId`. Trzeci argument `true` = zasięg transakcji; `false` dałoby zasięg sesji i wyciek kontekstu przez pulę (pokryte osobnym testem). Bypass: `withSystemBypass` ogrodzony `no-restricted-imports`. **Pozostałe ryzyko dotyczy F1:** retrofit tabel boilerplate'u dotknie wielu DAL-i, a `features/admin/data.ts`, webhooki i joby będą wtedy potrzebowały jawnego wyjątku w ESLint — stąd F1 jako osobna faza z pełną suitą e2e jako kryterium.
+- **`FORCE ROW LEVEL SECURITY` a backfille w migracjach (ujawnione w F0):** przy `FORCE` migracja podlega politykom, chyba że rola migracyjna ma BYPASSRLS. Ma ją (jest superuserem w dev/CI), ale jeśli to się zmieni, `UPDATE` w backfillu trafi zero wierszy i **nie zgłosi błędu** — migracja przejdzie, dane nie. Istotne przy F1.
+- **`drizzle-kit push` skasowałby całą ochronę:** EXCLUDE, polityki RLS i GRANT-y żyją wyłącznie w ręcznym SQL i są niewidoczne dla snapshotu Drizzle. `generate` ich nie ruszy (diffuje TS wobec snapshotu), ale `push` introspektuje żywą bazę i zaproponuje ich DROP. Zakaz udokumentowany w ARCHITECTURE.md; skryptu `db:push` nie ma i nie wolno go dodać.
+- **Kolizje nazw eksportów w `schema/index.ts` są ciche:** `export *` z dwóch modułów eksportujących tę samą nazwę nie jest błędem — nazwa staje się niejednoznaczna i zostaje pominięta, a drizzle-kit generuje wtedy FK wskazujący na _inną_ tabelę o tej nazwie. Zdarzyło się raz (`session` ↔ Better Auth, D11). Przed dodaniem tabeli: grep po katalogu schematu.
 - **Vercel Hobby = cron dzienny:** mechanizmy czasowe (wygaszanie wniosków po 24h, expiry kredytów, generowanie sezonu, retry jobów) wymagają w produkcji zewnętrznego pingera `/api/cron/jobs` albo planu Pro (patrz ARCHITECTURE.md „Background jobs in production").
-- **Denormalizacja `booking.session_start_time/end_time`:** każda nowa ścieżka edycji czasu sesji MUSI aktualizować denorm w tej samej transakcji (US-14.3/AC3) — łatwe do pominięcia; egzekwować review-checklistą przy F2/F8/F18.
+- ~~**Denormalizacja `booking.session_start_time/end_time`**~~ — **zdjęte w F0 (decyzja D4).** Złożony FK `booking (sessionId, organizationId, sessionStartTime, sessionEndTime) → class_session (id, organizationId, startTime, endTime) ON UPDATE CASCADE` utrzymuje denorm na poziomie schematu. Ścieżki edycji czasu (F2/F8/F18) nie muszą już o tym pamiętać, a przesunięcie łamiące §5.3 wywala własną transakcję — dając „pomiń tę jedną sesję" z US-3.4/AC7 bez dodatkowej logiki. Zweryfikowane testem.
 - **Dwa konta Stripe (Zasada #7):** każde utworzenie PaymentIntent/Subscription/Price musi jawnie wskazywać konto docelowe (parametr obowiązkowy w rozszerzonym kontrakcie adaptera, bez wartości domyślnej) — pomyłka platform↔connect to błąd krytyczny; stąd F9 i F10 jako osobne, wąskie fazy i testy jednostkowe rozróżnienia w F10.
 - **Strefy czasowe (US-1.2):** generowanie sesji w lokalnej strefie akademii z konwersją do UTC wokół zmian czasu (marzec/październik) — pokryte testem jednostkowym w F0, ale każda nowa logika dat musi go respektować.
 - **Konflikt trenera przed F18:** do czasu Force Override edycja wzorca kolidująca z grafikiem trenera jest twardo blokowana (US-3.4/AC5 realizowane w pełni dopiero w F18) — świadome, tymczasowe zawężenie.

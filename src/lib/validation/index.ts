@@ -24,4 +24,9 @@ export {
   slugParam,
   optionalSlugParam,
   idParam,
+  SUBDOMAIN_PATTERN,
+  SUBDOMAIN_MIN,
+  SUBDOMAIN_MAX,
+  RESERVED_SUBDOMAINS,
+  subdomainParam,
 } from "./primitives";

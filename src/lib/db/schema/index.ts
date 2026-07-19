@@ -49,6 +49,37 @@
  * user in no org) genuinely have no tenant, and forcing them to invent one would
  * corrupt the ledger. For every other table, not knowing the owner means you are
  * not ready to write the row.
+ *
+ * --- langlion domain tables (spec docs/specyfikacja.md §1.2) ---
+ *
+ * The block at the bottom of this file is the booking/credits domain built on top
+ * of the boilerplate. Three properties distinguish it from everything above:
+ *
+ * 1. Every one of them carries a NOT NULL `organizationId` — the first owner
+ *    shape, no exceptions and no XOR. An academy is always a team account; there
+ *    is no personal-account variant of a class schedule.
+ * 2. They are the first tables under Row-Level Security. The application filter
+ *    stays mandatory (it is what hits the index); RLS is the second line that
+ *    holds when someone forgets it (US-1.1/AC1). All access goes through
+ *    `withTenant` in `@/lib/db/tenant`.
+ * 3. Two of them (`session`, `booking`) carry EXCLUDE constraints that live only
+ *    in hand-written migration SQL and are invisible to the Drizzle snapshot.
+ *    Their headers list the exact columns involved. `drizzle-kit push` would drop
+ *    them and is banned repo-wide.
+ *
+ * `athlete` and `group_type_recurrence` carry an `organizationId` the spec's
+ * column list omits (decyzja D9) — rule 1 above applies to them too, and an RLS
+ * policy without a local owner column costs a subquery per row.
+ *
+ * ⚠️ EXPORT NAMES MUST BE UNIQUE ACROSS THIS BARREL, and nothing enforces it.
+ * `export *` from two modules exporting the same binding does not error — the
+ * name simply becomes ambiguous and is omitted. `drizzle-kit generate` then skips
+ * the shadowed table while still emitting foreign keys that reference the OTHER
+ * table of that name, producing a migration that is wrong rather than broken.
+ * This already happened once: the langlion spec calls its class occurrence
+ * `session`, which Better Auth's `./auth` module already owns, and the generated
+ * migration pointed `booking` at login sessions. Hence `class_session` /
+ * `classSession`. Before adding a table, grep this directory for its name.
  */
 
 export * from "./auth";
@@ -67,3 +98,13 @@ export * from "./files";
 export * from "./notifications";
 export * from "./notification-preferences";
 export * from "./rate-limits";
+
+// langlion domain (§1.2). Ordered by dependency, not alphabetically: each table
+// references only the ones above it.
+export * from "./locations";
+export * from "./group-types";
+export * from "./group-type-recurrences";
+export * from "./class-sessions";
+export * from "./clients";
+export * from "./athletes";
+export * from "./bookings";

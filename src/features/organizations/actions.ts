@@ -23,6 +23,7 @@ import {
   getPersonalAccountByUserId,
   getUserByEmail,
   isSlugTaken,
+  isSubdomainTaken,
 } from "./data";
 import { createOrgSchema, inviteMemberSchema, slugSchema, updateRoleSchema } from "./schema";
 import { resolveUniqueSlug } from "./slug";
@@ -107,18 +108,39 @@ export async function createOrganizationAction(
   const parsed = createOrgSchema(tv).safeParse({
     name: str(formData.get("name")),
     slug: str(formData.get("slug")) || undefined,
+    subdomain: str(formData.get("subdomain")),
+    timezone: str(formData.get("timezone")),
+    currency: str(formData.get("currency")),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? t("generic") };
   }
 
   const slug = await resolveUniqueSlug(parsed.data.slug ?? parsed.data.name, isSlugTaken);
+
+  // The subdomain is NOT auto-resolved to a free variant the way the slug is.
+  // A slug is internal routing, so silently landing on `acme-2` is harmless; a
+  // subdomain is the address an academy will print and hand to parents, so it
+  // has to be the one they chose or an error they can see. Losing the race
+  // against a concurrent creation still surfaces as the UNIQUE constraint —
+  // this check exists to make the ordinary case a field error, not a 500.
+  if (await isSubdomainTaken(parsed.data.subdomain)) {
+    return { error: tv("subdomainTaken") };
+  }
+
   const actor = await resolveActor(session);
 
   await db.transaction(async (tx) => {
     const [org] = await tx
       .insert(organization)
-      .values({ name: parsed.data.name, slug, createdByUserId: session.user.id })
+      .values({
+        name: parsed.data.name,
+        slug,
+        subdomain: parsed.data.subdomain,
+        timezone: parsed.data.timezone,
+        currency: parsed.data.currency,
+        createdByUserId: session.user.id,
+      })
       .returning({ id: organization.id });
     await tx.insert(membership).values({
       organizationId: org!.id,

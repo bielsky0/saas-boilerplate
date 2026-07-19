@@ -12,10 +12,22 @@ import { isSlugTaken } from "@/features/organizations/data";
  * seeded user and adds members with roles, without driving the UI — so RBAC and
  * context-switch E2E tests have deterministic fixtures. Disabled in production.
  *
- * Body: { ownerEmail, name?, slug?, members?: [{ email, role }] }
+ * Body: { ownerEmail, name?, slug?, subdomain?, timezone?, currency?,
+ *         members?: [{ email, role }] }
  * All emails must already exist (seed them via /api/dev/seed-user first).
+ *
+ * `timezone`/`currency` fall back to constants here even though the production
+ * path forbids a default (Constraint 5). That asymmetry is deliberate: the rule
+ * exists so a human never creates an academy with a currency they did not look
+ * at, and there is no human in a fixture. `subdomain` is different — it is
+ * UNIQUE, so it is minted per call rather than defaulted, for the same reason
+ * every spec mints a `uniqueEmail()`: the suite shares one database with no
+ * teardown, and parallel workers would collide on a constant.
  */
 type Member = { email: string; role: string };
+
+const SEED_TIMEZONE = "Europe/Warsaw";
+const SEED_CURRENCY = "PLN";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   if (env.NODE_ENV === "production") {
@@ -25,6 +37,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     ownerEmail?: string;
     name?: string;
     slug?: string;
+    subdomain?: string;
+    timezone?: string;
+    currency?: string;
     members?: Member[];
   };
   if (!body.ownerEmail) {
@@ -43,12 +58,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const name = body.name ?? "E2E Org";
   const slug = await resolveUniqueSlug(body.slug ?? name, isSlugTaken);
+  // Derived from the already-unique slug, so a caller that passes neither still
+  // gets a subdomain no parallel worker can collide with.
+  const subdomain = body.subdomain ?? slug;
 
   const result = await db.transaction(async (tx) => {
     const [org] = await tx
       .insert(organization)
-      .values({ name, slug, createdByUserId: ownerId })
-      .returning({ id: organization.id, slug: organization.slug });
+      .values({
+        name,
+        slug,
+        subdomain,
+        timezone: body.timezone ?? SEED_TIMEZONE,
+        currency: body.currency ?? SEED_CURRENCY,
+        createdByUserId: ownerId,
+      })
+      .returning({
+        id: organization.id,
+        slug: organization.slug,
+        subdomain: organization.subdomain,
+      });
     await tx
       .insert(membership)
       .values({ organizationId: org!.id, userId: ownerId, role: "owner", status: "active" });
@@ -63,5 +92,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return org!;
   });
 
-  return NextResponse.json({ ok: true, slug: result.slug, orgId: result.id });
+  return NextResponse.json({
+    ok: true,
+    slug: result.slug,
+    subdomain: result.subdomain,
+    orgId: result.id,
+  });
 }

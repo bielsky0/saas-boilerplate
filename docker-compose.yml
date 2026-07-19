@@ -1,20 +1,27 @@
 # Local development services (spec 11 Postgres + spec 21/25 MinIO object store).
 # `pnpm db:up` starts them, `pnpm db:down` stops them. The credentials below must
-# match DATABASE_URL and the S3_* block in your .env (see .env.example).
+# match DATABASE_URL / DATABASE_MIGRATION_URL and the S3_* block in your .env —
+# see docs/ARCHITECTURE.md "Two database URLs (RLS)" for both values.
 services:
   postgres:
     image: postgres:16
-    container_name: saas_boilerplate_postgres
+    # Name and host port are namespaced to this project so it can run alongside
+    # the upstream saas-boilerplate checkout, which holds the default 5432.
+    container_name: saas_school_postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: saas_boilerplate
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Creates the unprivileged `saas_school` role that DATABASE_URL connects as,
+      # plus btree_gist. Runs ONLY on a fresh volume — see the file's own header.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
+      # Runs inside the container, so it uses 5432 regardless of the host mapping.
       test: ["CMD-SHELL", "pg_isready -U postgres -d saas_boilerplate"]
       interval: 5s
       timeout: 5s
@@ -25,15 +32,17 @@ services:
   # (that is the whole point of hiding storage behind an adapter, §1.2).
   minio:
     image: minio/minio:latest
-    container_name: saas_boilerplate_minio
+    # Namespaced like `postgres` above, for the same reason: the upstream
+    # saas-boilerplate checkout holds the default names and ports.
+    container_name: saas_school_minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000" # S3 API
-      - "9001:9001" # web console
+      - "9100:9000" # S3 API
+      - "9101:9001" # web console
     volumes:
       - minio_data:/data
     healthcheck:
@@ -47,7 +56,7 @@ services:
   # after running; re-running is idempotent.
   minio_init:
     image: minio/mc:latest
-    container_name: saas_boilerplate_minio_init
+    container_name: saas_school_minio_init
     depends_on:
       minio:
         condition: service_healthy

@@ -124,6 +124,43 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+
+  /**
+   * The same fence, for the other door out of tenant isolation (langlion §1.3).
+   *
+   * `@/lib/db/system` exports `withSystemBypass`, which turns Row-Level Security
+   * off for a transaction. It has to exist — super-admin views, webhook handlers
+   * resolving an owner they do not yet know, and cross-tenant sweeps all need it —
+   * but "who can read every academy's data?" should have an answer you can grep,
+   * and that answer is this `ignores` list.
+   *
+   * A separate block rather than another `patterns` entry above, because the
+   * exemptions differ: the admin fence exempts the admin feature and its routes,
+   * this one currently exempts only the test-only RLS probe. A new consumer adds
+   * itself here, in a diff a human reads, and explains itself in its own header.
+   *
+   * Note what is NOT exempt today: `features/admin/**`. The boilerplate's own
+   * tables are not under RLS until F1, so the panel does not need the bypass yet.
+   * When F1 lands it will — and it should arrive as a deliberate line here.
+   */
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/app/api/dev/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/lib/db/system", "**/lib/db/system"],
+              message:
+                "withSystemBypass disables RLS for the transaction. Allowed only in cross-tenant paths (super admin, webhooks, system jobs) — add a per-path exemption in eslint.config.mjs and justify it in the module header (spec §1.3, US-1.1).",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -20,6 +20,9 @@ test("the last owner cannot be demoted or removed", async ({ page, request }) =>
   await page.goto("/orgs/new");
   await page.getByLabel("Organization name").fill("Last Owner Co");
   await page.getByLabel("Slug (optional)").fill(slug);
+  // Required with no default (langlion Constraint 5). Reusing the unique slug as
+  // the subdomain keeps parallel workers off each other's UNIQUE constraint.
+  await page.getByLabel("Subdomain").fill(slug);
   await page.getByRole("button", { name: /create organization/i }).click();
   await page.waitForURL(`**/orgs/${slug}`);
 

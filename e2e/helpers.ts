@@ -301,6 +301,12 @@ export async function seedOrg(
     ownerEmail: string;
     name?: string;
     slug?: string;
+    // langlion §1.2: required columns on `organization`. Omitted by almost every
+    // spec — the route defaults timezone/currency and derives the subdomain from
+    // the (already unique) slug, so only a test asserting on these needs them.
+    subdomain?: string;
+    timezone?: string;
+    currency?: string;
     members?: Array<{ email: string; role: string }>;
   },
 ): Promise<string> {
@@ -349,4 +355,123 @@ export async function loginViaUi(page: Page, email: string, password: string): P
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: /log in/i }).click();
+}
+
+// --- langlion domain fixtures (Faza 0) --------------------------------------
+
+/**
+ * A far-future, per-call-unique one-hour window.
+ *
+ * The langlion exclusion constraints are GLOBAL over time: one trainer cannot
+ * hold two overlapping sessions, full stop. The suite shares one database with no
+ * teardown, so two parallel workers seeding "a session at 17:00" for their own
+ * trainers is fine, but any reuse of a trainer or a fixed hour is a collision
+ * that surfaces as an unrelated-looking constraint error. Minting a fresh window
+ * — and a fresh trainer via `uniqueEmail()` — is the same discipline as minting
+ * unique emails, for the same reason.
+ *
+ * Year 2400 keeps these out of the way of any "upcoming sessions" query a later
+ * phase adds, so a future feature test cannot accidentally pick them up.
+ */
+export function uniqueFutureSlot(durationMinutes = 60): { startsAt: string; endsAt: string } {
+  const base = Date.UTC(2400, 0, 1) + Math.floor(Math.random() * 1e9) * 60_000;
+  return {
+    startsAt: new Date(base).toISOString(),
+    endsAt: new Date(base + durationMinutes * 60_000).toISOString(),
+  };
+}
+
+/** Shift an existing window by minutes — for building deliberate overlaps. */
+export function shiftSlot(
+  slot: { startsAt: string; endsAt: string },
+  minutes: number,
+): { startsAt: string; endsAt: string } {
+  return {
+    startsAt: new Date(new Date(slot.startsAt).getTime() + minutes * 60_000).toISOString(),
+    endsAt: new Date(new Date(slot.endsAt).getTime() + minutes * 60_000).toISOString(),
+  };
+}
+
+/**
+ * Like `seedOrg`, but returns the whole body — the org id included.
+ *
+ * `seedOrg` returns only the slug because that is all the boilerplate specs route
+ * by. The langlion specs need the id: it is what `withTenant` and the RLS
+ * policies key on, and there is no page to read it off.
+ */
+export async function seedOrgFull(
+  request: APIRequestContext,
+  opts: {
+    ownerEmail: string;
+    name?: string;
+    slug?: string;
+    subdomain?: string;
+    timezone?: string;
+    currency?: string;
+    members?: Array<{ email: string; role: string }>;
+  },
+): Promise<{ slug: string; subdomain: string; orgId: string }> {
+  const res = await request.post("/api/dev/seed-org", { data: opts });
+  if (!res.ok()) {
+    throw new Error(`seedOrgFull failed (${res.status()}): ${await res.text()}`);
+  }
+  return (await res.json()) as { slug: string; subdomain: string; orgId: string };
+}
+
+export type SeedLanglionResult = {
+  ok: boolean;
+  sqlState?: string | null;
+  message?: string;
+  locationId?: string | null;
+  groupTypeId?: string | null;
+  recurrenceId?: string | null;
+  sessionIds?: string[];
+  clientId?: string | null;
+  athleteIds?: string[];
+  bookingIds?: string[];
+};
+
+/**
+ * Seed langlion fixtures. Returns the body even on a domain failure: these specs
+ * assert that the DATABASE refuses things, so `{ ok: false, sqlState: "23P01" }`
+ * is a result to inspect, not an exception to throw. Only transport failures throw.
+ */
+export async function seedLanglion(
+  request: APIRequestContext,
+  body: Record<string, unknown>,
+): Promise<SeedLanglionResult> {
+  const res = await request.post("/api/dev/seed-langlion", { data: body });
+  if (res.status() >= 500) {
+    throw new Error(`seedLanglion crashed (${res.status()}): ${await res.text()}`);
+  }
+  return (await res.json()) as SeedLanglionResult;
+}
+
+export type RlsProbeResult = {
+  ok: boolean;
+  sqlState?: string | null;
+  message?: string;
+  wrote?: boolean;
+  rows?: { id: string; organizationId: string }[];
+  environment: {
+    role: { current_user: string; usesuper: boolean; rolbypassrls: boolean } | null;
+    tables: { relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean }[];
+  };
+};
+
+/** Query the RLS probe. See src/app/api/dev/rls-probe/route.ts for the modes. */
+export async function rlsProbe(
+  request: APIRequestContext,
+  body: {
+    mode: "tenant" | "raw" | "bypass";
+    action?: "select" | "insert";
+    organizationId?: string;
+    foreignOrganizationId?: string;
+  },
+): Promise<RlsProbeResult> {
+  const res = await request.post("/api/dev/rls-probe", { data: body });
+  if (res.status() >= 500) {
+    throw new Error(`rlsProbe crashed (${res.status()}): ${await res.text()}`);
+  }
+  return (await res.json()) as RlsProbeResult;
 }

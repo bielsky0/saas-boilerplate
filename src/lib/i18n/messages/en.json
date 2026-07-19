@@ -152,7 +152,14 @@
       "slugMax": "Slug must be at most 48 characters.",
       "slugFormat": "Use lowercase letters, numbers and hyphens.",
       "nameMin": "Name must be at least 2 characters.",
-      "emailInvalid": "Enter a valid email address."
+      "emailInvalid": "Enter a valid email address.",
+      "subdomainMin": "Subdomain must be at least 3 characters.",
+      "subdomainMax": "Subdomain must be at most 63 characters.",
+      "subdomainFormat": "Use lowercase letters, numbers and hyphens (not at the start or end).",
+      "subdomainReserved": "That subdomain is reserved. Please choose another.",
+      "subdomainTaken": "That subdomain is already taken. Please choose another.",
+      "timezoneInvalid": "Select a valid time zone.",
+      "currencyInvalid": "Select a valid currency."
     },
     "errors": {
       "generic": "Something went wrong. Please try again.",
@@ -180,7 +187,13 @@
       "slugOptional": "Slug (optional)",
       "email": "Email",
       "role": "Role",
-      "slugPlaceholder": "auto-generated from name"
+      "slugPlaceholder": "auto-generated from name",
+      "subdomain": "Subdomain",
+      "subdomainHint": "Your public address: {subdomain}.langlion.com",
+      "timezone": "Time zone",
+      "timezoneHint": "All class times are shown in this zone.",
+      "currency": "Currency",
+      "currencyHint": "Cannot be changed once you have transactions."
     },
     "create": {
       "submit": "Create organization",
@@ -512,6 +525,45 @@
       "incomplete": "Incomplete",
       "incomplete_expired": "Expired",
       "paused": "Paused"
+    }
+  },
+  "locations": {
+    "validation": {
+      "nameMin": "Location name must be at least 2 characters."
+    }
+  },
+  "groups": {
+    "validation": {
+      "nameMin": "Name must be at least 2 characters.",
+      "slugMin": "Slug must be at least 2 characters.",
+      "slugMax": "Slug must be at most 48 characters.",
+      "slugFormat": "Use lowercase letters, numbers and hyphens.",
+      "priceInvalid": "Price must be a whole number of minor units (e.g. grosze).",
+      "purchaseModesRequired": "Choose at least one purchase mode.",
+      "billingTypesRequired": "Choose at least one billing type for packages.",
+      "startTimeFormat": "Use a 24-hour time, e.g. 17:00.",
+      "durationInvalid": "Duration must be a positive number of minutes.",
+      "capacityInvalid": "Capacity must be a positive number.",
+      "startDateFormat": "Use a date in YYYY-MM-DD format.",
+      "occurrencesRequired": "A recurring pattern needs a number of occurrences."
+    }
+  },
+  "schedule": {
+    "validation": {
+      "capacityInvalid": "Capacity must be a positive number.",
+      "endBeforeStart": "The end time must be after the start time.",
+      "bothTimesRequired": "Change the start and end time together."
+    }
+  },
+  "clients": {
+    "validation": {
+      "emailInvalid": "Enter a valid email address.",
+      "athleteNameMin": "Participant name must be at least 2 characters."
+    }
+  },
+  "bookings": {
+    "validation": {
+      "athleteRequired": "Choose a participant."
     }
   }
 }

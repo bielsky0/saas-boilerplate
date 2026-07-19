@@ -17,6 +17,17 @@ export const env = createEnv({
   server: {
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     // Postgres connection string used by the Drizzle client (spec 11).
+    //
+    // This must point at the UNPRIVILEGED role (`saas_school` locally), not at a
+    // superuser and not at the schema owner. Row-Level Security is bypassed
+    // outright by a superuser and by a table's owner unless FORCE is set, so
+    // pointing this at `postgres` would leave every policy decorative while
+    // looking correctly configured — the failure mode US-1.1/AC1 exists to catch.
+    // e2e/langlion-rls.spec.ts asserts the connected role really is neither.
+    //
+    // Its counterpart, DATABASE_MIGRATION_URL (the owner, used for DDL), is
+    // deliberately absent from this schema so the running app cannot read it; it
+    // lives only in drizzle.config.ts. See docs/ARCHITECTURE.md "Two database URLs".
     DATABASE_URL: z.url(),
     // Structured logging (spec 15.3). Two renderers over ONE call site, for the
     // same reason EMAIL_PROVIDER defaults to "log": dev-readable, prod-real.

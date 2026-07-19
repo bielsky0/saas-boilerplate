@@ -85,6 +85,34 @@
       "when": 1784392807457,
       "tag": "0011_sloppy_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784471432668,
+      "tag": "0012_grant_app_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784471546701,
+      "tag": "0013_minor_vertigo",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1784473132522,
+      "tag": "0014_lively_sumo",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1784473324626,
+      "tag": "0015_rls_langlion_core",
+      "breakpoints": true
     }
   ]
 }
