@@ -883,6 +883,7 @@ Two groups of tables carry RLS policies keyed on per-transaction settings:
 | langlion core (F0) | `location`, `group_type`, `group_type_recurrence`, `class_session`, `client`, `athlete`, `booking` | NOT NULL `organizationId`            |
 | boilerplate (F1a)  | `membership`, `invitation`                                                                         | NOT NULL `organizationId`            |
 | boilerplate (F1a)  | `file`, `notification`                                                                             | `organizationId` **XOR** `accountId` |
+| billing (F1b)      | `billing_customer`, `subscription`, `billing_payment`, `webhook_event`                             | `organizationId` **XOR** `accountId` |
 
 All access goes through one of two functions:
 
@@ -965,6 +966,61 @@ SELECT count(*) FROM "notification" WHERE "organizationId" IS NULL AND "accountI
 Run it as the **owner role** and **before** the migration. On `DATABASE_URL` after
 the fact it returns 0 regardless — those are exactly the rows the policy hides.
 
+Two companion queries, both added in F1b after the ownerless count turned out to
+be the least informative of the three:
+
+```sql
+-- 2. Is the XOR CHECK actually what makes that zero true? A constraint dropped or
+-- added NOT VALID at some point turns query 1 from a formality back into the
+-- real check. Expect one validated row per table.
+SELECT conrelid::regclass, conname, convalidated
+FROM pg_constraint WHERE contype = 'c' AND conname LIKE '%\_owner\_ck';
+
+-- 3. Owner AGREEMENT — no constraint enforces this one. A row whose owner
+-- disagrees with the billing_customer it points at becomes a permanent provider
+-- retry loop the first time a fresh event touches it (see below). Expect zero.
+SELECT s.id FROM subscription s JOIN billing_customer c ON c.id = s."billingCustomerId"
+WHERE s."organizationId" IS DISTINCT FROM c."organizationId"
+   OR s."accountId" IS DISTINCT FROM c."accountId";
+```
+
+Also read the **distribution**, not just the zero. In F1a, 110 of 118
+`notification` rows were account-owned, which is why the policy needed a second
+disjunct at all; in F1b all four billing tables had _zero_ account-owned rows,
+which is why those e2e tests seed their own rather than trusting dev data.
+
+#### RLS and `ON CONFLICT`
+
+Postgres treats the two conflict actions differently under RLS, and the
+difference is load-bearing for every upsert-shaped webhook (`billing/webhooks.ts`
+today; the plan's F9 plan-id mapping, F11/F12 credit webhooks and F16 refunds are
+all the same shape). Measured on this Postgres, and consistent with the
+`CREATE POLICY` docs:
+
+| Statement                                            | Conflicting row invisible under `USING`     |
+| ---------------------------------------------------- | ------------------------------------------- |
+| `ON CONFLICT DO NOTHING`                             | silent no-op, no row returned, **no error** |
+| `ON CONFLICT DO UPDATE`                              | **raises `42501`**                          |
+| `ON CONFLICT DO UPDATE` whose `setWhere` fails first | no row returned, **no error**               |
+
+`DO NOTHING` evaluates only the INSERT `WITH CHECK` — the docs say it checks it
+"for all rows proposed for insertion, regardless of whether or not they end up
+being inserted" — so an idempotency marker keyed on a unique index behaves
+exactly as it did before RLS.
+
+`DO UPDATE` is the opposite: "unlike a standalone UPDATE command, if the existing
+row does not pass the USING expressions, an error will be thrown (the UPDATE path
+will never be silently avoided)." For a webhook that derives its owner from a
+lookup, this converts a silent cross-tenant overwrite into a loud failure. Worth
+the trade, but note the asymmetry: `setWhere` is evaluated **before** the `USING`
+check, so a _stale_ event with the same owner mismatch is swallowed as stale. The
+error is therefore not a reliable detector of the condition — gate query 3 above
+is.
+
+`e2e/boilerplate-rls.spec.ts` pins the `DO UPDATE` case via the probe's `upsert`
+action; the `DO NOTHING` case is pinned end-to-end by the duplicate-delivery
+tests in `e2e/billing-webhook.spec.ts`.
+
 **RLS is the second line, not the first.** `data.ts` functions still take an
 explicit `organizationId` and still filter by it. That filter is what uses the
 index, and US-1.1/AC1 is about isolation holding on the day someone forgets it —
@@ -991,6 +1047,7 @@ migration SQL and are absent from `migrations/meta/*_snapshot.json`:
 | `EXCLUDE` constraints (§5.1, §5.3)        | `0014_lively_sumo.sql`            |
 | RLS policies + `FORCE` (langlion core)    | `0015_rls_langlion_core.sql`      |
 | RLS policies + `FORCE` (boilerplate, F1a) | `0016_rls_boilerplate_tenant.sql` |
+| RLS policies + `FORCE` (billing, F1b)     | `0017_rls_billing.sql`            |
 | `GRANT`s, `ALTER DEFAULT PRIVILEGES`      | `0012_grant_app_role.sql`         |
 
 This is safe in one direction and dangerous in the other. `drizzle-kit generate`
