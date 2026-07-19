@@ -2,7 +2,18 @@ import { eq, sql } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { db } from "@/lib/db";
-import { file, invitation, location, membership, notification, user } from "@/lib/db/schema";
+import {
+  billingCustomer,
+  billingPayment,
+  file,
+  invitation,
+  location,
+  membership,
+  notification,
+  subscription,
+  user,
+  webhookEvent,
+} from "@/lib/db/schema";
 import { withSystemBypass } from "@/lib/db/system";
 import { withOwner, withTenant, type Owner } from "@/lib/db/tenant";
 import { getOrgBySlug, getPersonalAccountByUserId } from "@/features/organizations/data";
@@ -33,6 +44,11 @@ import { sqlStateOf } from "../sql-error";
  *               refusal test would pass equally well against a policy that
  *               refuses everything — and doubles as the seeder for the
  *               account-owned rows the read tests need.
+ *   "upsert"  → seed a `billing_customer` for `rowOwner`, then attempt an
+ *               ON CONFLICT DO UPDATE onto it while acting as `owner` (F1b).
+ *               Distinct from "insert" because Postgres treats the two conflict
+ *               actions differently, and the difference is what makes the
+ *               billing webhook safe — see the branch for the detail.
  *
  * The `environment` block is returned on every call and is the most important
  * part of the response. RLS is bypassed unconditionally by a superuser and by a
@@ -58,6 +74,11 @@ const RLS_TABLES = [
   "invitation",
   "file",
   "notification",
+  // billing tables (F1b)
+  "billing_customer",
+  "subscription",
+  "billing_payment",
+  "webhook_event",
 ];
 
 /** Tables that must NOT have RLS — each for a reason recorded in its own header. */
@@ -75,6 +96,11 @@ const PROBE_TABLES = {
   invitation: { table: invitation, hasAccount: false },
   file: { table: file, hasAccount: true },
   notification: { table: notification, hasAccount: true },
+  // billing (F1b) — all four carry the XOR owner pair.
+  billing_customer: { table: billingCustomer, hasAccount: true },
+  subscription: { table: subscription, hasAccount: true },
+  billing_payment: { table: billingPayment, hasAccount: true },
+  webhook_event: { table: webhookEvent, hasAccount: true },
 } as const;
 
 type ProbeTable = keyof typeof PROBE_TABLES;
@@ -84,7 +110,7 @@ type OwnerRef = { orgSlug: string } | { userEmail: string };
 
 type Body = {
   mode?: "tenant" | "owner" | "raw" | "bypass";
-  action?: "select" | "insert";
+  action?: "select" | "insert" | "upsert";
   table?: ProbeTable;
   /** mode=tenant (the F0 shape — kept so langlion-rls.spec.ts is untouched). */
   organizationId?: string;
@@ -253,6 +279,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           });
           return;
         }
+        // `billing_customer` is the billing insert target (F1b). The other three
+        // billing tables carry a NOT NULL FK to it, so inserting one of those
+        // would drag a second table into a test about one policy; `webhook_event`
+        // is the idempotency ledger and writing probe rows into it is noisy.
+        if (table === "billing_customer") {
+          await tx.insert(billingCustomer).values({
+            ...ownerColumns(claimed),
+            provider: "rls-probe",
+            providerCustomerId: `rls-probe/${crypto.randomUUID()}`,
+          });
+          return;
+        }
         // `file` is the default insert target: it is the only XOR table with no
         // required FK to a user, so a test can create an account-owned row
         // without seeding a recipient first.
@@ -267,6 +305,52 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         });
       });
 
+      return NextResponse.json({ ok: true, environment, wrote: true });
+    }
+
+    if (action === "upsert") {
+      // --- F1b shape: ON CONFLICT DO UPDATE onto a row owned by someone else --
+      //
+      // The one billing-specific semantic the F1a probe cannot express, and the
+      // reason features/billing/webhooks.ts is safe. Postgres treats the two
+      // conflict actions differently: DO NOTHING checks only the INSERT WITH
+      // CHECK and silently yields no row, but DO UPDATE checks the existing row
+      // against USING and RAISES when it fails — "the UPDATE path will never be
+      // silently avoided". That is what turns a webhook whose customer owner
+      // disagrees with the stored row from a silent cross-tenant overwrite into
+      // a loud 42501.
+      if (mode !== "owner" || !body.owner || !body.rowOwner) {
+        return NextResponse.json(
+          { error: "upsert requires mode=owner with owner and rowOwner" },
+          { status: 400 },
+        );
+      }
+      const acting = await resolveOwner(body.owner);
+      const claimed = await resolveOwner(body.rowOwner);
+      if (!acting || !claimed) {
+        return NextResponse.json({ error: "owner or rowOwner did not resolve" }, { status: 400 });
+      }
+
+      // Seed the target row as its rightful owner, so the conflict below is a
+      // genuine cross-owner one rather than a missing row.
+      const providerCustomerId = `rls-probe/${crypto.randomUUID()}`;
+      await withOwner(claimed, (tx) =>
+        tx
+          .insert(billingCustomer)
+          .values({ ...ownerColumns(claimed), provider: "rls-probe", providerCustomerId }),
+      );
+
+      await withOwner(acting, (tx) =>
+        tx
+          .insert(billingCustomer)
+          .values({ ...ownerColumns(acting), provider: "rls-probe", providerCustomerId })
+          .onConflictDoUpdate({
+            target: [billingCustomer.provider, billingCustomer.providerCustomerId],
+            set: { updatedAt: new Date() },
+          }),
+      );
+
+      // Reaching here means the UPDATE path touched a row this owner cannot see.
       return NextResponse.json({ ok: true, environment, wrote: true });
     }
 

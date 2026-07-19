@@ -469,8 +469,17 @@ export async function rlsProbe(
   request: APIRequestContext,
   body: {
     mode: "tenant" | "owner" | "raw" | "bypass";
-    action?: "select" | "insert";
-    table?: "location" | "membership" | "invitation" | "file" | "notification";
+    action?: "select" | "insert" | "upsert";
+    table?:
+      | "location"
+      | "membership"
+      | "invitation"
+      | "file"
+      | "notification"
+      | "billing_customer"
+      | "subscription"
+      | "billing_payment"
+      | "webhook_event";
     organizationId?: string;
     foreignOrganizationId?: string;
     owner?: ProbeOwnerRef;

@@ -245,3 +245,203 @@ test.describe("boilerplate RLS — context lifetime and the escape hatch", () =>
     expect(probe.rows!.some((r) => r.organizationId === b.orgId)).toBe(true);
   });
 });
+
+/**
+ * The billing tables (F1b). A separate block rather than four more names in
+ * `BOILERPLATE_TABLES`, so the F1a coverage above stays attributable to F1a.
+ *
+ * All four take the same XOR policy as `file`/`notification`, so most of this is
+ * the F1a shape applied to a new table. What is genuinely new is the upsert test
+ * at the end: `features/billing/webhooks.ts` writes through `ON CONFLICT`, and
+ * Postgres treats the two conflict actions differently under RLS.
+ *
+ * Note on seeding: at the time this landed the dev database had ZERO
+ * account-owned rows in all four billing tables (30/14/8/26 rows, all
+ * org-owned), so the account-branch tests below seed their own row through the
+ * positive control rather than relying on anything already there — exactly as
+ * the `file` test above does.
+ */
+const BILLING_TABLES = ["billing_customer", "subscription", "billing_payment", "webhook_event"];
+
+test.describe("billing RLS — environment and isolation", () => {
+  test("every billing table has RLS enabled and forced", async ({ request }) => {
+    const probe = await rlsProbe(request, { mode: "raw" });
+    for (const name of BILLING_TABLES) {
+      const row = probe.environment.tables.find((t) => t.relname === name);
+      expect(row, `${name} not found in pg_class`).toBeDefined();
+      expect(row!.relrowsecurity, `${name} has no RLS`).toBe(true);
+      expect(row!.relforcerowsecurity, `${name} has RLS but not FORCE`).toBe(true);
+    }
+  });
+
+  test("an unfiltered billing read with no owner context returns nothing", async ({ request }) => {
+    await seedOrg(request, "rlsbillraw");
+
+    for (const table of BILLING_TABLES) {
+      const probe = await rlsProbe(request, {
+        mode: "raw",
+        table: table as "billing_customer",
+      });
+      expect(probe.ok, `${table} probe errored: ${probe.message}`).toBe(true);
+      // `NULL OR NULL` is NULL, which denies. Fail-closed without a context.
+      expect(probe.rows, `${table} leaked rows with no owner context`).toEqual([]);
+    }
+  });
+
+  test("an unfiltered billing_customer read returns only the acting org's rows", async ({
+    request,
+  }) => {
+    const a = await seedOrg(request, "rlsbilla");
+    const b = await seedOrg(request, "rlsbillb");
+
+    // Seed one row per org through the positive-control path, so both orgs have
+    // something to confuse for the other's.
+    for (const org of [a, b]) {
+      const seeded = await rlsProbe(request, {
+        mode: "owner",
+        action: "insert",
+        table: "billing_customer",
+        owner: { orgSlug: org.slug },
+        rowOwner: { orgSlug: org.slug },
+      });
+      expect(seeded.ok).toBe(true);
+    }
+
+    const probe = await rlsProbe(request, {
+      mode: "owner",
+      table: "billing_customer",
+      owner: { orgSlug: a.slug },
+    });
+
+    expect(probe.ok).toBe(true);
+    expect(probe.rows!.length).toBeGreaterThan(0);
+    expect(probe.rows!.every((r) => r.organizationId === a.orgId)).toBe(true);
+    expect(probe.rows!.some((r) => r.organizationId === b.orgId)).toBe(false);
+  });
+
+  test("the positive control: writing a billing_customer for your own owner succeeds", async ({
+    request,
+  }) => {
+    const org = await seedOrg(request, "rlsbillpos");
+
+    // Without this, every refusal test below would pass just as well against a
+    // policy that refused everything.
+    const probe = await rlsProbe(request, {
+      mode: "owner",
+      action: "insert",
+      table: "billing_customer",
+      owner: { orgSlug: org.slug },
+      rowOwner: { orgSlug: org.slug },
+    });
+
+    expect(probe.ok, probe.message).toBe(true);
+  });
+
+  test("an org cannot write a billing_customer claiming another org", async ({ request }) => {
+    const mine = await seedOrg(request, "rlsbillmine");
+    const theirs = await seedOrg(request, "rlsbilltheirs");
+
+    // Pins WITH CHECK. USING alone would hide the row afterwards but still let
+    // the write land — which on the billing tables means one tenant's payment
+    // record filed under another's.
+    const probe = await rlsProbe(request, {
+      mode: "owner",
+      action: "insert",
+      table: "billing_customer",
+      owner: { orgSlug: mine.slug },
+      rowOwner: { orgSlug: theirs.slug },
+    });
+
+    expect(probe.ok).toBe(false);
+    expect(probe.sqlState).toBe("42501");
+  });
+
+  test("a personal account sees its own billing_customer and nobody else's", async ({
+    request,
+  }) => {
+    const mineEmail = uniqueEmail("rlsbillacct");
+    const otherEmail = uniqueEmail("rlsbillacctb");
+    await registerViaApi(request, mineEmail);
+    await registerViaApi(request, otherEmail);
+
+    for (const email of [mineEmail, otherEmail]) {
+      const seeded = await rlsProbe(request, {
+        mode: "owner",
+        action: "insert",
+        table: "billing_customer",
+        owner: { userEmail: email },
+        rowOwner: { userEmail: email },
+      });
+      expect(seeded.ok).toBe(true);
+    }
+
+    // The account branch of the disjunction. A single-GUC policy would hide a
+    // personal account's own billing rows from it — and personal-account billing
+    // is exactly what the B2C half of spec §5.2 is.
+    const probe = await rlsProbe(request, {
+      mode: "owner",
+      table: "billing_customer",
+      owner: { userEmail: mineEmail },
+    });
+
+    expect(probe.ok).toBe(true);
+    expect(probe.rows!.length).toBeGreaterThan(0);
+    expect(probe.rows!.every((r) => r.accountId !== null && r.organizationId === null)).toBe(true);
+    expect(new Set(probe.rows!.map((r) => r.accountId)).size).toBe(1);
+  });
+
+  test("the system bypass still sees billing rows across owners", async ({ request }) => {
+    const a = await seedOrg(request, "rlsbillbypa");
+    const b = await seedOrg(request, "rlsbillbypb");
+
+    for (const org of [a, b]) {
+      await rlsProbe(request, {
+        mode: "owner",
+        action: "insert",
+        table: "billing_customer",
+        owner: { orgSlug: org.slug },
+        rowOwner: { orgSlug: org.slug },
+      });
+    }
+
+    // The webhook's owner-resolving read depends on this: `findBillingCustomer`
+    // runs under the bypass because a provider customer id names no tenant until
+    // this table maps it to one.
+    const probe = await rlsProbe(request, { mode: "bypass", table: "billing_customer" });
+
+    expect(probe.ok).toBe(true);
+    expect(probe.rows!.some((r) => r.organizationId === a.orgId)).toBe(true);
+    expect(probe.rows!.some((r) => r.organizationId === b.orgId)).toBe(true);
+  });
+});
+
+test.describe("billing RLS — ON CONFLICT semantics", () => {
+  test("an upsert onto another owner's row is refused, not silently applied", async ({
+    request,
+  }) => {
+    const mine = await seedOrg(request, "rlsupsmine");
+    const theirs = await seedOrg(request, "rlsupstheirs");
+
+    // THE ASYMMETRY THAT MAKES THE WEBHOOK SAFE. `ON CONFLICT DO UPDATE` checks
+    // the EXISTING row against USING and raises when it fails — per the docs,
+    // "the UPDATE path will never be silently avoided". Without that, a webhook
+    // whose customer resolved to the wrong owner would quietly overwrite another
+    // tenant's subscription row with this tenant's data, since the upserts in
+    // `features/billing/webhooks.ts` deliberately keep owner columns out of
+    // their SET clause and so would leave the victim's owner intact.
+    //
+    // The sibling case is deliberately NOT tested here: `ON CONFLICT DO NOTHING`
+    // is evaluated against the INSERT WITH CHECK only and stays a silent no-op
+    // by design, which is what keeps the idempotency marker working. That is
+    // covered end-to-end by the duplicate tests in `billing-webhook.spec.ts`.
+    const probe = await rlsProbe(request, {
+      mode: "owner",
+      action: "upsert",
+      owner: { orgSlug: mine.slug },
+      rowOwner: { orgSlug: theirs.slug },
+    });
+
+    expect(probe.ok).toBe(false);
+    expect(probe.sqlState).toBe("42501");
+  });
+});
