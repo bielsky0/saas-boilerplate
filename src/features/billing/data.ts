@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import { withTenant } from "@/lib/db/tenant";
 import type { BillingOwner } from "./context";
 import type { Locale } from "@/lib/i18n/config";
 import { toLocale } from "@/lib/i18n/user-locale";
@@ -201,27 +202,33 @@ export async function resolveBillingRecipients(
   accountId: string | null,
 ): Promise<BillingRecipients> {
   if (organizationId) {
-    const rows = await db
-      .select({
-        userId: user.id,
-        email: user.email,
-        name: user.name,
-        locale: user.locale,
-        orgName: organization.name,
-        orgSlug: organization.slug,
-      })
-      .from(membership)
-      .innerJoin(user, eq(user.id, membership.userId))
-      .innerJoin(organization, eq(organization.id, membership.organizationId))
-      .where(
-        and(
-          eq(membership.organizationId, organizationId),
-          eq(membership.role, "owner"),
-          eq(membership.status, "active"),
-          isNull(user.deletedAt),
-          isNull(organization.deletedAt),
+    // Reads `membership`, which is under RLS since F1a — but this function takes
+    // the organization id as a PARAMETER, so it can scope itself and needs no
+    // bypass. That is why this module is deliberately absent from the
+    // `@/lib/db/system` allow-list in eslint.config.mjs.
+    const rows = await withTenant(organizationId, (tx) =>
+      tx
+        .select({
+          userId: user.id,
+          email: user.email,
+          name: user.name,
+          locale: user.locale,
+          orgName: organization.name,
+          orgSlug: organization.slug,
+        })
+        .from(membership)
+        .innerJoin(user, eq(user.id, membership.userId))
+        .innerJoin(organization, eq(organization.id, membership.organizationId))
+        .where(
+          and(
+            eq(membership.organizationId, organizationId),
+            eq(membership.role, "owner"),
+            eq(membership.status, "active"),
+            isNull(user.deletedAt),
+            isNull(organization.deletedAt),
+          ),
         ),
-      );
+    );
 
     return {
       ownerName: rows[0]?.orgName ?? "your organization",

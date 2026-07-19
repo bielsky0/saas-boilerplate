@@ -1,4 +1,5 @@
 import { hasPermission, isRole, type Permission, type Role } from "@/features/rbac";
+import { withTenant } from "@/lib/db/tenant";
 import {
   ensurePersonalAccount,
   getMembership,
@@ -33,7 +34,10 @@ export type McpOrgAccess = {
 export async function resolveMcpOrg(userId: string, slug: string): Promise<McpOrgAccess | null> {
   const org = await getOrgBySlug(slug);
   if (!org) return null;
-  const membership = await getMembership(org.id, userId);
+  // Same bootstrap shape as `requireOrgAccess` — see the reasoning in
+  // `features/organizations/context.ts`: the GUC comes from the slug, and naming
+  // a tenant is not authorization; the `userId` predicate below still is.
+  const membership = await withTenant(org.id, (tx) => getMembership(tx, org.id, userId));
   if (!membership || membership.status !== "active" || !isRole(membership.role)) return null;
   return { org: { id: org.id, name: org.name, slug: org.slug }, role: membership.role };
 }

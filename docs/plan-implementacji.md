@@ -135,12 +135,70 @@ Kolejność oparta na §5 specyfikacji („Kolejność implementacji"), skorygow
 
 ### Faza 1 — ⚠️ RLS retrofit tabel tenantowych boilerplate'u
 
+**Podzielona na F1a i F1b w trakcie planowania (2026-07-19).** Uzasadnienie podziału: eksploracja wykazała blast radius 15 sygnatur DAL-i, ~26 call site'ów i 5 wyjątków ESLint, obejmujący jednocześnie warstwę żądań, panel super admina, joby i webhooki. Jeden commit dotykający tego wszystkiego naraz jest trudny do zdiagnozowania przy czerwonej suicie, a webhooki mają inny profil (właściciela trzeba najpierw rozwiązać) niż ścieżki żądań (kontekst org jest już w `OrgContext`). Podział przebiega dokładnie po tej granicy.
+
+---
+
+### Faza 1a — ⚠️ RLS: membership, invitation, file, notification
+
+**Status:** ✅ **zakończona** (2026-07-19)
+**Cel:** druga linia obrony (RLS) na tabelach tenantowych boilerplate'u obsługiwanych ze ścieżki żądania + infrastruktura pod drugi kształt właściciela.
+**Pokrywa:** US-1.1/AC1 dla tabel boilerplate'u ze ścieżki żądań; boilerplate §11.2.
+**Zależności:** F0 ✅
+
+**Zrealizowany zakres:** typ `Owner` + `withOwner` i drugi GUC `app.account_id` (`withTenant` przepisany jako alias); `cross-tenant.ts` jako ogrodzony moduł dla trzech odczytów bez tenanta; DAL-e organizations/storage/notifications przyjmują `tx: TenantDb`; wąski bypass w `storage/purge.ts`; hardening `notificationJobSchema` (XOR); migracja `0016_rls_boilerplate_tenant.sql`; probe rozszerzony o `mode: "owner"`, `rowOwner` i `EXCLUDED_TABLES`; nowy `e2e/boilerplate-rls.spec.ts` (10 testów).
+
+#### Raport z realizacji Fazy 1a — referencja względem DoD
+
+| Kryterium DoD                                     | Wynik                                                                                                                      |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Polityki aktywne (`ENABLE`+`FORCE`) na 4 tabelach | ✅ 8 polityk w `pg_policies`, `relrowsecurity`+`relforcerowsecurity` na wszystkich 4                                       |
+| Obie gałęzie właściciela działają                 | ✅ test gałęzi kontowej: konto widzi wyłącznie własne pliki, ani cudzego konta, ani organizacji                            |
+| Odmowa zapisu cross-owner                         | ✅ `42501` w tej samej gałęzi ORAZ cross-branch (kontekst org nie spełnia gałęzi kontowej)                                 |
+| Kontrola pozytywna                                | ✅ zapis dla własnego właściciela przechodzi — bez tego testy odmowy przechodziłyby przy polityce odmawiającej wszystkiego |
+| Asercja carve-outu (negatywna)                    | ✅ `organization`, `personal_account`, `notification_preference`, `audit_log` mają `relrowsecurity=false`                  |
+| Fail-closed bez kontekstu                         | ✅ `mode:"raw"` na wszystkich 4 tabelach zwraca `[]`                                                                       |
+| Brak wycieku kontekstu przez pulę                 | ✅ odczyt w kontekście → natychmiastowy odczyt raw → `[]`                                                                  |
+| **Cała istniejąca suita e2e zielona**             | ✅ **146 passed, 3 skipped, 0 failed** (baseline F0: 136+3; +10 nowych testów)                                             |
+| `lint` / `typecheck` / `test` / `format`          | ✅ wszystkie zielone                                                                                                       |
+| Migracje od zera na czystej bazie                 | ✅ `docker compose down -v && pnpm db:up && pnpm db:migrate` → 8 polityk, 4 tabele FORCE                                   |
+| Bramka danych 8.0 (przed migracją)                | ✅ patrz niżej                                                                                                             |
+
+**Wynik bramki danych** (rola właściciela, przed migracją, na bazie dev z realnymi danymi):
+
+| tabela         | wierszy | org-owned | account-owned | **bez właściciela** |
+| -------------- | ------- | --------- | ------------- | ------------------- |
+| `notification` | 118     | 8         | **110**       | **0**               |
+| `file`         | 3       | 3         | 0             | **0**               |
+| `membership`   | 70      | 70        | —             | **0**               |
+| `invitation`   | 5       | 5         | —             | **0**               |
+
+Bramka nie była pusta, więc jej zero ma treść. Dwie obserwacje warte zapamiętania: **110 ze 118 powiadomień to wiersze kont osobistych** — jednogałęziowa polityka z F0 ukryłaby ~93% tej tabeli, więc drugi GUC nie był decyzją teoretyczną; oraz `file` nie ma w dev ani jednego wiersza account-owned, dlatego test gałęzi kontowej seeduje własny wiersz zamiast polegać na zastanych danych.
+
+#### Rozstrzygnięcia podjęte w Fazie 1a
+
+| #   | Decyzja                                                                                  | Uzasadnienie                                                                                                                                                                                                                                        |
+| --- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D14 | **Drugi GUC `app.account_id` + `withOwner`**; polityka dwugałęziowa na tabelach XOR      | Tabele XOR mają wiersze `organizationId IS NULL`; polityka z F0 ukryłaby je przed ich własnymi właścicielami (110/118 powiadomień w dev)                                                                                                            |
+| D15 | `withOwner` **zawsze zapisuje oba GUC-i**, blankując nieaktywny                          | Zagnieżdżenie otwiera SAVEPOINT, nie nową transakcję, a `set_config(…, true)` przeżywa jego zwolnienie — inaczej transakcja spełniałaby oba człony polityki naraz                                                                                   |
+| D16 | `requireOrgAccess` przez `withTenant`, **nie** przez bypass                              | Najgorętsza ścieżka aplikacji; `warn` na żądanie zagłuszyłby log, którego celem jest policzalność dziur, i uczyniłby fence dekoracją. GUC pochodzi ze sluga (`organization` poza RLS), więc nie ma cyklu — a nazwanie tenanta nie jest uprawnieniem |
+| D17 | `personal_account` i `organization` poza RLS **jako reguła**, nie dwa wyjątki            | Polityki kluczowanej po właścicielu nie da się nałożyć na wiersz definiujący właściciela — zapytanie rozwiązujące jest zapytaniem produkującym wartość GUC                                                                                          |
+| D18 | `notification_preference` poza RLS jako **odnotowane odstępstwo** (nie czysty carve-out) | Druga połowa reguły z `schema/index.ts` nie zachodzi (granicą jest sesja). Trzeci GUC odrzucony: rozerwałby `isInAppSuppressed` + zapis na dwie transakcje. Pilnowane **testem negatywnym**                                                         |
+| D19 | Wąski bypass: obejmuje wyłącznie zapytanie rozwiązujące właściciela                      | Zapisy (`acceptInvitation`, `storage.purge`) biegną już przez `withOwner`, więc `WITH CHECK` pozostaje load-bearing tam, gdzie pomyłka tenanta niszczy dane                                                                                         |
+| D20 | `cross-tenant.ts` jako **osobny plik**, nie wyjątek na `organizations/data.ts`           | Wyjątek na cały `data.ts` dałby bypass funkcjom `getMembership`/`listMembers` — dokładnie tym, które fence ma ograniczać                                                                                                                            |
+| D21 | `createOrganizationAction` i `seed-org` **mintują `organizationId` jawnie**              | GUC musi być ustawiony przy otwarciu transakcji, a `.returning()` daje id o jedno stanowienie za późno. Przy okazji znika round-trip                                                                                                                |
+| D22 | Seeder `seed-org` używa `withTenant`, nie bypassu                                        | Seeder idący ścieżką, której produkcja nigdy nie używa, przestaje być dowodem, że ścieżka produkcyjna działa                                                                                                                                        |
+
+---
+
+### Faza 1b — ⚠️ RLS: tabele billingowe
+
 **Status:** nierozpoczęta
-**Cel:** rozszerzenie drugiej linii obrony (RLS) na istniejące tabele tenantowe boilerplate'u. Wąska, ryzykowna — dotyka współdzielonej infrastruktury danych.
-**Pokrywa:** US-1.1/AC1 w pełnym zakresie; boilerplate §11.2 (rekomendacja RLS).
-**Zależności:** F0 ✅ (dostarczone: rola `saas_school` bez BYPASSRLS + dwa URL-e, `withTenant`/`withSystemBypass`, migracja `0015_rls_langlion_core.sql` jako gotowy wzorzec `ENABLE`+`FORCE`+dwie polityki do skopiowania per tabela, fence ESLint na bypass, oraz `e2e/langlion-rls.spec.ts` jako szablon testu izolacji — w tym asercja, że rola faktycznie nie jest superuserem).
-**Zakres:** polityki RLS + FORCE na `membership`, `invitation`, `file`, `notification`, `billing_customer`, `subscription`, `billing_payment`, `webhook_event`, `personal_account` (właściciel XOR wymaga polityk dwugałęziowych org/account); przegląd DAL-i pod kątem transakcyjnego kontekstu; jawny bypass dla `features/admin/data.ts` (cross-tenant by design), jobów systemowych i webhooków. Tabele systemowe (auth, `audit_log`, `job`, `email_suppression`, `rate_limit`) świadomie POZA RLS — zgodnie z regułą wyjątków w `ARCHITECTURE.md`.
-**DoD:** polityki aktywne na wszystkich tabelach tenantowych; testy izolacji cross-tenant dla tabel boilerplate'u; CAŁA istniejąca suita e2e zielona (admin, billing webhooki, notyfikacje, storage, joby — to jest właściwy test tej fazy).
+**Cel:** domknięcie retrofitu na `billing_customer`, `subscription`, `billing_payment`, `webhook_event`.
+**Zależności:** F1a ✅ — dziedziczy całą infrastrukturę. **Zero nowych GUC-ów, zero nowej infrastruktury, zero nowych bloków ESLint.**
+**Zakres:** cztery bloki polityk w kształcie XOR do `0017_*.sql` z szablonu `0016` dosłownie; `tx: TenantDb` w `billing/data.ts`; wąski bypass w `features/billing/webhooks.ts` zawężony do `findBillingCustomer`/`getSubscriptionByProviderId`, zapisy (`webhook_event`, `subscription`, `billing_payment`) przez `withOwner(ownerOf(customer))`; wpisy w `RLS_TABLES` probe'a; rozszerzenie `boilerplate-rls.spec.ts`. Jeden prawdopodobny nowy wyjątek ESLint: `features/billing/webhooks.ts`.
+**Uwaga:** **własna bramka danych 8.0** przed migracją — to nie jest wynik dziedziczony z F1a.
+**DoD:** polityki aktywne na 4 tabelach billingowych; webhook z rozwiązaniem właściciela pod wąskim bypassem i zapisem w kontekście; cała suita e2e zielona (szczególnie `billing-webhook.spec.ts`).
 
 ---
 
@@ -371,8 +429,10 @@ e) nieretroaktywność zmian polityki (US-23.5/23.6) + ostrzeżenie „package b
 
 ### Ryzyka techniczne
 
-- **RLS + pooling połączeń:** wzorzec ustalony w F0 i gotowy do skopiowania w F1: `withTenant` (`src/lib/db/tenant.ts`) używa `set_config('app.organization_id', …, true)` — funkcji, nie `SET LOCAL`, bo `SET LOCAL` nie przyjmuje placeholdera i wymuszałby sklejanie stringa z `orgId`. Trzeci argument `true` = zasięg transakcji; `false` dałoby zasięg sesji i wyciek kontekstu przez pulę (pokryte osobnym testem). Bypass: `withSystemBypass` ogrodzony `no-restricted-imports`. **Pozostałe ryzyko dotyczy F1:** retrofit tabel boilerplate'u dotknie wielu DAL-i, a `features/admin/data.ts`, webhooki i joby będą wtedy potrzebowały jawnego wyjątku w ESLint — stąd F1 jako osobna faza z pełną suitą e2e jako kryterium.
-- **`FORCE ROW LEVEL SECURITY` a backfille w migracjach (ujawnione w F0):** przy `FORCE` migracja podlega politykom, chyba że rola migracyjna ma BYPASSRLS. Ma ją (jest superuserem w dev/CI), ale jeśli to się zmieni, `UPDATE` w backfillu trafi zero wierszy i **nie zgłosi błędu** — migracja przejdzie, dane nie. Istotne przy F1.
+- **RLS + pooling połączeń:** wzorzec ustalony w F0 i gotowy do skopiowania w F1: `withTenant` (`src/lib/db/tenant.ts`) używa `set_config('app.organization_id', …, true)` — funkcji, nie `SET LOCAL`, bo `SET LOCAL` nie przyjmuje placeholdera i wymuszałby sklejanie stringa z `orgId`. Trzeci argument `true` = zasięg transakcji; `false` dałoby zasięg sesji i wyciek kontekstu przez pulę (pokryte osobnym testem). Bypass: `withSystemBypass` ogrodzony `no-restricted-imports`. **Zamknięte w F1a dla ścieżek żądań:** retrofit dotknął 15 sygnatur DAL-i i ~26 call site'ów, a `features/admin/{data,actions}.ts`, `storage/purge.ts` i `onboarding/data.ts` dostały jawne wyjątki w ESLint (5 łącznie, każdy z uzasadnieniem w nagłówku bloku). `withOwner` dodał drugi GUC `app.account_id` i zasadę „zawsze oba GUC-i" — patrz D14/D15. **Pozostałe ryzyko dotyczy F1b:** webhooki billingowe rozwiązują właściciela dopiero w trakcie, więc wymagają wąskiego bypassu (D19) i są jedyną ścieżką zapisu sterowaną z zewnątrz.
+- **`FORCE ROW LEVEL SECURITY` a backfille w migracjach (ujawnione w F0):** przy `FORCE` migracja podlega politykom, chyba że rola migracyjna ma BYPASSRLS. Ma ją (jest superuserem w dev/CI), ale jeśli to się zmieni, `UPDATE` w backfillu trafi zero wierszy i **nie zgłosi błędu** — migracja przejdzie, dane nie. W F1a nie wystąpiło (brak backfillu — patrz bramka 8.0 i wpis o niej wyżej); istotne przy każdej przyszłej migracji, która łączy `FORCE` z backfillem.
+- **⚠️ BLOKUJĄCE PRZED PIERWSZYM WDROŻENIEM WIELOINSTANCYJNYM (ujawnione w F1a): `db:migrate` nie jest krokiem deploya.** Ustalone: `"build": "next build"`, jedyne automatyczne uruchomienie migracji to `.github/workflows/ci.yml:135` przeciwko efemerycznej bazie testowej, `vercel.json` zawiera tylko crona. Migracja produkcyjna jest więc **osobną, ręczną operacją poza deployem**, a Vercel przełącza ruch stopniowo. Dla migracji RLS kolejność jest asymetryczna i krytyczna: **migracja przed kodem = pełna awaria zalogowanej aplikacji** (stary kod czyta `membership` bez kontekstu → zero wierszy → `forbidden()`, każdy tenant, bez trybu częściowej degradacji); **kod przed migracją = brak zmiany zachowania** (nowy kod ustawia GUC-i, których żadna tabela jeszcze nie czyta). Runbook w `ARCHITECTURE.md` („Deploying an RLS migration"). Dopóki krok migracji nie jest zautomatyzowany po pełnej promocji deploymentu, ta kolejność jest **gwarantowana wyłącznie dyscypliną operatora, nie narzędziem**. Do rozstrzygnięcia przed pierwszym wdrożeniem na środowisko z >1 instancją; nie blokuje pracy na dev/CI. Dotyczy tak samo F1b.
+- **Bramka danych przed każdym `FORCE` (wzorzec z F1a):** wiersz bez właściciela nie staje się błędem, tylko **cicho niewidocznym wierszem**. Przed włączeniem polityki na nowej tabeli policzyć wiersze bez właściciela — **na roli właściciela i PRZED migracją**. Na `DATABASE_URL` po migracji zapytanie zwróci `0` niezależnie od stanu danych, bo to dokładnie te wiersze, które polityka ukrywa. Zero odczytane z niewłaściwej strony przełącznika jest zerem bez treści.
 - **`drizzle-kit push` skasowałby całą ochronę:** EXCLUDE, polityki RLS i GRANT-y żyją wyłącznie w ręcznym SQL i są niewidoczne dla snapshotu Drizzle. `generate` ich nie ruszy (diffuje TS wobec snapshotu), ale `push` introspektuje żywą bazę i zaproponuje ich DROP. Zakaz udokumentowany w ARCHITECTURE.md; skryptu `db:push` nie ma i nie wolno go dodać.
 - **Kolizje nazw eksportów w `schema/index.ts` są ciche:** `export *` z dwóch modułów eksportujących tę samą nazwę nie jest błędem — nazwa staje się niejednoznaczna i zostaje pominięta, a drizzle-kit generuje wtedy FK wskazujący na _inną_ tabelę o tej nazwie. Zdarzyło się raz (`session` ↔ Better Auth, D11). Przed dodaniem tabeli: grep po katalogu schematu.
 - **Vercel Hobby = cron dzienny:** mechanizmy czasowe (wygaszanie wniosków po 24h, expiry kredytów, generowanie sezonu, retry jobów) wymagają w produkcji zewnętrznego pingera `/api/cron/jobs` albo planu Pro (patrz ARCHITECTURE.md „Background jobs in production").

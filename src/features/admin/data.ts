@@ -11,9 +11,11 @@ import {
   lt,
   or,
   sql,
+  type SQL,
 } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import { withSystemBypass } from "@/lib/db/system";
 import { endOfDay, likePattern, parseDate, toPaged, type Paged } from "@/lib/db/pagination";
 import {
   auditLog,
@@ -171,18 +173,22 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
 
   if (!row) return null;
 
-  const orgs = await db
-    .select({
-      id: organization.id,
-      name: organization.name,
-      slug: organization.slug,
-      role: membership.role,
-      status: membership.status,
-    })
-    .from(membership)
-    .innerJoin(organization, eq(membership.organizationId, organization.id))
-    .where(and(eq(membership.userId, userId), isNull(organization.deletedAt)))
-    .orderBy(organization.name);
+  const orgs = await withSystemBypass(
+    "super admin: user detail — memberships across all tenants",
+    (tx) =>
+      tx
+        .select({
+          id: organization.id,
+          name: organization.name,
+          slug: organization.slug,
+          role: membership.role,
+          status: membership.status,
+        })
+        .from(membership)
+        .innerJoin(organization, eq(membership.organizationId, organization.id))
+        .where(and(eq(membership.userId, userId), isNull(organization.deletedAt)))
+        .orderBy(organization.name),
+  );
 
   return {
     id: row.id,
@@ -208,33 +214,38 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
 export async function listSolelyOwnedOrgs(
   userId: string,
 ): Promise<{ id: string; name: string; slug: string }[]> {
-  const ownerCounts = db
-    .select({
-      organizationId: membership.organizationId,
-      owners: count().as("owners"),
-    })
-    .from(membership)
-    .where(and(eq(membership.role, "owner"), eq(membership.status, "active")))
-    .groupBy(membership.organizationId)
-    .as("owner_counts");
+  return withSystemBypass(
+    "super admin: solely-owned orgs — owner counts across all tenants",
+    async (tx) => {
+      const ownerCounts = tx
+        .select({
+          organizationId: membership.organizationId,
+          owners: count().as("owners"),
+        })
+        .from(membership)
+        .where(and(eq(membership.role, "owner"), eq(membership.status, "active")))
+        .groupBy(membership.organizationId)
+        .as("owner_counts");
 
-  const rows = await db
-    .select({ id: organization.id, name: organization.name, slug: organization.slug })
-    .from(membership)
-    .innerJoin(organization, eq(membership.organizationId, organization.id))
-    .innerJoin(ownerCounts, eq(ownerCounts.organizationId, organization.id))
-    .where(
-      and(
-        eq(membership.userId, userId),
-        eq(membership.role, "owner"),
-        eq(membership.status, "active"),
-        isNull(organization.deletedAt),
-        eq(ownerCounts.owners, 1),
-      ),
-    )
-    .orderBy(organization.name);
+      const rows = await tx
+        .select({ id: organization.id, name: organization.name, slug: organization.slug })
+        .from(membership)
+        .innerJoin(organization, eq(membership.organizationId, organization.id))
+        .innerJoin(ownerCounts, eq(ownerCounts.organizationId, organization.id))
+        .where(
+          and(
+            eq(membership.userId, userId),
+            eq(membership.role, "owner"),
+            eq(membership.status, "active"),
+            isNull(organization.deletedAt),
+            eq(ownerCounts.owners, 1),
+          ),
+        )
+        .orderBy(organization.name);
 
-  return rows;
+      return rows;
+    },
+  );
 }
 
 /**
@@ -288,49 +299,53 @@ export type AdminOrgRow = {
  * who matter most. Revenue-to-date (below) is the honest thing we can show today.
  */
 export async function listAllOrganizations(query: OrgListQuery): Promise<Paged<AdminOrgRow>> {
-  const filters = [];
+  const filters: (SQL | undefined)[] = [];
   if (query.q) {
     const pattern = likePattern(query.q);
     filters.push(or(ilike(organization.name, pattern), ilike(organization.slug, pattern)));
   }
 
-  const rows = await db
-    .select({
-      id: organization.id,
-      name: organization.name,
-      slug: organization.slug,
-      createdAt: organization.createdAt,
-      deletedAt: organization.deletedAt,
-      memberCount: sql<number>`(
+  const rows = await withSystemBypass(
+    "super admin: org list — member counts across all tenants",
+    (tx) =>
+      tx
+        .select({
+          id: organization.id,
+          name: organization.name,
+          slug: organization.slug,
+          createdAt: organization.createdAt,
+          deletedAt: organization.deletedAt,
+          memberCount: sql<number>`(
         SELECT COUNT(*)::int FROM ${membership}
         WHERE ${membership.organizationId} = ${organization.id}
           AND ${membership.status} = 'active'
       )`,
-      // The org's current plan: the newest live subscription, or none → free.
-      planId: sql<string | null>`(
+          // The org's current plan: the newest live subscription, or none → free.
+          planId: sql<string | null>`(
         SELECT ${subscription.planId} FROM ${subscription}
         WHERE ${subscription.organizationId} = ${organization.id}
           AND ${subscription.status} IN ('active', 'trialing')
         ORDER BY ${subscription.lastEventAt} DESC LIMIT 1
       )`,
-      subscriptionStatus: sql<string | null>`(
+          subscriptionStatus: sql<string | null>`(
         SELECT ${subscription.status} FROM ${subscription}
         WHERE ${subscription.organizationId} = ${organization.id}
           AND ${subscription.status} IN ('active', 'trialing')
         ORDER BY ${subscription.lastEventAt} DESC LIMIT 1
       )`,
-      seats: sql<number | null>`(
+          seats: sql<number | null>`(
         SELECT ${subscription.quantity} FROM ${subscription}
         WHERE ${subscription.organizationId} = ${organization.id}
           AND ${subscription.status} IN ('active', 'trialing')
         ORDER BY ${subscription.lastEventAt} DESC LIMIT 1
       )`,
-    })
-    .from(organization)
-    .where(filters.length > 0 ? and(...filters) : undefined)
-    .orderBy(desc(organization.createdAt))
-    .limit(PAGE_SIZE + 1)
-    .offset(query.page * PAGE_SIZE);
+        })
+        .from(organization)
+        .where(filters.length > 0 ? and(...filters) : undefined)
+        .orderBy(desc(organization.createdAt))
+        .limit(PAGE_SIZE + 1)
+        .offset(query.page * PAGE_SIZE),
+  );
 
   return toPaged(rows, query.page, PAGE_SIZE);
 }
@@ -353,18 +368,20 @@ export async function getOrganizationDetail(orgId: string): Promise<AdminOrgDeta
   if (!summary) return null;
 
   const [members, revenue] = await Promise.all([
-    db
-      .select({
-        userId: user.id,
-        email: user.email,
-        name: user.name,
-        role: membership.role,
-        status: membership.status,
-      })
-      .from(membership)
-      .innerJoin(user, eq(membership.userId, user.id))
-      .where(eq(membership.organizationId, orgId))
-      .orderBy(desc(membership.createdAt)),
+    withSystemBypass("super admin: org detail — member list", (tx) =>
+      tx
+        .select({
+          userId: user.id,
+          email: user.email,
+          name: user.name,
+          role: membership.role,
+          status: membership.status,
+        })
+        .from(membership)
+        .innerJoin(user, eq(membership.userId, user.id))
+        .where(eq(membership.organizationId, orgId))
+        .orderBy(desc(membership.createdAt)),
+    ),
     db
       .select({
         currency: billingPayment.currency,
@@ -410,10 +427,12 @@ async function orgSummaryById(orgId: string): Promise<AdminOrgRow | null> {
     .limit(1);
   if (!row) return null;
 
-  const [memberRow] = await db
-    .select({ total: count() })
-    .from(membership)
-    .where(and(eq(membership.organizationId, orgId), eq(membership.status, "active")));
+  const [memberRow] = await withSystemBypass("super admin: org summary — member count", (tx) =>
+    tx
+      .select({ total: count() })
+      .from(membership)
+      .where(and(eq(membership.organizationId, orgId), eq(membership.status, "active"))),
+  );
 
   const [sub] = await db
     .select({

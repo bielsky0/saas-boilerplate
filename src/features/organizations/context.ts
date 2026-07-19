@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import type { Session } from "@/lib/adapters/auth";
 import { hasPermission, isRole, type Permission, type Role } from "@/features/rbac";
 import { orgsEnabled } from "@/lib/tenancy";
+import { withTenant } from "@/lib/db/tenant";
 import { getMembership, getOrgBySlug } from "./data";
 
 /**
@@ -50,6 +51,31 @@ export function requireOrgsEnabled(): void {
  * `requireOrgPermission` — one line, not one per call site. Only the two actions
  * that legitimately bypass this chokepoint (create / accept-invitation) guard
  * themselves, plus `orgs/layout.tsx` for `/orgs/new`.
+ *
+ * ---
+ *
+ * SETTING THE RLS CONTEXT IS NOT AN AUTHORIZATION DECISION (F1a). The
+ * `getMembership` read below runs inside `withTenant(org.id, …)`, and this is the
+ * one place in the codebase where the tenant GUC is set BEFORE the caller has
+ * been authorized rather than after. Two things make that sound, and both are
+ * worth stating because the shape looks circular at first glance:
+ *
+ * 1. It is not circular. The GUC value comes from the URL slug via
+ *    `getOrgBySlug`, and `organization` carries no policy (it is an owner TARGET
+ *    — see the header of `src/lib/db/schema/index.ts`). Nothing from the
+ *    membership row is needed in order to NAME the org; membership answers a
+ *    different question, which is whether the caller may have it.
+ * 2. Naming a tenant grants nothing. Anyone can put any slug in a URL and thereby
+ *    set that GUC. What the policy guarantees is only that the query cannot see
+ *    ANYTHING ELSE. The authorization boundary is still the `userId` predicate
+ *    inside `getMembership` plus the `forbidden()` calls below — RLS is the
+ *    second line here exactly as it is everywhere else.
+ *
+ * Deliberately NOT `withSystemBypass`: this is the hottest path in the
+ * application (every org page, every action), and the bypass logs at warn on
+ * purpose so that deliberate isolation holes stay countable. Routing per-request
+ * traffic through it would drown that signal and make the ESLint fence around
+ * `@/lib/db/system` decorative.
  */
 export async function requireOrgAccess(slug: string): Promise<OrgContext> {
   requireOrgsEnabled();
@@ -57,7 +83,7 @@ export async function requireOrgAccess(slug: string): Promise<OrgContext> {
   const org = await getOrgBySlug(slug);
   if (!org) notFound();
 
-  const membership = await getMembership(org.id, session.user.id);
+  const membership = await withTenant(org.id, (tx) => getMembership(tx, org.id, session.user.id));
   if (!membership || membership.status !== "active") {
     forbidden();
   }

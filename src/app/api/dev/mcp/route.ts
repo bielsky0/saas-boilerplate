@@ -4,7 +4,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { user } from "@/lib/db/schema";
 import { env } from "@/lib/env/server";
-import { listMembers, listUserOrgs } from "@/features/organizations/data";
+import { listMembers } from "@/features/organizations/data";
+import { listUserOrgs } from "@/features/organizations/cross-tenant";
+import { withOwner, withTenant } from "@/lib/db/tenant";
 import { countUnread, listNotificationsForUser } from "@/features/notifications/data";
 import { resolveMcpOrg, resolveMcpOwner } from "@/features/mcp/context";
 
@@ -56,21 +58,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const access = await resolveMcpOrg(userId, slug);
       if (!access) return NextResponse.json({ denied: true });
       return NextResponse.json({
-        data: { org: access.org, members: await listMembers(access.org.id) },
+        data: {
+          org: access.org,
+          members: await withTenant(access.org.id, (tx) => listMembers(tx, access.org.id)),
+        },
       });
     }
 
     case "count_unread_notifications": {
       const resolved = await resolveMcpOwner(userId, slug);
       if (!resolved) return NextResponse.json({ denied: true });
-      return NextResponse.json({ data: { unread: await countUnread(userId, resolved.owner) } });
+      const unread = await withOwner(resolved.owner, (tx) =>
+        countUnread(tx, userId, resolved.owner),
+      );
+      return NextResponse.json({ data: { unread } });
     }
 
     case "list_recent_notifications": {
       const resolved = await resolveMcpOwner(userId, slug);
       if (!resolved) return NextResponse.json({ denied: true });
       return NextResponse.json({
-        data: { notifications: await listNotificationsForUser(userId, resolved.owner) },
+        data: {
+          notifications: await withOwner(resolved.owner, (tx) =>
+            listNotificationsForUser(tx, userId, resolved.owner),
+          ),
+        },
       });
     }
 

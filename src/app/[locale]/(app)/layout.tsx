@@ -5,7 +5,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SignOutButton } from "@/features/auth";
 import { NotificationBell } from "@/features/notifications";
 import { AccountSwitcher } from "@/features/organizations";
-import { ensurePersonalAccount, listUserOrgs } from "@/features/organizations/data";
+import { ensurePersonalAccount } from "@/features/organizations/data";
+import { listUserOrgs } from "@/features/organizations/cross-tenant";
 import { requireSession } from "@/lib/auth";
 import { orgsEnabled, orgsExposed } from "@/lib/tenancy";
 

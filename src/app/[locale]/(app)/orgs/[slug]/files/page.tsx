@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { hasPermission } from "@/features/rbac";
 import { requireOrgAccess } from "@/features/organizations/context";
 import { listFilesForOwner } from "@/features/storage/data";
+import { withOwner } from "@/lib/db/tenant";
 import { FileList } from "@/features/storage/components/file-list";
 import { FileUpload } from "@/features/storage/components/file-upload";
 
@@ -18,7 +19,8 @@ export default async function OrgFilesPage({ params }: { params: Promise<{ slug:
   const { org, role } = await requireOrgAccess(slug);
   const t = await getTranslations("storage");
 
-  const rows = await listFilesForOwner({ kind: "organization", organizationId: org.id });
+  const owner = { kind: "organization", organizationId: org.id } as const;
+  const rows = await withOwner(owner, (tx) => listFilesForOwner(tx, owner));
   const files = rows.map((f) => ({
     id: f.id,
     originalName: f.originalName,

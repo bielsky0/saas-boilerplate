@@ -15,10 +15,11 @@ import { invitation, membership, organization, user } from "@/lib/db/schema";
 import { clientEnv } from "@/lib/env/client";
 import { storedLocaleForEmail, toLocale } from "@/lib/i18n/user-locale";
 import type { FormState } from "@/lib/validation";
+import { withTenant } from "@/lib/db/tenant";
+import { getInvitationByTokenHash } from "./cross-tenant";
 import { requireOrgPermission, requireOrgsEnabled } from "./context";
 import {
   ensurePersonalAccount,
-  getInvitationByTokenHash,
   getOrgById,
   getPersonalAccountByUserId,
   getUserByEmail,
@@ -130,20 +131,26 @@ export async function createOrganizationAction(
 
   const actor = await resolveActor(session);
 
-  await db.transaction(async (tx) => {
-    const [org] = await tx
-      .insert(organization)
-      .values({
-        name: parsed.data.name,
-        slug,
-        subdomain: parsed.data.subdomain,
-        timezone: parsed.data.timezone,
-        currency: parsed.data.currency,
-        createdByUserId: session.user.id,
-      })
-      .returning({ id: organization.id });
+  // The id is minted HERE rather than read back from `.returning()`, because the
+  // tenant GUC has to be set when the transaction OPENS and the membership insert
+  // inside it is subject to `membership`'s WITH CHECK. Reading the id back would
+  // put it in scope one statement too late. The column's `$defaultFn` generates a
+  // `randomUUID` anyway, so this changes where the value comes from, not what it
+  // is — and it removes a round-trip.
+  const organizationId = randomUUID();
+
+  await withTenant(organizationId, async (tx) => {
+    await tx.insert(organization).values({
+      id: organizationId,
+      name: parsed.data.name,
+      slug,
+      subdomain: parsed.data.subdomain,
+      timezone: parsed.data.timezone,
+      currency: parsed.data.currency,
+      createdByUserId: session.user.id,
+    });
     await tx.insert(membership).values({
-      organizationId: org!.id,
+      organizationId,
       userId: session.user.id,
       role: "owner",
       status: "active",
@@ -153,9 +160,9 @@ export async function createOrganizationAction(
     await recordAudit(tx, {
       action: "organization.create",
       actor,
-      organizationId: org!.id,
+      organizationId,
       targetType: "organization",
-      targetId: org!.id,
+      targetId: organizationId,
       targetLabel: slug,
       metadata: withImpersonation(session, { name: parsed.data.name }),
     });
@@ -210,7 +217,7 @@ export async function inviteMemberAction(
     (await storedLocaleForEmail(parsed.data.email)) ?? toLocale(ctx.session.user.locale);
   const actor = await resolveActor(ctx.session);
 
-  await db.transaction(async (tx) => {
+  await withTenant(ctx.org.id, async (tx) => {
     // Supersede any prior pending invite for this email so only one link is live.
     await tx
       .update(invitation)
@@ -321,7 +328,7 @@ export async function revokeInvitationAction(
    * was sometimes "nothing". Now that case returns without logging a revocation
    * that never happened — the log records reality, not intent.
    */
-  await db.transaction(async (tx) => {
+  await withTenant(ctx.org.id, async (tx) => {
     const [revoked] = await tx
       .update(invitation)
       .set({ status: "revoked" })
@@ -371,7 +378,11 @@ export async function acceptInvitationAction(
 
   const actor = await resolveActor(session);
 
-  await db.transaction(async (tx) => {
+  // Re-enters tenant context with the org the token resolved to, so both writes
+  // below are subject to `membership`/`invitation` WITH CHECK. The only bypass in
+  // this flow covered the token lookup itself (`./cross-tenant.ts`), which cannot
+  // name a tenant because the tenant is its output.
+  await withTenant(invite.organizationId, async (tx) => {
     // Bearer-token accept by the authenticated session holder (documented policy).
     await tx
       .insert(membership)
@@ -432,7 +443,7 @@ export async function updateMemberRoleAction(
   const actor = await resolveActor(ctx.session);
 
   try {
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.org.id, async (tx) => {
       const [target] = await tx
         .select()
         .from(membership)
@@ -502,7 +513,7 @@ export async function removeMemberAction(
   const actor = await resolveActor(ctx.session);
 
   try {
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.org.id, async (tx) => {
       const [target] = await tx
         .select()
         .from(membership)
@@ -556,7 +567,7 @@ export async function leaveOrganizationAction(
   const actor = await resolveActor(ctx.session);
 
   try {
-    await db.transaction(async (tx) => {
+    await withTenant(ctx.org.id, async (tx) => {
       if (ctx.membership.role === "owner") {
         if ((await lockActiveOwnerCount(tx, ctx.org.id)) <= 1) throw new LastOwnerError();
       }

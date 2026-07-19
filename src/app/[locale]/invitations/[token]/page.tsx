@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import { Button } from "@/components/ui";
 import { AcceptInvitationForm } from "@/features/organizations/components/accept-invitation-form";
 import { requireOrgsEnabled } from "@/features/organizations/context";
-import { getInvitationWithValidity, getOrgById } from "@/features/organizations/data";
+import { getOrgById } from "@/features/organizations/data";
+import { getInvitationWithValidity } from "@/features/organizations/cross-tenant";
 import { getServerSession } from "@/lib/auth";
 
 /**

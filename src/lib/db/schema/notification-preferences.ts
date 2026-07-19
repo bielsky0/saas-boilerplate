@@ -13,9 +13,32 @@ import { user } from "./auth";
  * (spec 23 acceptance criterion — "wyłączenie preferencji faktycznie zatrzymuje").
  *
  * KEYED ON userId (not owner): a preference is the person's, not a tenant's —
- * "I don't want invitation pings" holds across every org they are in. This is the
- * §11.2 tenant-isolation carve-out (see schema/index.ts): the subject is a user
- * setting, and its boundary is the session, not an owner filter.
+ * "I don't want invitation pings" holds across every org they are in.
+ *
+ * OUTSIDE RLS, AND THIS IS A DEVIATION RATHER THAN A CLEAN CARVE-OUT (F1a).
+ * Measured honestly against the two-part rule in schema/index.ts: the first half
+ * HOLDS (the subject is a user setting, not a tenant record — the row spans every
+ * org the person belongs to). The second half FAILS: the boundary is a session,
+ * which is neither a system credential nor an owner filter. Earlier revisions of
+ * this header claimed the carve-out outright; that was too generous.
+ *
+ * Why the deviation is accepted rather than closed with a third `app.user_id`
+ * GUC: `notificationCreateHandler` reads `isInAppSuppressed` and then writes a
+ * `notification` as one logical unit. A user GUC makes that either two
+ * transactions or a wrapper setting an owner AND a user — reintroducing the
+ * "which GUCs are set right now?" ambiguity that makes RLS wrappers get misused.
+ * That is a poor trade for a boolean per notification type.
+ *
+ * What holds the line instead: `userId` is the first parameter of all three
+ * accessors in `features/notifications/data.ts` and is always in the predicate;
+ * and `e2e/boilerplate-rls.spec.ts` asserts NEGATIVELY that this table has
+ * `relrowsecurity = false`. That assertion is the point — enabling RLS here
+ * without a user GUC would make every preference invisible and silently stop
+ * suppression from working, which is a red test rather than a support ticket.
+ *
+ * FOLLOW-UP: if `user`/`session`/`account` are ever brought under RLS, they need
+ * a user-scoped GUC anyway, and one wrapper then covers all four tables. That is
+ * the moment to revisit — not before.
  *
  * SCOPE — IN-APP ONLY (this iteration): the email channel keeps its own
  * category-based opt-out in `features/emails/` (`email_suppression`). Unifying the

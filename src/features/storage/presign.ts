@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { storage, type PresignedUpload } from "@/lib/adapters/storage";
+import { withOwner } from "@/lib/db/tenant";
 import {
   createFileRecord,
   getFileForOwner,
@@ -64,21 +65,23 @@ export async function createUpload(
     maxBytes: Math.min(input.size, MAX_UPLOAD_BYTES),
     expiresIn: UPLOAD_TTL_SECONDS,
   });
-  const fileId = await createFileRecord({
-    owner,
-    uploadedByUserId,
-    key,
-    originalName: input.filename,
-    contentType: input.contentType,
-    size: input.size,
-    visibility: input.visibility,
-  });
+  const fileId = await withOwner(owner, (tx) =>
+    createFileRecord(tx, {
+      owner,
+      uploadedByUserId,
+      key,
+      originalName: input.filename,
+      contentType: input.contentType,
+      size: input.size,
+      visibility: input.visibility,
+    }),
+  );
   return { fileId, key, upload };
 }
 
 /** Confirm a completed upload. Returns false if the file isn't the owner's. */
 export async function confirmUpload(owner: FileOwner, fileId: string): Promise<boolean> {
-  return markFileReady(owner, fileId);
+  return withOwner(owner, (tx) => markFileReady(tx, owner, fileId));
 }
 
 export type ReadableFile = {
@@ -98,7 +101,7 @@ export async function getReadableFile(
   owner: FileOwner,
   fileId: string,
 ): Promise<ReadableFile | null> {
-  const row = await getFileForOwner(owner, fileId);
+  const row = await withOwner(owner, (tx) => getFileForOwner(tx, owner, fileId));
   if (!row) return null;
   const url =
     row.visibility === "public"
@@ -115,5 +118,5 @@ export async function getReadableFile(
 
 /** Soft-delete a file the caller owns (spec 21.4). Returns false if not theirs. */
 export async function removeFile(owner: FileOwner, fileId: string): Promise<boolean> {
-  return softDeleteFile(owner, fileId);
+  return withOwner(owner, (tx) => softDeleteFile(tx, owner, fileId));
 }

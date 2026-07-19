@@ -876,15 +876,94 @@ docker exec saas_school_postgres psql -U postgres -d saas_boilerplate \
 
 ### Row-Level Security (spec §1.3, US-1.1)
 
-The langlion domain tables — `location`, `group_type`, `group_type_recurrence`,
-`class_session`, `client`, `athlete`, `booking` — carry RLS policies keyed on a
-per-transaction setting. All access goes through one function:
+Two groups of tables carry RLS policies keyed on per-transaction settings:
+
+| Group              | Tables                                                                                             | Owner shape                          |
+| ------------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| langlion core (F0) | `location`, `group_type`, `group_type_recurrence`, `class_session`, `client`, `athlete`, `booking` | NOT NULL `organizationId`            |
+| boilerplate (F1a)  | `membership`, `invitation`                                                                         | NOT NULL `organizationId`            |
+| boilerplate (F1a)  | `file`, `notification`                                                                             | `organizationId` **XOR** `accountId` |
+
+All access goes through one of two functions:
 
 ```ts
-import { withTenant } from "@/lib/db/tenant";
+import { withOwner, withTenant } from "@/lib/db/tenant";
 
+// Organization-owned (the langlion shape, and most boilerplate reads):
 await withTenant(ctx.org.id, async (tx) => listLocations(tx, ctx.org.id));
+
+// Either owner shape — an org, or someone's personal account:
+await withOwner(owner, async (tx) => listFilesForOwner(tx, owner));
 ```
+
+`withTenant` is a thin alias for `withOwner({ kind: "organization", … })`.
+
+**Two GUCs, both always written.** `withOwner` sets `app.organization_id` and
+`app.account_id` on every call, blanking the inactive one. This is not tidiness:
+`db.transaction` inside an open transaction opens a SAVEPOINT, not a new
+transaction, and a transaction-scoped `set_config` survives its release — so a
+wrapper that set only its own GUC would leave the other holding the enclosing
+scope's value, and the inner query would satisfy both policy disjuncts at once.
+
+**The XOR policy and three-valued logic.** For an org-owned row `accountId` IS
+NULL, so the account disjunct evaluates to NULL: `true OR NULL` = true (allow),
+`false OR NULL` = NULL (deny), `NULL OR NULL` = NULL (deny — the no-context case,
+failing closed). The XOR CHECK guarantees one column is non-NULL, so no row is
+unreachable.
+
+#### What is deliberately NOT under RLS
+
+| Table                                          | Why                                                                                                                                                          |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `organization`, `personal_account`             | The owner TARGETS. A policy keyed on the owner cannot apply to the row that DEFINES the owner — the query resolving it is the query producing the GUC value. |
+| `notification_preference`                      | Keyed on the user, not an owner. A **recorded deviation**, not a clean carve-out — see its schema header.                                                    |
+| `audit_log`                                    | Nullable owner by design; a standard policy would refuse every system-actor row. If ever added, it needs an explicit `OR "organizationId" IS NULL` branch.   |
+| auth, `job`, `email_suppression`, `rate_limit` | System tables — see the carve-out rule in `schema/index.ts`.                                                                                                 |
+
+`e2e/boilerplate-rls.spec.ts` asserts these NEGATIVELY (`relrowsecurity = false`).
+Enabling RLS on `notification_preference` without a user GUC would make every
+preference invisible and silently stop in-app suppression working — that
+assertion turns it into a red test rather than a support ticket.
+
+#### Deploying an RLS migration
+
+**The migration is a switch, and the code must land first.** The asymmetry is the
+whole reason an order exists:
+
+| Order               | Window                        | Effect                                                                                                                                |
+| ------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **migration first** | until traffic fully cuts over | old code reads `membership` with no context → zero rows → `forbidden()`. **Total outage**, every tenant, no partial-degradation mode. |
+| **code first**      | until `db:migrate` runs       | new code sets two GUCs no table reads yet. **No behaviour change.**                                                                   |
+
+This matters in production because **`db:migrate` is not part of the deploy**:
+`build` is `next build`, the only automated run is in CI against an ephemeral
+database, and Vercel cuts traffic over gradually. So the order is guaranteed by
+operator discipline, not by tooling. Runbook:
+
+1. Deploy the code. **Do not migrate.**
+2. Confirm the new version serves 100% of traffic and no old instance is alive.
+3. Run the data gate (below), then `pnpm db:migrate` on `DATABASE_MIGRATION_URL`.
+4. Verify: `SELECT tablename, policyname FROM pg_policies …` plus a smoke test on
+   one org page.
+
+**Rolling back after step 3 is a FORWARD migration** (`DROP POLICY` + `DISABLE ROW
+LEVEL SECURITY`), never a code revert — reverting code under live policies
+recreates the "migration first" row above.
+
+> ⚠️ **Blocking before the first multi-instance production deploy:** either
+> automate the migration step so it runs after full promotion, or accept this as a
+> written manual procedure. Today nothing enforces it.
+
+**The data gate.** Before enabling `FORCE` on a table, verify on real data that
+every row has an owner — a row without one becomes silently invisible rather than
+an error:
+
+```sql
+SELECT count(*) FROM "notification" WHERE "organizationId" IS NULL AND "accountId" IS NULL;
+```
+
+Run it as the **owner role** and **before** the migration. On `DATABASE_URL` after
+the fact it returns 0 regardless — those are exactly the rows the policy hides.
 
 **RLS is the second line, not the first.** `data.ts` functions still take an
 explicit `organizationId` and still filter by it. That filter is what uses the
@@ -907,11 +986,12 @@ listed in `eslint.config.mjs` and "who can read everything?" stays greppable.
 Three kinds of database object in this schema exist only in hand-written
 migration SQL and are absent from `migrations/meta/*_snapshot.json`:
 
-| Object                               | Where                        |
-| ------------------------------------ | ---------------------------- |
-| `EXCLUDE` constraints (§5.1, §5.3)   | `0014_lively_sumo.sql`       |
-| RLS policies + `FORCE`               | `0015_rls_langlion_core.sql` |
-| `GRANT`s, `ALTER DEFAULT PRIVILEGES` | `0012_grant_app_role.sql`    |
+| Object                                    | Where                             |
+| ----------------------------------------- | --------------------------------- |
+| `EXCLUDE` constraints (§5.1, §5.3)        | `0014_lively_sumo.sql`            |
+| RLS policies + `FORCE` (langlion core)    | `0015_rls_langlion_core.sql`      |
+| RLS policies + `FORCE` (boilerplate, F1a) | `0016_rls_boilerplate_tenant.sql` |
+| `GRANT`s, `ALTER DEFAULT PRIVILEGES`      | `0012_grant_app_role.sql`         |
 
 This is safe in one direction and dangerous in the other. `drizzle-kit generate`
 diffs the TS schema against the snapshot, never against the live database, so it

@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import { withSystemBypass } from "@/lib/db/system";
 import { membership, personalAccount, subscription, user } from "@/lib/db/schema";
 import type { Locale } from "@/lib/i18n/config";
 import { toLocale } from "@/lib/i18n/user-locale";
@@ -47,24 +48,32 @@ export async function getOnboardingUser(userId: string): Promise<OnboardingUser 
  * paying team is exactly that, whoever holds the card.
  */
 export async function hasPaidSubscription(userId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: subscription.id })
-    .from(subscription)
-    .leftJoin(personalAccount, eq(personalAccount.id, subscription.accountId))
-    .leftJoin(
-      membership,
-      and(
-        eq(membership.organizationId, subscription.organizationId),
-        eq(membership.userId, userId),
-        eq(membership.status, "active"),
-      ),
-    )
-    .where(
-      and(
-        inArray(subscription.status, [...PAID_STATUSES]),
-        or(eq(personalAccount.userId, userId), eq(membership.userId, userId)),
-      ),
-    )
-    .limit(1);
+  // BYPASS (F1a): the question is "is this person paying ANYWHERE", so the input
+  // is a user id and there is no single owner to scope by — the join fans out
+  // over every org the user belongs to plus their personal account. `membership`
+  // is under RLS, so without this the answer would always be "no", silently.
+  const [row] = await withSystemBypass(
+    "onboarding paid-subscription check — spans every org the user is in",
+    (tx) =>
+      tx
+        .select({ id: subscription.id })
+        .from(subscription)
+        .leftJoin(personalAccount, eq(personalAccount.id, subscription.accountId))
+        .leftJoin(
+          membership,
+          and(
+            eq(membership.organizationId, subscription.organizationId),
+            eq(membership.userId, userId),
+            eq(membership.status, "active"),
+          ),
+        )
+        .where(
+          and(
+            inArray(subscription.status, [...PAID_STATUSES]),
+            or(eq(personalAccount.userId, userId), eq(membership.userId, userId)),
+          ),
+        )
+        .limit(1),
+  );
   return Boolean(row);
 }

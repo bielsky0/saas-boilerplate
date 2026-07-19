@@ -35,6 +35,17 @@
  * §3 owner-scoped reference: `personal_account` / `organization` are the two
  * tenant owners; `membership` and `invitation` are scoped by `organizationId`.
  *
+ * THE TWO OWNER TARGETS ARE OUTSIDE RLS BY CONSTRUCTION (F1a). `organization`
+ * and `personal_account` carry no policy, and this is a rule rather than two
+ * separate omissions: a policy keyed on the owner cannot be applied to the row
+ * that DEFINES that owner. The query which resolves `organization` from a URL
+ * slug, and the query which resolves `personal_account` from a user id, are the
+ * queries that PRODUCE the values the GUCs are set to — a policy on them would
+ * have to be satisfied before it could be evaluated. Note this is a statement
+ * about circularity, not about safety: both are still owner-filtered in the DAL,
+ * and `organization` rows are not secret (a slug is a public URL segment).
+ * Do not read it as licence to exempt a third table for being inconvenient.
+ *
  * §5 billing tables show the other owner shape: a record that may belong to
  * EITHER tenant owner (spec 5.2), modelled as two nullable columns plus a CHECK
  * enforcing exactly one — see `./billing-customers`.

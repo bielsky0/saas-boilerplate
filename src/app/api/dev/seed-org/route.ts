@@ -1,7 +1,9 @@
 import { inArray } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
 
 import { db } from "@/lib/db";
+import { withTenant } from "@/lib/db/tenant";
 import { membership, organization, user } from "@/lib/db/schema";
 import { env } from "@/lib/env/server";
 import { resolveUniqueSlug } from "@/features/organizations/slug";
@@ -62,40 +64,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // gets a subdomain no parallel worker can collide with.
   const subdomain = body.subdomain ?? slug;
 
-  const result = await db.transaction(async (tx) => {
-    const [org] = await tx
-      .insert(organization)
-      .values({
-        name,
-        slug,
-        subdomain,
-        timezone: body.timezone ?? SEED_TIMEZONE,
-        currency: body.currency ?? SEED_CURRENCY,
-        createdByUserId: ownerId,
-      })
-      .returning({
-        id: organization.id,
-        slug: organization.slug,
-        subdomain: organization.subdomain,
-      });
+  // `membership` is under RLS (F1a), so the seeder runs in tenant context like the
+  // real `createOrganizationAction` does — deliberately NOT via the system bypass.
+  // A seeder that takes a route production never takes would stop being evidence
+  // that the production path works. The id is minted up front for the same reason
+  // as in that action: the GUC must be set when the transaction opens.
+  const organizationId = randomUUID();
+
+  await withTenant(organizationId, async (tx) => {
+    await tx.insert(organization).values({
+      id: organizationId,
+      name,
+      slug,
+      subdomain,
+      timezone: body.timezone ?? SEED_TIMEZONE,
+      currency: body.currency ?? SEED_CURRENCY,
+      createdByUserId: ownerId,
+    });
     await tx
       .insert(membership)
-      .values({ organizationId: org!.id, userId: ownerId, role: "owner", status: "active" });
+      .values({ organizationId, userId: ownerId, role: "owner", status: "active" });
     for (const m of members) {
       const uid = idByEmail.get(m.email.toLowerCase());
       if (!uid) continue;
       await tx
         .insert(membership)
-        .values({ organizationId: org!.id, userId: uid, role: m.role, status: "active" })
+        .values({ organizationId, userId: uid, role: m.role, status: "active" })
         .onConflictDoNothing();
     }
-    return org!;
   });
 
-  return NextResponse.json({
-    ok: true,
-    slug: result.slug,
-    subdomain: result.subdomain,
-    orgId: result.id,
-  });
+  return NextResponse.json({ ok: true, slug, subdomain, orgId: organizationId });
 }

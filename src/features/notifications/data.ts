@@ -2,6 +2,7 @@ import { and, count, desc, eq, isNull, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import type { JobWriter } from "@/lib/adapters/jobs";
+import type { Owner, TenantDb } from "@/lib/db/tenant";
 import { notification, notificationPreference } from "@/lib/db/schema";
 import { isSuppressibleType, type NotificationType } from "./types";
 
@@ -15,9 +16,13 @@ import { isSuppressibleType, type NotificationType } from "./types";
  * WHICH owner via `resolveNotificationOwner` and passes it as a `NotificationOwner`.
  */
 
-/** The tenant a notification operation acts as. Exactly one owner, mirroring the XOR. */
-export type NotificationOwner =
-  { kind: "organization"; organizationId: string } | { kind: "personal"; accountId: string };
+/**
+ * The tenant a notification operation acts as. Exactly one owner, mirroring the XOR.
+ *
+ * An alias of the canonical `Owner` since F1a — the same value now also selects
+ * the RLS policy branch, so it must be the one type `withOwner` accepts.
+ */
+export type NotificationOwner = Owner;
 
 /** The owner predicate — an org notification by org id, a personal one by account id. */
 function ownerWhere(owner: NotificationOwner): SQL {
@@ -67,11 +72,12 @@ export type NotificationRow = {
 
 /** A recipient's notifications in one context, newest first (the bell list). */
 export async function listNotificationsForUser(
+  tx: TenantDb,
   userId: string,
   owner: NotificationOwner,
   limit = 20,
 ): Promise<NotificationRow[]> {
-  const rows = await db
+  const rows = await tx
     .select({
       id: notification.id,
       type: notification.type,
@@ -88,8 +94,12 @@ export async function listNotificationsForUser(
 }
 
 /** Unread count for the bell badge (the unread predicate is `readAt IS NULL`). */
-export async function countUnread(userId: string, owner: NotificationOwner): Promise<number> {
-  const [row] = await db
+export async function countUnread(
+  tx: TenantDb,
+  userId: string,
+  owner: NotificationOwner,
+): Promise<number> {
+  const [row] = await tx
     .select({ n: count() })
     .from(notification)
     .where(and(eq(notification.userId, userId), ownerWhere(owner), isNull(notification.readAt)));
@@ -98,11 +108,12 @@ export async function countUnread(userId: string, owner: NotificationOwner): Pro
 
 /** Mark one notification read (owner + recipient scoped). False if not theirs. */
 export async function markRead(
+  tx: TenantDb,
   userId: string,
   owner: NotificationOwner,
   id: string,
 ): Promise<boolean> {
-  const rows = await db
+  const rows = await tx
     .update(notification)
     .set({ readAt: new Date() })
     .where(
@@ -118,8 +129,12 @@ export async function markRead(
 }
 
 /** Mark every unread notification in this context read. */
-export async function markAllRead(userId: string, owner: NotificationOwner): Promise<void> {
-  await db
+export async function markAllRead(
+  tx: TenantDb,
+  userId: string,
+  owner: NotificationOwner,
+): Promise<void> {
+  await tx
     .update(notification)
     .set({ readAt: new Date() })
     .where(and(eq(notification.userId, userId), ownerWhere(owner), isNull(notification.readAt)));

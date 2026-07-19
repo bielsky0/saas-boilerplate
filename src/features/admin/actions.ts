@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 
 import { adminAuthAdapter, authAdapter } from "@/lib/adapters/auth";
 import { db } from "@/lib/db";
+import { withSystemBypass } from "@/lib/db/system";
 import { membership, organization, personalAccount, user } from "@/lib/db/schema";
 import type { FormState } from "@/lib/validation";
 import { recordAudit } from "./audit";
@@ -271,7 +272,12 @@ export async function deleteUserAction(
   const cascaded = await listSolelyOwnedOrgs(target.id);
   const now = new Date();
 
-  await db.transaction(async (tx) => {
+  // BYPASS (F1a): the `membership` delete below removes this user's membership in
+  // EVERY org they belong to — one statement, no single owner to scope to. The
+  // rest of the transaction (`user`, `personal_account`, `organization`,
+  // `audit_log`) touches no table under RLS, so the bypass is doing exactly one
+  // job here and it is the one it is named for.
+  await withSystemBypass("super admin: user delete — memberships across every org", async (tx) => {
     await tx.update(user).set({ deletedAt: now }).where(eq(user.id, target.id));
     await tx
       .update(personalAccount)

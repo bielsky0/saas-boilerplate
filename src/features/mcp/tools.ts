@@ -3,7 +3,9 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import { requestLogger } from "@/lib/logger";
-import { listMembers, listUserOrgs } from "@/features/organizations/data";
+import { listMembers } from "@/features/organizations/data";
+import { listUserOrgs } from "@/features/organizations/cross-tenant";
+import { withOwner, withTenant } from "@/lib/db/tenant";
 import { countUnread, listNotificationsForUser } from "@/features/notifications/data";
 import { getMcpActor } from "./actor";
 import { resolveMcpOrg, resolveMcpOwner } from "./context";
@@ -68,7 +70,7 @@ export function registerMcpTools(server: McpServer): void {
         log.info("tool", { tool: "list_members", userId, slug, outcome: "denied" });
         return denied();
       }
-      const members = await listMembers(access.org.id);
+      const members = await withTenant(access.org.id, (tx) => listMembers(tx, access.org.id));
       log.info("tool", {
         tool: "list_members",
         userId,
@@ -95,7 +97,9 @@ export function registerMcpTools(server: McpServer): void {
         log.info("tool", { tool: "count_unread_notifications", userId, slug, outcome: "denied" });
         return denied();
       }
-      const unread = await countUnread(userId, resolved.owner);
+      const unread = await withOwner(resolved.owner, (tx) =>
+        countUnread(tx, userId, resolved.owner),
+      );
       log.info("tool", {
         tool: "count_unread_notifications",
         userId,
@@ -125,7 +129,9 @@ export function registerMcpTools(server: McpServer): void {
         log.info("tool", { tool: "list_recent_notifications", userId, slug, outcome: "denied" });
         return denied();
       }
-      const notifications = await listNotificationsForUser(userId, resolved.owner, limit);
+      const notifications = await withOwner(resolved.owner, (tx) =>
+        listNotificationsForUser(tx, userId, resolved.owner, limit),
+      );
       log.info("tool", {
         tool: "list_recent_notifications",
         userId,

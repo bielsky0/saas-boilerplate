@@ -17,6 +17,7 @@ import { formatContentDate } from "@/features/content/format";
 import { hasPermission } from "@/features/rbac";
 import { requireOrgAccess } from "@/features/organizations/context";
 import { listMembers, listPendingInvitations } from "@/features/organizations/data";
+import { withTenant } from "@/lib/db/tenant";
 import { InviteMemberForm } from "@/features/organizations/components/invite-member-form";
 import { MemberActions } from "@/features/organizations/components/member-actions";
 import { RevokeInviteButton } from "@/features/organizations/components/invitation-actions";
@@ -46,10 +47,14 @@ export default async function MembersPage({ params }: { params: Promise<{ slug: 
   const canRemove = hasPermission(role, "members.remove");
   const canRevoke = hasPermission(role, "invitations.revoke");
 
-  const [members, pending] = await Promise.all([
-    listMembers(org.id),
-    canRevoke ? listPendingInvitations(org.id) : Promise.resolve([]),
-  ]);
+  // One transaction, not `Promise.all`: both tables are under RLS, so each query
+  // needs the tenant GUC, and two `withTenant` calls would take two connections
+  // from the pool to render one page. Sequential inside one transaction is two
+  // round-trips on one connection.
+  const { members, pending } = await withTenant(org.id, async (tx) => ({
+    members: await listMembers(tx, org.id),
+    pending: canRevoke ? await listPendingInvitations(tx, org.id) : [],
+  }));
 
   return (
     <div className="flex flex-col gap-8">

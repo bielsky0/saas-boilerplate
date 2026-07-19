@@ -452,21 +452,30 @@ export type RlsProbeResult = {
   sqlState?: string | null;
   message?: string;
   wrote?: boolean;
-  rows?: { id: string; organizationId: string }[];
+  rows?: { id: string; organizationId: string | null; accountId: string | null }[];
   environment: {
     role: { current_user: string; usesuper: boolean; rolbypassrls: boolean } | null;
     tables: { relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean }[];
+    /** Tables that must NOT have RLS — asserted negatively. See the probe header. */
+    excluded: { relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean }[];
   };
 };
+
+/** An owner named by slug/email rather than by raw id, as the probe expects. */
+export type ProbeOwnerRef = { orgSlug: string } | { userEmail: string };
 
 /** Query the RLS probe. See src/app/api/dev/rls-probe/route.ts for the modes. */
 export async function rlsProbe(
   request: APIRequestContext,
   body: {
-    mode: "tenant" | "raw" | "bypass";
+    mode: "tenant" | "owner" | "raw" | "bypass";
     action?: "select" | "insert";
+    table?: "location" | "membership" | "invitation" | "file" | "notification";
     organizationId?: string;
     foreignOrganizationId?: string;
+    owner?: ProbeOwnerRef;
+    rowOwner?: ProbeOwnerRef;
+    userEmail?: string;
   },
 ): Promise<RlsProbeResult> {
   const res = await request.post("/api/dev/rls-probe", { data: body });

@@ -4,9 +4,24 @@ import { db } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { recordAudit, SYSTEM_ACTOR } from "@/features/admin/audit";
 import { retentionCutoff, RETENTION_DAYS } from "@/features/admin/retention";
+import { withSystemBypass } from "@/lib/db/system";
+import { withOwner, type Owner } from "@/lib/db/tenant";
 import { hardDeleteFile, listPurgeableFiles } from "./data";
 
 const log = createLogger("storage");
+
+/**
+ * Recover a row's owner from its two nullable columns.
+ *
+ * The XOR CHECK on `file` guarantees exactly one is set, so the `organizationId`
+ * branch is decisive and the fallback is total. The non-null assertion is sound
+ * for that reason, not by optimism — a row with neither owner cannot exist.
+ */
+function ownerOf(row: { organizationId: string | null; accountId: string | null }): Owner {
+  return row.organizationId !== null
+    ? { kind: "organization", organizationId: row.organizationId }
+    : { kind: "personal", accountId: row.accountId! };
+}
 
 /**
  * File retention purge (spec 21.4 — soft-deleted files removed after the window).
@@ -37,7 +52,14 @@ const log = createLogger("storage");
  */
 export const storagePurgeHandler: JobHandler<"storage.purge"> = async () => {
   const cutoff = retentionCutoff();
-  const rows = await listPurgeableFiles(cutoff);
+  // NARROW BYPASS (F1a). The bypass covers ONLY the work-list read, which spans
+  // every owner by definition — a cron sweep cannot name one tenant. Each delete
+  // below then re-enters the context of the row's OWN owner, so `file`'s policy
+  // still applies on the write path, which is where a tenant mix-up would
+  // actually destroy data.
+  const rows = await withSystemBypass("storage retention purge — sweeps every owner", (tx) =>
+    listPurgeableFiles(tx, cutoff),
+  );
 
   let purged = 0;
   // Owner → files purged. `null` collects personal-account files, which have no
@@ -47,7 +69,9 @@ export const storagePurgeHandler: JobHandler<"storage.purge"> = async () => {
 
   for (const row of rows) {
     await storage.delete(row.key);
-    await hardDeleteFile(row.id);
+    // One transaction per file rather than one per batch. The `storage.delete`
+    // network call above already dominates, and the batch is capped at 100.
+    await withOwner(ownerOf(row), (tx) => hardDeleteFile(tx, row.id));
     purged += 1;
     perOwner.set(row.organizationId, (perOwner.get(row.organizationId) ?? 0) + 1);
   }

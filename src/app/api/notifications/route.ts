@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { resolveNotificationOwner } from "@/features/notifications/context";
 import { countUnread, listNotificationsForUser } from "@/features/notifications/data";
+import { withOwner } from "@/lib/db/tenant";
 
 /**
  * Notifications polling endpoint (spec 23.2 / 23.4) — the read side of the bell.
@@ -17,10 +18,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const slug = request.nextUrl.searchParams.get("slug");
   const { owner, userId } = await resolveNotificationOwner(slug);
 
-  const [unreadCount, items] = await Promise.all([
-    countUnread(userId, owner),
-    listNotificationsForUser(userId, owner),
-  ]);
+  // One transaction rather than `Promise.all`. Both queries hit `notification`,
+  // which is under RLS, so each needs the owner GUC — and two `withOwner` calls
+  // would take two pooled connections to serve one poll that fires every 15s.
+  // Sequential inside one transaction is two round-trips on one connection.
+  const { unreadCount, items } = await withOwner(owner, async (tx) => ({
+    unreadCount: await countUnread(tx, userId, owner),
+    items: await listNotificationsForUser(tx, userId, owner),
+  }));
 
   return NextResponse.json({ unreadCount, items });
 }

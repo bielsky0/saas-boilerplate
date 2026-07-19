@@ -1,6 +1,7 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import type { TenantDb } from "@/lib/db/tenant";
 import { invitation, membership, organization, personalAccount, user } from "@/lib/db/schema";
 
 /**
@@ -10,6 +11,19 @@ import { invitation, membership, organization, personalAccount, user } from "@/l
  * owner (`organizationId`) or the acting user, so isolation is enforced in the
  * data layer, not the UI. Feature code (actions, pages) calls these helpers and
  * never writes ad-hoc queries. Reference implementation for owner-scoped access.
+ *
+ * TWO KINDS OF FUNCTION LIVE HERE SINCE F1a, and the difference is visible in
+ * the signature:
+ *
+ * - Functions touching a table under RLS (`membership`, `invitation`) take a
+ *   `TenantDb` as their first parameter. Calling one without opening
+ *   `withTenant` is then a compile error rather than a silently empty result.
+ * - Functions touching tables outside RLS (`organization`, `personal_account`,
+ *   `user`) keep using `db` directly. Both owner TARGETS are outside RLS by
+ *   construction — a policy keyed on the owner cannot apply to the row that
+ *   defines it; see the header of `src/lib/db/schema/index.ts`.
+ *
+ * Reads that cannot name a tenant at all live in `./cross-tenant.ts`.
  */
 
 export type MemberRow = {
@@ -110,9 +124,15 @@ export async function isSubdomainTaken(subdomain: string): Promise<boolean> {
   return Boolean(row);
 }
 
-/** The caller's membership in an org, or null. */
-export async function getMembership(organizationId: string, userId: string) {
-  const [row] = await db
+/**
+ * The caller's membership in an org, or null.
+ *
+ * Takes a `TenantDb`: `membership` is under RLS, so this must run inside
+ * `withTenant(organizationId, …)`. The explicit predicate below stays — it is
+ * what hits the index, and the policy is the second line (US-1.1/AC1).
+ */
+export async function getMembership(tx: TenantDb, organizationId: string, userId: string) {
+  const [row] = await tx
     .select()
     .from(membership)
     .where(and(eq(membership.organizationId, organizationId), eq(membership.userId, userId)))
@@ -121,8 +141,8 @@ export async function getMembership(organizationId: string, userId: string) {
 }
 
 /** Members of an org with their user identity, newest first. */
-export async function listMembers(organizationId: string): Promise<MemberRow[]> {
-  const rows = await db
+export async function listMembers(tx: TenantDb, organizationId: string): Promise<MemberRow[]> {
+  const rows = await tx
     .select({
       membershipId: membership.id,
       userId: membership.userId,
@@ -140,57 +160,19 @@ export async function listMembers(organizationId: string): Promise<MemberRow[]> 
 }
 
 /** Pending invitations for an org, newest first. */
-export async function listPendingInvitations(organizationId: string) {
-  return db
+export async function listPendingInvitations(tx: TenantDb, organizationId: string) {
+  return tx
     .select()
     .from(invitation)
     .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, "pending")))
     .orderBy(desc(invitation.createdAt));
 }
 
-/** Look up an invitation by the SHA-256 of its raw token. */
-export async function getInvitationByTokenHash(tokenHash: string) {
-  const [row] = await db
-    .select()
-    .from(invitation)
-    .where(eq(invitation.tokenHash, tokenHash))
-    .limit(1);
-  return row ?? null;
-}
-
-/**
- * Look up an invitation and whether it is currently redeemable (pending and not
- * expired). The time check lives here rather than in a React render so the page
- * stays pure.
+/*
+ * `getInvitationByTokenHash`, `getInvitationWithValidity` and `listUserOrgs` used
+ * to live here. They moved to `./cross-tenant.ts` in F1a: none of them can name a
+ * tenant before running, so each needs the documented RLS bypass, and keeping
+ * them here would have meant exempting this whole module from the fence — which
+ * would hand the escape hatch to `getMembership` and `listMembers`, the two
+ * functions the fence exists to constrain. Import them from `./cross-tenant`.
  */
-export async function getInvitationWithValidity(tokenHash: string) {
-  const invite = await getInvitationByTokenHash(tokenHash);
-  const valid =
-    invite !== null && invite.status === "pending" && invite.expiresAt.getTime() >= Date.now();
-  return { invite, valid };
-}
-
-/**
- * The orgs a user actively belongs to (for the account switcher). Personal
- * context is derived separately from the user record, not returned here.
- */
-export async function listUserOrgs(userId: string): Promise<OrgSummary[]> {
-  const rows = await db
-    .select({
-      id: organization.id,
-      name: organization.name,
-      slug: organization.slug,
-      role: membership.role,
-    })
-    .from(membership)
-    .innerJoin(organization, eq(membership.organizationId, organization.id))
-    .where(
-      and(
-        eq(membership.userId, userId),
-        eq(membership.status, "active"),
-        isNull(organization.deletedAt),
-      ),
-    )
-    .orderBy(organization.name);
-  return rows;
-}

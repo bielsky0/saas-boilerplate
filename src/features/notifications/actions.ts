@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireSession } from "@/lib/auth";
 import type { FormState } from "@/lib/validation";
+import { withOwner } from "@/lib/db/tenant";
 import { markAllRead, markRead, setPreference } from "./data";
 import { resolveNotificationOwner } from "./context";
 import { markAllReadSchema, markReadSchema } from "./schema";
@@ -35,7 +36,7 @@ export async function markReadAction(slug: string | null, id: string): Promise<v
   if (!parsed.success) return;
 
   const { owner, userId } = await resolveNotificationOwner(parsed.data.slug ?? null);
-  await markRead(userId, owner, parsed.data.id);
+  await withOwner(owner, (tx) => markRead(tx, userId, owner, parsed.data.id));
 }
 
 /** Mark every notification in the active context read. */
@@ -44,7 +45,7 @@ export async function markAllReadAction(slug: string | null): Promise<void> {
   if (!parsed.success) return;
 
   const { owner, userId } = await resolveNotificationOwner(parsed.data.slug ?? null);
-  await markAllRead(userId, owner);
+  await withOwner(owner, (tx) => markAllRead(tx, userId, owner));
 }
 
 /**

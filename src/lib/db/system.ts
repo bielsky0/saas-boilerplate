@@ -27,6 +27,15 @@ const log = createLogger("db:system");
  * traffic through here is the super-admin panel, so the GUC is the proportionate
  * choice. Revisit when F1 puts the boilerplate's own tables under RLS and this
  * path gets hot; the migration is a policy edit, not a rewrite.
+ *
+ * F1a REVISITED IT, AND THE GUC STAYS. The predicted hot path did not appear:
+ * the retrofit added five consumers (the cross-tenant org reads, the two admin
+ * modules, the storage purge sweep, the onboarding subscription check), none of
+ * them per-request. `requireOrgAccess` — the one path that IS per-request — was
+ * deliberately routed through `withTenant` instead, precisely so it would not
+ * land here: a `warn` on every authenticated request would drown the log line
+ * whose entire purpose is to make deliberate holes countable. If a later phase
+ * does make this hot, the second-role migration is still a policy edit.
  */
 export async function withSystemBypass<T>(
   reason: string,

@@ -2,6 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { db } from "@/lib/db";
+import { withSystemBypass } from "@/lib/db/system";
 import { notification, user } from "@/lib/db/schema";
 import { env } from "@/lib/env/server";
 
@@ -24,18 +25,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const [u] = await db.select({ id: user.id }).from(user).where(eq(user.email, email)).limit(1);
   if (!u) return NextResponse.json({ notifications: [] });
 
-  const rows = await db
-    .select({
-      id: notification.id,
-      type: notification.type,
-      params: notification.params,
-      link: notification.link,
-      readAt: notification.readAt,
-      createdAt: notification.createdAt,
-    })
-    .from(notification)
-    .where(eq(notification.userId, u.id))
-    .orderBy(desc(notification.createdAt));
+  // BYPASS: the inspector deliberately lists a user's notifications across EVERY
+  // owner context (org and personal alike) so a test can assert on all of them in
+  // one call. That is the whole point of this route, and it is test-only (404 in
+  // production).
+  const rows = await withSystemBypass("dev notification inspector — every owner context", (tx) =>
+    tx
+      .select({
+        id: notification.id,
+        type: notification.type,
+        params: notification.params,
+        link: notification.link,
+        readAt: notification.readAt,
+        createdAt: notification.createdAt,
+      })
+      .from(notification)
+      .where(eq(notification.userId, u.id))
+      .orderBy(desc(notification.createdAt)),
+  );
 
   return NextResponse.json({ notifications: rows });
 }

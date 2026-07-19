@@ -1,5 +1,5 @@
-import { db } from "@/lib/db";
 import type { JobHandler } from "@/lib/adapters/jobs";
+import { withOwner } from "@/lib/db/tenant";
 import { createLogger } from "@/lib/logger";
 import { createNotification, isInAppSuppressed, type NotificationOwner } from "./data";
 import { notificationJobSchema } from "./schema";
@@ -27,18 +27,25 @@ export const notificationCreateHandler: JobHandler<"notification.create"> = asyn
     return;
   }
 
-  // Reconstruct the XOR owner from the two nullable payload fields. The enqueue
-  // side guarantees exactly one is set (it comes from a resolved owner); the
-  // schema keeps both as nullable strings across jsonb.
+  // Reconstruct the XOR owner from the two nullable payload fields. Both cross
+  // jsonb as nullable strings, so the guarantee that exactly one is set comes
+  // from `notificationJobSchema`'s refine above — which is what makes the
+  // `accountId!` below sound rather than hopeful.
   const owner: NotificationOwner = p.organizationId
     ? { kind: "organization", organizationId: p.organizationId }
     : { kind: "personal", accountId: p.accountId! };
 
-  await createNotification(db, {
-    userId: p.userId,
-    owner,
-    type: p.type,
-    params: p.params,
-    ...(p.link ? { link: p.link } : {}),
-  });
+  // `isInAppSuppressed` stays OUTSIDE this transaction on purpose:
+  // `notification_preference` is keyed on the user, not an owner, and is
+  // deliberately not under RLS (see its schema header). Pulling it in would need
+  // a third GUC for no gain.
+  await withOwner(owner, (tx) =>
+    createNotification(tx, {
+      userId: p.userId,
+      owner,
+      type: p.type,
+      params: p.params,
+      ...(p.link ? { link: p.link } : {}),
+    }),
+  );
 };

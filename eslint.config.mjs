@@ -136,16 +136,49 @@ const eslintConfig = defineConfig([
    *
    * A separate block rather than another `patterns` entry above, because the
    * exemptions differ: the admin fence exempts the admin feature and its routes,
-   * this one currently exempts only the test-only RLS probe. A new consumer adds
-   * itself here, in a diff a human reads, and explains itself in its own header.
+   * this one exempts the five paths below. A new consumer adds itself here, in a
+   * diff a human reads, and explains itself in its own header.
    *
-   * Note what is NOT exempt today: `features/admin/**`. The boilerplate's own
-   * tables are not under RLS until F1, so the panel does not need the bypass yet.
-   * When F1 lands it will — and it should arrive as a deliberate line here.
+   * THE FIVE EXEMPTIONS (F1a — `membership`, `invitation`, `file`, `notification`
+   * came under RLS and these are the paths that genuinely cannot name a tenant):
+   *
+   *  - `features/organizations/cross-tenant.ts` — the account switcher spans orgs
+   *    by definition, and an invitation's org is unknown until its token hash
+   *    resolves. Deliberately a separate file from `./data.ts`, so the exemption
+   *    does not also cover `getMembership`/`listMembers`.
+   *  - `features/admin/data.ts` — the super-admin panel reads membership across
+   *    every tenant; the §6.2 carve-out that already fences this module.
+   *  - `features/admin/actions.ts` — user hard-delete removes that user's
+   *    membership in every org they belong to (§11.3): one statement, no owner.
+   *  - `features/storage/purge.ts` — the retention cron sweeps soft-deleted files
+   *    for all owners. The bypass covers ONLY `listPurgeableFiles`; each
+   *    `hardDeleteFile` re-enters the context of its own row's owner.
+   *  - `features/onboarding/data.ts` — `hasPaidSubscription` answers "is this
+   *    person paying anywhere", joining membership across every org; the input is
+   *    a user id, not an owner.
+   *
+   * WHAT IS DELIBERATELY NOT EXEMPT, so a reviewer does not add it out of sympathy:
+   *  - `features/billing/data.ts` — `resolveBillingRecipients` takes an
+   *    `organizationId` parameter, so it scopes itself with `withTenant`.
+   *  - `features/organizations/actions.ts` — `acceptInvitation` resolves the org
+   *    through `cross-tenant.ts` first, then writes inside `withTenant`, so the
+   *    policy stays load-bearing on the write path.
+   *  - `features/organizations/context.ts` — `requireOrgAccess` is per-request and
+   *    uses `withTenant`; routing it here would emit a warn on every authenticated
+   *    request and drown the signal this fence exists to keep countable.
+   *  - `lib/adapters/auth/better-auth.ts` — its hooks touch `personal_account` and
+   *    `user` only, neither under RLS.
    */
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/app/api/dev/**"],
+    ignores: [
+      "src/app/api/dev/**",
+      "src/features/organizations/cross-tenant.ts",
+      "src/features/admin/data.ts",
+      "src/features/admin/actions.ts",
+      "src/features/storage/purge.ts",
+      "src/features/onboarding/data.ts",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
