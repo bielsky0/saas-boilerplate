@@ -6,6 +6,7 @@ import {
   listWebhookEventsForOrganization,
 } from "@/features/billing/data";
 import { getOrgBySlug } from "@/features/organizations/data";
+import { withTenant } from "@/lib/db/tenant";
 import { env } from "@/lib/env/server";
 
 /**
@@ -28,11 +29,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: `org ${orgSlug} not found` }, { status: 400 });
   }
 
-  const [subscriptions, payments, webhookEvents] = await Promise.all([
-    listSubscriptionsForOrganization(org.id),
-    listPaymentsForOrganization(org.id),
-    listWebhookEventsForOrganization(org.id),
-  ]);
+  // Sequential inside one tenant context, NOT `Promise.all`. The previous
+  // parallel form was safe only because each function took its own pooled
+  // connection; three queries sharing one transaction's connection cannot be
+  // fired concurrently.
+  const { subscriptions, payments, webhookEvents } = await withTenant(org.id, async (tx) => ({
+    subscriptions: await listSubscriptionsForOrganization(tx, org.id),
+    payments: await listPaymentsForOrganization(tx, org.id),
+    webhookEvents: await listWebhookEventsForOrganization(tx, org.id),
+  }));
 
   return NextResponse.json({
     subscriptions,

@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { getOrgBySlug, getPersonalAccountByUserId } from "@/features/organizations/data";
 import { db } from "@/lib/db";
+import { withOwner, type Owner } from "@/lib/db/tenant";
 import { billingCustomer, user } from "@/lib/db/schema";
 import { env } from "@/lib/env/server";
 
@@ -36,13 +37,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  let organizationId: string | null = null;
-  let accountId: string | null = null;
+  let owner: Owner;
 
   if (body.orgSlug) {
     const org = await getOrgBySlug(body.orgSlug);
     if (!org) return NextResponse.json({ error: `org ${body.orgSlug} not found` }, { status: 400 });
-    organizationId = org.id;
+    owner = { kind: "organization", organizationId: org.id };
   } else {
     const [row] = await db
       .select({ id: user.id })
@@ -59,18 +59,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { status: 400 },
       );
     }
-    accountId = account.id;
+    owner = { kind: "personal", accountId: account.id };
   }
 
-  const [created] = await db
-    .insert(billingCustomer)
-    .values({
-      provider: body.provider ?? "stripe",
-      providerCustomerId: body.providerCustomerId,
-      organizationId,
-      accountId,
-    })
-    .returning({ id: billingCustomer.id });
+  // `withOwner`, deliberately NOT `withSystemBypass` — even though this route is
+  // under `src/app/api/dev/**`, which the ESLint fence already exempts, so the
+  // shortcut is right there. D22: a seeder that takes a path production never
+  // uses stops being evidence that the production path works. This one is the
+  // sole reason every test in `e2e/billing-webhook.spec.ts` has a resolvable
+  // customer, so it needs to fail loudly if the owner context is wrong.
+  const created = await withOwner(owner, async (tx) => {
+    const [row] = await tx
+      .insert(billingCustomer)
+      .values({
+        provider: body.provider ?? "stripe",
+        providerCustomerId: body.providerCustomerId!,
+        ...(owner.kind === "organization"
+          ? { organizationId: owner.organizationId }
+          : { accountId: owner.accountId }),
+      })
+      .returning({ id: billingCustomer.id });
+    return row!;
+  });
 
-  return NextResponse.json({ ok: true, id: created!.id });
+  return NextResponse.json({ ok: true, id: created.id });
 }

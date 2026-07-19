@@ -7,10 +7,10 @@ import type {
 } from "@/lib/adapters/billing";
 import { jobs } from "@/lib/adapters/jobs";
 import { changed, recordAudit, SYSTEM_ACTOR } from "@/features/admin/audit";
-import { db } from "@/lib/db";
+import { withOwner, type Owner, type TenantDb } from "@/lib/db/tenant";
 import { billingPayment, subscription, webhookEvent } from "@/lib/db/schema";
 import { createLogger } from "@/lib/logger";
-import { findBillingCustomer } from "./data";
+import { findBillingCustomer } from "./cross-tenant";
 import { planIdForPriceId } from "./plans";
 
 /**
@@ -22,12 +22,57 @@ import { planIdForPriceId } from "./plans";
  * adapter already verified.
  *
  * Reference pattern for receiving a provider webhook — see docs/ARCHITECTURE.md.
+ *
+ * ROW-LEVEL SECURITY (F1b). The four billing tables came under RLS, which splits
+ * this file in two. RESOLVING the owner cannot be scoped — a provider customer id
+ * names no tenant until it is mapped — so `findBillingCustomer` lives in
+ * `./cross-tenant.ts` behind the documented bypass, and is the only bypass here.
+ * Everything AFTER that runs inside `withOwner`, so `WITH CHECK` stays
+ * load-bearing on this path: it is the only externally-driven write path in the
+ * application, and the place where a mis-resolved owner would do real damage.
+ * That is why this module is deliberately NOT on the `@/lib/db/system`
+ * allow-list — see the "WHAT IS DELIBERATELY NOT EXEMPT" list in eslint.config.mjs.
+ *
+ * THREE `ON CONFLICT` SEMANTICS UNDER RLS, measured rather than assumed, because
+ * all three of this file's guarantees depend on them:
+ *   - the marker's `DO NOTHING` is evaluated against the INSERT `WITH CHECK`
+ *     ONLY; a conflicting row that is invisible under `USING` makes it return no
+ *     row exactly as before, so duplicate detection is unchanged;
+ *   - `setWhere` is evaluated BEFORE the `USING` check, so a stale event still
+ *     returns zero rows without raising — the `applied.length === 0` watermark
+ *     signal below means precisely what it always did;
+ *   - but a FRESH event whose customer owner disagrees with the owner already
+ *     stored on the row now raises `42501` ("the UPDATE path will never be
+ *     silently avoided") instead of quietly overwriting another tenant's row with
+ *     this one's data. That is the intended trade: loud beats silent. It surfaces
+ *     as a 500 and a provider retry, and F1b's data gate is what proves no such
+ *     row exists. Note the asymmetry — a STALE event with the same mismatch is
+ *     swallowed as stale, so the error is not a reliable detector of the state.
+ *
+ * The pre-image read in `applySubscriptionEvent` is owner-scoped for free as a
+ * result, which is what the §6.4 audit diff should always have been.
  */
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+/**
+ * Owner columns as they sit on `billing_customer`; exactly one is non-null.
+ *
+ * Distinct from `Owner` in `@/lib/db/tenant`, which is the XOR union the RLS
+ * context takes — `ownerOf` converts between them.
+ */
+type CustomerOwner = { organizationId: string | null; accountId: string | null };
 
-/** Owner columns copied from `billing_customer`; exactly one is non-null. */
-type Owner = { organizationId: string | null; accountId: string | null };
+/**
+ * The nullable column pair as the XOR union `withOwner` requires.
+ *
+ * `billing_customer_owner_ck` is what makes the `accountId!` sound: the database
+ * refuses a row where both are null or both are set, so a resolved customer
+ * always has exactly one.
+ */
+function ownerOf(customer: CustomerOwner): Owner {
+  return customer.organizationId
+    ? { kind: "organization", organizationId: customer.organizationId }
+    : { kind: "personal", accountId: customer.accountId! };
+}
 
 export type ProcessResult =
   | { status: "processed" }
@@ -51,9 +96,9 @@ export type ProcessResult =
  * clause: a webhook must never be able to reassign ownership of a record.
  */
 async function applySubscriptionEvent(
-  tx: Tx,
+  tx: TenantDb,
   event: BillingEvent & { subscription: BillingSubscriptionData },
-  customer: { id: string } & Owner,
+  customer: { id: string } & CustomerOwner,
 ): Promise<void> {
   const data = event.subscription;
 
@@ -160,9 +205,9 @@ async function applySubscriptionEvent(
 /** Same watermarked upsert for payments — stops a late `invoice.paid` from
  *  overwriting a newer refund. */
 async function applyPaymentEvent(
-  tx: Tx,
+  tx: TenantDb,
   event: BillingEvent & { payment: BillingPaymentData },
-  customer: { id: string } & Owner,
+  customer: { id: string } & CustomerOwner,
 ): Promise<void> {
   const data = event.payment;
   const applied = await tx
@@ -277,7 +322,10 @@ export async function processBillingEvent(event: BillingEvent): Promise<ProcessR
     return { status: "unknown_customer" };
   }
 
-  return db.transaction(async (tx) => {
+  // Every write below runs in the resolved owner's context, so `WITH CHECK` is
+  // the last line of defence against a mis-resolved owner rather than a
+  // decoration. The resolve above is the one thing that could not be scoped.
+  return withOwner(ownerOf(customer), async (tx) => {
     const [marker] = await tx
       .insert(webhookEvent)
       .values({
@@ -314,9 +362,9 @@ export async function processBillingEvent(event: BillingEvent): Promise<ProcessR
  * `updated` would mail a receipt on every renewal, quantity change and card swap.
  */
 async function enqueueSubscriptionNotification(
-  tx: Tx,
+  tx: TenantDb,
   event: BillingEvent & { subscription: BillingSubscriptionData },
-  customer: Owner,
+  customer: CustomerOwner,
 ): Promise<void> {
   if (event.type !== "subscription.created") return;
   await jobs.enqueue(
@@ -335,9 +383,9 @@ async function enqueueSubscriptionNotification(
 
 /** Dunning notice for a failed charge (spec 10.2). */
 async function enqueuePaymentNotification(
-  tx: Tx,
+  tx: TenantDb,
   event: BillingEvent & { payment: BillingPaymentData },
-  customer: Owner,
+  customer: CustomerOwner,
 ): Promise<void> {
   if (event.payment.status !== "failed") return;
   await jobs.enqueue(

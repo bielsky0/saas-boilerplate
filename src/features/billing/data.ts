@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNull, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { withTenant } from "@/lib/db/tenant";
+import { withTenant, type TenantDb } from "@/lib/db/tenant";
 import type { BillingOwner } from "./context";
 import type { Locale } from "@/lib/i18n/config";
 import { toLocale } from "@/lib/i18n/user-locale";
@@ -23,6 +23,17 @@ import {
  * data layer rather than the UI. Feature code calls these helpers and never
  * writes ad-hoc queries; the webhook's writes live in `./webhooks.ts` because
  * they must share one transaction with the idempotency marker.
+ *
+ * Since F1b the four billing tables are under Row-Level Security, so these take a
+ * `TenantDb` and the CALLER opens the owner context — the same shape
+ * `features/storage/data.ts` and `features/notifications/data.ts` took in F1a.
+ * `TenantDb` is deliberately not satisfied by the bare `db` handle, so a call site
+ * that forgets the context is a compile error rather than a silently empty result.
+ *
+ * The one read that cannot name an owner — `findBillingCustomer`, which PRODUCES
+ * one from a provider customer id — moved to `./cross-tenant.ts` behind the
+ * documented bypass. That is why this module stays absent from the
+ * `@/lib/db/system` allow-list in eslint.config.mjs.
  */
 
 /** The owner predicate — an org customer is matched by org id, a personal one by account id. */
@@ -40,34 +51,19 @@ function ownerColumns(owner: BillingOwner): { organizationId?: string; accountId
 }
 
 /**
- * Resolve a provider customer id to its tenant owner. This is the ONE place a
- * webhook learns who an event belongs to (spec 5.4), and the documented
- * exception to "scope every query by owner" — like `getOrgBySlug`, it is the
- * lookup that PRODUCES the owner rather than consuming it.
- */
-export async function findBillingCustomer(provider: string, providerCustomerId: string) {
-  const [row] = await db
-    .select()
-    .from(billingCustomer)
-    .where(
-      and(
-        eq(billingCustomer.provider, provider),
-        eq(billingCustomer.providerCustomerId, providerCustomerId),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
-}
-
-/**
  * The provider customer mapped to this tenant, or null.
  *
- * The forward direction of `findBillingCustomer`: that one answers "whose event
- * is this?", this one answers "does this tenant already have a customer?" — the
- * question checkout asks before creating a second one.
+ * The forward direction of `findBillingCustomer` (now in `./cross-tenant.ts`):
+ * that one answers "whose event is this?", this one answers "does this tenant
+ * already have a customer?" — the question checkout asks before creating a
+ * second one.
  */
-export async function getBillingCustomerForOwner(provider: string, owner: BillingOwner) {
-  const [row] = await db
+export async function getBillingCustomerForOwner(
+  tx: TenantDb,
+  provider: string,
+  owner: BillingOwner,
+) {
+  const [row] = await tx
     .select()
     .from(billingCustomer)
     .where(and(eq(billingCustomer.provider, provider), ownerWhere(owner)))
@@ -81,17 +77,21 @@ export async function getBillingCustomerForOwner(provider: string, owner: Billin
  * `onConflictDoNothing` on the provider+customer unique index makes this safe to
  * retry, and the follow-up read means two concurrent checkouts converge on one
  * row rather than one of them throwing.
+ *
+ * Insert and follow-up read share the caller's `tx` since F1b, which incidentally
+ * closes the window that existed between them when each took its own connection.
  */
 export async function insertBillingCustomer(
+  tx: TenantDb,
   provider: string,
   providerCustomerId: string,
   owner: BillingOwner,
 ) {
-  await db
+  await tx
     .insert(billingCustomer)
     .values({ provider, providerCustomerId, ...ownerColumns(owner) })
     .onConflictDoNothing();
-  return getBillingCustomerForOwner(provider, owner);
+  return getBillingCustomerForOwner(tx, provider, owner);
 }
 
 /**
@@ -120,8 +120,8 @@ function subscriptionOwnerWhere(owner: BillingOwner): SQL {
  * have. Feeds both the billing UI and (in §5.7) entitlement checks, so the two
  * cannot disagree about which subscription counts.
  */
-export async function getActiveSubscriptionForOwner(owner: BillingOwner) {
-  const [row] = await db
+export async function getActiveSubscriptionForOwner(tx: TenantDb, owner: BillingOwner) {
+  const [row] = await tx
     .select()
     .from(subscription)
     .where(and(subscriptionOwnerWhere(owner), inArray(subscription.status, ENTITLING_STATUSES)))
@@ -131,8 +131,8 @@ export async function getActiveSubscriptionForOwner(owner: BillingOwner) {
 }
 
 /** Subscriptions owned by an organization, newest first. */
-export async function listSubscriptionsForOrganization(organizationId: string) {
-  return db
+export async function listSubscriptionsForOrganization(tx: TenantDb, organizationId: string) {
+  return tx
     .select()
     .from(subscription)
     .where(eq(subscription.organizationId, organizationId))
@@ -140,17 +140,24 @@ export async function listSubscriptionsForOrganization(organizationId: string) {
 }
 
 /** Payments owned by an organization, newest first. */
-export async function listPaymentsForOrganization(organizationId: string) {
-  return db
+export async function listPaymentsForOrganization(tx: TenantDb, organizationId: string) {
+  return tx
     .select()
     .from(billingPayment)
     .where(eq(billingPayment.organizationId, organizationId))
     .orderBy(desc(billingPayment.createdAt));
 }
 
-/** One subscription by its provider id — the freshness check for notifications. */
-export async function getSubscriptionByProviderId(providerSubscriptionId: string) {
-  const [row] = await db
+/**
+ * One subscription by its provider id — the freshness check for notifications.
+ *
+ * Filtered by provider id alone, but under RLS since F1b the caller's owner
+ * context narrows it too, so this can only ever return the caller's own row. That
+ * is a strengthening: `notify.ts` carries the owner in its job payload and had no
+ * reason to be able to read anyone else's subscription.
+ */
+export async function getSubscriptionByProviderId(tx: TenantDb, providerSubscriptionId: string) {
+  const [row] = await tx
     .select()
     .from(subscription)
     .where(eq(subscription.providerSubscriptionId, providerSubscriptionId))
@@ -190,9 +197,13 @@ export interface BillingRecipients {
  * well have left the company; mailing only them is how a subscription lapses in
  * silence. A personal account resolves to its user.
  *
- * Like `findBillingCustomer`, this is a documented exception to "scope every read
- * by owner": it CONSUMES an owner id to produce identities, rather than being
- * filtered by one.
+ * Like `findBillingCustomer` (`./cross-tenant.ts`), this is a documented exception
+ * to "scope every read by owner": it CONSUMES an owner id to produce identities,
+ * rather than being filtered by one. Unlike that one it needs no bypass — it is
+ * HANDED the owner, so it scopes itself with `withTenant` below, and it keeps its
+ * own transaction rather than taking a `TenantDb`: it is called from a job handler
+ * outside any transaction, and threading one in would hold a pooled connection
+ * open across the caller's `enqueueEmail`/`enqueueNotification` loop.
  *
  * Soft-deleted users and organizations (spec 11.3) are excluded — nobody there can
  * act on the mail.
@@ -271,8 +282,8 @@ export async function resolveBillingRecipients(
 }
 
 /** Processed webhook markers for an organization, newest first (spec 6.3 trail). */
-export async function listWebhookEventsForOrganization(organizationId: string) {
-  return db
+export async function listWebhookEventsForOrganization(tx: TenantDb, organizationId: string) {
+  return tx
     .select()
     .from(webhookEvent)
     .where(eq(webhookEvent.organizationId, organizationId))

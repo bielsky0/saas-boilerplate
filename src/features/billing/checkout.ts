@@ -1,6 +1,7 @@
 import { billing } from "@/lib/adapters/billing";
 import type { BillingRedirectResult } from "@/lib/adapters/billing";
 import { absoluteUrl } from "@/lib/site";
+import { withOwner } from "@/lib/db/tenant";
 import { getBillingCustomerForOwner, insertBillingCustomer } from "./data";
 import type { BillingOwner, ResolvedBillingOwner } from "./context";
 import type { Plan } from "./plans";
@@ -32,6 +33,13 @@ function returnPath(orgSlug: string | null): string {
  *
  * Idempotent: an existing mapping short-circuits, so a user who abandons checkout
  * and returns does not accumulate duplicate provider customers.
+ *
+ * TWO OWNER CONTEXTS, NOT ONE. `billing_customer` came under RLS in F1b, so both
+ * the read and the write need one — but they are opened separately, with the
+ * provider call between them. A single `withOwner` spanning the whole function
+ * would hold a pooled connection open across an HTTP round-trip to the provider:
+ * the deadlock shape `features/admin/audit.ts` and `./webhooks.ts` both document,
+ * with a provider outage as the trigger. Do not "simplify" these back into one.
  */
 async function ensureBillingCustomer(
   owner: BillingOwner,
@@ -41,7 +49,9 @@ async function ensureBillingCustomer(
   | { ok: true; providerCustomerId: string }
   | { ok: false; code: "NOT_CONFIGURED" | "PROVIDER_ERROR" }
 > {
-  const existing = await getBillingCustomerForOwner(billing.provider, owner);
+  const existing = await withOwner(owner, (tx) =>
+    getBillingCustomerForOwner(tx, billing.provider, owner),
+  );
   if (existing) return { ok: true, providerCustomerId: existing.providerCustomerId };
 
   const created = await billing.createCustomer({
@@ -56,7 +66,9 @@ async function ensureBillingCustomer(
   });
   if (!created.ok) return created;
 
-  await insertBillingCustomer(billing.provider, created.providerCustomerId, owner);
+  await withOwner(owner, (tx) =>
+    insertBillingCustomer(tx, billing.provider, created.providerCustomerId, owner),
+  );
   return { ok: true, providerCustomerId: created.providerCustomerId };
 }
 
@@ -90,7 +102,9 @@ export async function startCheckout(
 export async function openBillingPortal(
   ctx: ResolvedBillingOwner,
 ): Promise<BillingRedirectResult | { ok: false; code: "NO_CUSTOMER" }> {
-  const existing = await getBillingCustomerForOwner(billing.provider, ctx.owner);
+  const existing = await withOwner(ctx.owner, (tx) =>
+    getBillingCustomerForOwner(tx, billing.provider, ctx.owner),
+  );
   if (!existing) return { ok: false, code: "NO_CUSTOMER" };
 
   return billing.createPortalSession({

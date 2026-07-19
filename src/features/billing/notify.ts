@@ -1,7 +1,9 @@
 import { z } from "zod";
 
 import { db } from "@/lib/db";
+import { withOwner } from "@/lib/db/tenant";
 import type { JobHandler } from "@/lib/adapters/jobs";
+import type { BillingOwner } from "./context";
 import { clientEnv } from "@/lib/env/client";
 import { createLogger } from "@/lib/logger";
 import { enqueueEmail } from "@/features/emails/send";
@@ -27,23 +29,35 @@ const log = createLogger("billing:notify");
 /** Statuses where announcing "your subscription is active" is still true. */
 const LIVE_STATUSES = ["active", "trialing"];
 
-const notifySchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("payment-failed"),
-    organizationId: z.string().nullable(),
-    accountId: z.string().nullable(),
-    eventId: z.string(),
-    amount: z.number(),
-    currency: z.string(),
-  }),
-  z.object({
-    kind: z.literal("subscription-confirmed"),
-    organizationId: z.string().nullable(),
-    accountId: z.string().nullable(),
-    eventId: z.string(),
-    providerSubscriptionId: z.string(),
-  }),
-]);
+const notifySchema = z
+  .discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("payment-failed"),
+      organizationId: z.string().nullable(),
+      accountId: z.string().nullable(),
+      eventId: z.string(),
+      amount: z.number(),
+      currency: z.string(),
+    }),
+    z.object({
+      kind: z.literal("subscription-confirmed"),
+      organizationId: z.string().nullable(),
+      accountId: z.string().nullable(),
+      eventId: z.string(),
+      providerSubscriptionId: z.string(),
+    }),
+  ])
+  // Mirror the `billing_customer_owner_ck` XOR at the edge of the job boundary,
+  // not just in the database — the same hardening `notificationJobSchema` got in
+  // F1a, for the same reason. Both fields cross jsonb as nullable strings, so a
+  // malformed payload would otherwise fail late and obscurely: since F1b as a
+  // `42501` RLS refusal whose message points at the policy rather than at the
+  // payload that is actually wrong. Refined on the union rather than each member,
+  // so one predicate covers both variants.
+  .refine((v) => (v.organizationId === null) !== (v.accountId === null), {
+    message: "exactly one of organizationId / accountId must be set",
+    path: ["organizationId"],
+  });
 
 /**
  * Where the recipient goes to act on this. Becomes the provider-hosted portal
@@ -62,6 +76,13 @@ function planName(planId: string | null): string {
 export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload) => {
   const p = notifySchema.parse(payload);
 
+  // Reconstruct the XOR owner from the two nullable payload fields, exactly as
+  // `notifications/handler.ts` does. The guarantee that exactly one is set comes
+  // from the refine above, which is what makes the `accountId!` sound.
+  const owner: BillingOwner = p.organizationId
+    ? { kind: "organization", organizationId: p.organizationId }
+    : { kind: "personal", accountId: p.accountId! };
+
   if (p.kind === "subscription-confirmed") {
     /**
      * THE WATERMARK GUARD. `applySubscriptionEvent` drops a stale `created` that
@@ -72,8 +93,17 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
      *
      * Re-reading the CURRENT row is what makes the guard authoritative — the event
      * that caused this job is, by then, only a claim about the past.
+     *
+     * Owner-scoped since F1b. The payload carries the owner, so this needs no
+     * bypass — and the read can now only ever see this owner's subscription,
+     * which is what it always meant. One consequence worth knowing when chasing a
+     * `subscription-missing` log line for a row that demonstrably exists: under
+     * RLS a row belonging to someone else reads as `null` here. That is
+     * fail-closed and correct, but it is a second possible cause.
      */
-    const sub = await getSubscriptionByProviderId(p.providerSubscriptionId);
+    const sub = await withOwner(owner, (tx) =>
+      getSubscriptionByProviderId(tx, p.providerSubscriptionId),
+    );
     if (!sub || !LIVE_STATUSES.includes(sub.status)) {
       log.info("skip subscription-confirmed", {
         event: p.eventId,

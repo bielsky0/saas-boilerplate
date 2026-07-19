@@ -1,4 +1,5 @@
 import { requireSession } from "@/lib/auth";
+import type { Owner } from "@/lib/db/tenant";
 import { requireOrgPermission } from "@/features/organizations/context";
 import { ensurePersonalAccount, getPersonalAccountByUserId } from "@/features/organizations/data";
 
@@ -13,8 +14,16 @@ import { ensurePersonalAccount, getPersonalAccountByUserId } from "@/features/or
  * A plan attaches to an organization OR a personal account (spec 5.2, B2B vs
  * B2C), which is exactly the XOR that `billing_customer` enforces in the schema.
  */
-export type BillingOwner =
-  { kind: "organization"; organizationId: string } | { kind: "personal"; accountId: string };
+
+/**
+ * The tenant a billing operation acts as. Exactly one owner, mirroring the XOR.
+ *
+ * An alias of the canonical `Owner` since F1b — the same value now also selects
+ * the RLS policy branch, so it must be the one type `withOwner` accepts. It was a
+ * separate, structurally identical union before; that was harmless only while
+ * nothing consumed it as a policy key.
+ */
+export type BillingOwner = Owner;
 
 export interface ResolvedBillingOwner {
   owner: BillingOwner;

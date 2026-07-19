@@ -1,6 +1,7 @@
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { withOwner } from "@/lib/db/tenant";
 import { getActiveSubscriptionForOwner } from "../data";
 import type { BillingOwner } from "../context";
 import { DEFAULT_PLAN_ID, PLANS, PLAN_LIST, isPlanId } from "../plans";
@@ -23,7 +24,7 @@ export async function BillingPanel({ owner, slug }: { owner: BillingOwner; slug:
   const [t, format, active] = await Promise.all([
     getTranslations("billing"),
     getFormatter(),
-    getActiveSubscriptionForOwner(owner),
+    withOwner(owner, (tx) => getActiveSubscriptionForOwner(tx, owner)),
   ]);
 
   // A subscription whose price id is not mapped in this environment has a null
