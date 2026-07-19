@@ -546,6 +546,31 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
   `retention.ts` records the hard blocker whoever builds it will hit —
   `organization.createdByUserId` is `onDelete: "restrict"`, so hard-deleting any
   user who ever created an org fails at the FK and needs its own migration.
+- **Take money (§5.3, §5.5):** reference: `src/features/billing/checkout.ts` +
+  `src/app/api/billing/{checkout,portal}/route.ts`. Four rules:
+  1. **Persist the customer mapping BEFORE creating a checkout session.** The
+     ordering is an invariant, documented on `schema/billing-customers.ts` and
+     enforced in `ensureBillingCustomer`: it is what lets the webhook treat an
+     unresolvable customer as "not ours" and ignore it, instead of retrying
+     forever against a row that was never written. Reversing the two steps
+     creates a race that only appears under real provider latency.
+  2. **The redirect confirms; the webhook entitles.** Nothing on the success path
+     grants access — the user can close the tab before being redirected, and the
+     URL is guessable. `e2e/billing-checkout.spec.ts` asserts exactly this.
+  3. **Routes answer with a URL, not a 3xx.** The caller is `fetch` from a client
+     component; a redirect would be followed opaquely, leaving no way to tell a
+     provider outage from a success. The client navigates via
+     `window.location.assign`.
+  4. **`NOT_CONFIGURED` → 404**, matching the webhook route under
+     `BILLING_PROVIDER=none`: a deployment without a provider must not advertise
+     a checkout it cannot complete. Adapter errors stay coarse
+     (`PROVIDER_ERROR`) so no caller branches on a vendor's error taxonomy.
+
+  Plans live in `src/features/billing/plans.ts` and are the SINGLE source for the
+  public pricing table, the checkout route and (from §5.6/5.7) quota and
+  entitlements. The landing page must never keep its own plan list — it used to,
+  and the two had already drifted to an `ent` plan the billing config never had.
+
 - **Receive a provider webhook (§5.4):** reference:
   `src/app/api/billing/webhook/route.ts` + `src/features/billing/webhooks.ts`.
   Four rules, in order of how badly they bite:

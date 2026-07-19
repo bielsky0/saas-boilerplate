@@ -14,5 +14,13 @@
  * bundle — the same split `features/organizations` uses.
  */
 
-export { PLANS, PLAN_IDS, planIdForPriceId } from "./plans";
-export type { Plan, PlanId } from "./plans";
+export {
+  DEFAULT_PLAN_ID,
+  PLANS,
+  PLAN_IDS,
+  PLAN_LIST,
+  isPlanId,
+  planIdForPriceId,
+  purchasablePlan,
+} from "./plans";
+export type { Plan, PlanFeature, PlanId, PlanLimits } from "./plans";

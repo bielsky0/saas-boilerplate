@@ -30,7 +30,8 @@ export type Permission =
   | "organization.leave"
   | "storage.upload"
   | "storage.delete"
-  | "audit.read";
+  | "audit.read"
+  | "billing.manage";
 
 /** role → permissions. Owner is a superset; Admin manages members; Member reads. */
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
@@ -45,7 +46,16 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "storage.upload",
     "storage.delete",
     "audit.read",
+    "billing.manage",
   ],
+  // Admin manages people and settings, but NOT money.
+  //
+  // `billing.manage` is owner-only alongside `organization.delete`: it authorizes
+  // spending the organization's money and changing what it owes every month,
+  // which is a different kind of authority from managing colleagues. Chosen as
+  // the conservative default because the spec gives no guidance (§4.1 only names
+  // the permission) — widening it later is one line, while narrowing it after
+  // admins rely on it is a breaking change.
   admin: [
     "members.invite",
     "members.remove",

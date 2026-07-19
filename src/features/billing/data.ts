@@ -1,6 +1,7 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import type { BillingOwner } from "./context";
 import type { Locale } from "@/lib/i18n/config";
 import { toLocale } from "@/lib/i18n/user-locale";
 import {
@@ -23,6 +24,20 @@ import {
  * they must share one transaction with the idempotency marker.
  */
 
+/** The owner predicate — an org customer is matched by org id, a personal one by account id. */
+function ownerWhere(owner: BillingOwner): SQL {
+  return owner.kind === "organization"
+    ? eq(billingCustomer.organizationId, owner.organizationId)
+    : eq(billingCustomer.accountId, owner.accountId);
+}
+
+/** Columns to persist on the owner, spread into an insert. Mirrors the XOR check. */
+function ownerColumns(owner: BillingOwner): { organizationId?: string; accountId?: string } {
+  return owner.kind === "organization"
+    ? { organizationId: owner.organizationId }
+    : { accountId: owner.accountId };
+}
+
 /**
  * Resolve a provider customer id to its tenant owner. This is the ONE place a
  * webhook learns who an event belongs to (spec 5.4), and the documented
@@ -39,6 +54,77 @@ export async function findBillingCustomer(provider: string, providerCustomerId: 
         eq(billingCustomer.providerCustomerId, providerCustomerId),
       ),
     )
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * The provider customer mapped to this tenant, or null.
+ *
+ * The forward direction of `findBillingCustomer`: that one answers "whose event
+ * is this?", this one answers "does this tenant already have a customer?" — the
+ * question checkout asks before creating a second one.
+ */
+export async function getBillingCustomerForOwner(provider: string, owner: BillingOwner) {
+  const [row] = await db
+    .select()
+    .from(billingCustomer)
+    .where(and(eq(billingCustomer.provider, provider), ownerWhere(owner)))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Persist the provider-customer ↔ tenant mapping.
+ *
+ * `onConflictDoNothing` on the provider+customer unique index makes this safe to
+ * retry, and the follow-up read means two concurrent checkouts converge on one
+ * row rather than one of them throwing.
+ */
+export async function insertBillingCustomer(
+  provider: string,
+  providerCustomerId: string,
+  owner: BillingOwner,
+) {
+  await db
+    .insert(billingCustomer)
+    .values({ provider, providerCustomerId, ...ownerColumns(owner) })
+    .onConflictDoNothing();
+  return getBillingCustomerForOwner(provider, owner);
+}
+
+/**
+ * Statuses that entitle a tenant to its plan.
+ *
+ * `past_due` is deliberately included: the provider is still retrying the card
+ * and the subscription is not over. Cutting access at the first failed charge
+ * punishes an expired card the same as a refusal to pay, and the dunning email
+ * (§10.2) is the correct first response. `unpaid`/`canceled` are the end of that
+ * road and do NOT appear here.
+ */
+const ENTITLING_STATUSES = ["active", "trialing", "past_due"];
+
+/** The owner predicate for subscriptions — the same XOR, a different table. */
+function subscriptionOwnerWhere(owner: BillingOwner): SQL {
+  return owner.kind === "organization"
+    ? eq(subscription.organizationId, owner.organizationId)
+    : eq(subscription.accountId, owner.accountId);
+}
+
+/**
+ * The subscription that currently entitles this tenant, or null.
+ *
+ * Newest-first with a limit of one: a tenant that upgraded mid-cycle can briefly
+ * hold two rows, and the most recent is the one that describes what they now
+ * have. Feeds both the billing UI and (in §5.7) entitlement checks, so the two
+ * cannot disagree about which subscription counts.
+ */
+export async function getActiveSubscriptionForOwner(owner: BillingOwner) {
+  const [row] = await db
+    .select()
+    .from(subscription)
+    .where(and(subscriptionOwnerWhere(owner), inArray(subscription.status, ENTITLING_STATUSES)))
+    .orderBy(desc(subscription.createdAt))
     .limit(1);
   return row ?? null;
 }

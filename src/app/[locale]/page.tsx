@@ -1,10 +1,11 @@
 import { KeyRound, LayoutDashboard, Palette, ShieldCheck, User, Users, Zap } from "lucide-react";
 import type { Metadata } from "next";
-import { getLocale, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { PLAN_LIST, type Plan } from "@/features/billing";
 import { pageMetadata } from "@/features/content";
 import { JsonLd } from "@/features/content/components/json-ld";
 import { organizationJsonLd, webSiteJsonLd } from "@/features/content/jsonld";
@@ -14,9 +15,16 @@ import { orgsEnabled } from "@/lib/tenancy";
 
 /**
  * Public landing page (spec §7.3). Server-rendered for SEO; sections: header,
- * hero, features, pricing (static placeholder — real plans come from the billing
- * config in Phase 5, spec §5.2), and a closing CTA. Built entirely from the
- * design-system primitives.
+ * hero, features, pricing and a closing CTA. Built entirely from the design-system
+ * primitives.
+ *
+ * PRICING IS GENERATED FROM `features/billing/plans.ts` (§5.2 / §7.3) — this page
+ * holds no plan list of its own. Prices are formatted per locale from the
+ * configured minor-unit amount, so a price change is a config edit, not a copy
+ * edit in two languages.
+ *
+ * The CTA points at signup, not checkout: buying requires a session and a tenant
+ * to bill, neither of which an anonymous visitor has.
  */
 
 /**
@@ -61,35 +69,45 @@ const FEATURES = [
   { icon: Zap, title: "lockinTitle", body: "lockinBody" },
 ] as const;
 
+const BYTES_PER_GB = 1024 ** 3;
+
 /**
- * Placeholder plans (§5.2 replaces this with billing config).
+ * The bullet list for one plan, derived from its configured limits and features.
  *
- * `price` is a STRING in the catalog, not a formatted number: "$29" and "129 zł"
- * are not the same amount, and a placeholder is not the place to pretend currency
- * conversion exists. When §5.2 wires real plans, the price becomes a number run
- * through `getFormatter().number(..., { style: "currency" })` and this hand-keyed
- * value disappears.
+ * Generated rather than hand-written per plan (§5.2, §7.3): a limit raised in
+ * `plans.ts` must move the pricing table by itself, or the table is just a second
+ * source of truth wearing the first one's clothes — which is exactly how the
+ * previous placeholder drifted to an `ent` plan the billing config never had.
  */
-const PLANS = [
-  {
-    key: "free",
-    features: ["freeF1", "freeF2", "freeF3"],
-    featured: false,
-  },
-  {
-    key: "pro",
-    features: ["proF1", "proF2", "proF3"],
-    featured: true,
-  },
-  {
-    key: "ent",
-    features: ["entF1", "entF2", "entF3"],
-    featured: false,
-  },
-] as const;
+function planBullets(
+  plan: Plan,
+  t: Awaited<ReturnType<typeof getTranslations<"landing">>>,
+): string[] {
+  const { members, files, storageBytes } = plan.limits;
+  return [
+    members === null
+      ? t("pricing.limits.membersUnlimited")
+      : t("pricing.limits.members", { count: members }),
+    files === null
+      ? t("pricing.limits.filesUnlimited")
+      : t("pricing.limits.files", { count: files }),
+    storageBytes === null
+      ? t("pricing.limits.storageUnlimited")
+      : t("pricing.limits.storage", { gb: Math.round(storageBytes / BYTES_PER_GB) }),
+    // Entitlement ids are dotted ("audit.export"), and next-intl SPLITS keys on
+    // "." — so the catalog nests them (features.audit.export) and this lookup
+    // resolves by navigation. A flat key named "audit.export" would be
+    // unreachable and throw MISSING_MESSAGE, 500ing the page.
+    ...plan.features.map((feature) => t(`pricing.features.${feature}`)),
+  ];
+}
 
 export default async function Home() {
-  const [t, nav] = await Promise.all([getTranslations("landing"), getTranslations("nav")]);
+  const [t, nav, format] = await Promise.all([
+    getTranslations("landing"),
+    getTranslations("nav"),
+    getFormatter(),
+  ]);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -185,32 +203,43 @@ export default async function Home() {
             <p className="text-muted-foreground max-w-lg">{t("pricing.subheading")}</p>
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
-            {PLANS.map((plan) => (
+            {PLAN_LIST.map((plan) => (
               <Card
-                key={plan.key}
+                key={plan.id}
                 className={plan.featured ? "border-primary shadow-md" : undefined}
               >
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle>{t(`pricing.${plan.key}Name`)}</CardTitle>
+                    {/* Plan names are proper nouns, taken from config, not translated. */}
+                    <CardTitle>{plan.name}</CardTitle>
                     {plan.featured ? (
                       <Badge className="normal-case">{t("pricing.popular")}</Badge>
                     ) : null}
                   </div>
-                  <p className="text-muted-foreground text-sm">{t(`pricing.${plan.key}Desc`)}</p>
+                  <p className="text-muted-foreground text-sm">{t(`pricing.${plan.id}.desc`)}</p>
                   <div className="mt-2 flex items-baseline gap-1">
-                    <span className="text-3xl font-semibold">{t(`pricing.${plan.key}Price`)}</span>
-                    {/* Only paid plans show a period; "Custom"/"Wycena" has none. */}
-                    {plan.key === "pro" ? (
-                      <span className="text-muted-foreground text-sm">{t("pricing.perMonth")}</span>
+                    <span className="text-3xl font-semibold">
+                      {format.number(plan.amount / 100, {
+                        style: "currency",
+                        currency: plan.currency.toUpperCase(),
+                        // Whole-unit prices render as "$29", not "$29.00"; a plan
+                        // priced at 29.50 still shows its cents.
+                        maximumFractionDigits: plan.amount % 100 === 0 ? 0 : 2,
+                      })}
+                    </span>
+                    {/* Free plans have no billing period to name. */}
+                    {plan.interval ? (
+                      <span className="text-muted-foreground text-sm">
+                        {t(plan.interval === "year" ? "pricing.perYear" : "pricing.perMonth")}
+                      </span>
                     ) : null}
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
                   <ul className="text-muted-foreground flex flex-col gap-2 text-sm">
-                    {plan.features.map((f) => (
-                      <li key={f} className="flex items-center gap-2">
-                        <ShieldCheck className="text-success size-4" /> {t(`pricing.${f}`)}
+                    {planBullets(plan, t).map((bullet) => (
+                      <li key={bullet} className="flex items-center gap-2">
+                        <ShieldCheck className="text-success size-4" /> {bullet}
                       </li>
                     ))}
                   </ul>
@@ -219,7 +248,7 @@ export default async function Home() {
                     variant={plan.featured ? "default" : "outline"}
                     className="w-full"
                   >
-                    <Link href="/signup">{t(`pricing.${plan.key}Cta`)}</Link>
+                    <Link href="/signup">{t(`pricing.${plan.id}.cta`)}</Link>
                   </Button>
                 </CardContent>
               </Card>

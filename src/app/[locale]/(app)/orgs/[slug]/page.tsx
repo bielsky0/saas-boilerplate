@@ -43,6 +43,11 @@ export default async function OrganizationPage({ params }: { params: Promise<{ s
             <Link href={`/orgs/${slug}/settings/audit`}>{t("audit")}</Link>
           </Button>
         ) : null}
+        {hasPermission(role, "billing.manage") ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/orgs/${slug}/settings/billing`}>{t("billing")}</Link>
+          </Button>
+        ) : null}
       </nav>
 
       <div className="border-border border-t pt-6">

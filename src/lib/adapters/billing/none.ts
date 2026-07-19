@@ -1,4 +1,9 @@
-import type { BillingAdapter, VerifyWebhookResult } from "./contract";
+import type {
+  BillingAdapter,
+  BillingRedirectResult,
+  CreateCustomerResult,
+  VerifyWebhookResult,
+} from "./contract";
 
 /**
  * Null billing adapter (spec 5.1) — the default when no payment provider is
@@ -10,9 +15,27 @@ import type { BillingAdapter, VerifyWebhookResult } from "./contract";
  * default that threw would break `next build` for everyone. It never verifies
  * anything, so the webhook route answers 404 rather than advertising an endpoint
  * this deployment cannot honour.
+ *
+ * Every money-path operation answers NOT_CONFIGURED for the same reason: the
+ * routes turn that into a 404, so an unconfigured deployment does not advertise a
+ * checkout it cannot complete.
  */
 export const noneBillingAdapter: BillingAdapter = {
+  provider: "none",
+
   async verifyWebhook(): Promise<VerifyWebhookResult> {
+    return { ok: false, code: "NOT_CONFIGURED" };
+  },
+
+  async createCustomer(): Promise<CreateCustomerResult> {
+    return { ok: false, code: "NOT_CONFIGURED" };
+  },
+
+  async createCheckoutSession(): Promise<BillingRedirectResult> {
+    return { ok: false, code: "NOT_CONFIGURED" };
+  },
+
+  async createPortalSession(): Promise<BillingRedirectResult> {
     return { ok: false, code: "NOT_CONFIGURED" };
   },
 };

@@ -6,10 +6,9 @@
  * provider SDK. The concrete provider is chosen at startup by BILLING_PROVIDER
  * (none/dev vs Stripe), exactly as `../email` picks log vs Resend.
  *
- * This phase covers webhook verification and parsing only (spec 5.4). Customer
- * creation, checkout & portal sessions and invoice retrieval land in later
- * phases behind the same interface; Lemon Squeezy, Paddle, PayPal, Dodo and
- * Polar plug in by implementing `BillingAdapter`.
+ * Covers webhook verification/parsing (spec 5.4) plus the money path: customer
+ * creation, checkout and portal sessions (spec 5.3, 5.5). Lemon Squeezy, Paddle,
+ * PayPal, Dodo and Polar plug in by implementing `BillingAdapter`.
  */
 
 import { env } from "@/lib/env/server";
@@ -33,12 +32,18 @@ export type {
   BillingAdapter,
   BillingEvent,
   BillingEventType,
+  BillingOperationErrorCode,
   BillingPaymentData,
   BillingPaymentEventType,
   BillingPaymentStatus,
+  BillingRedirectResult,
   BillingSubscriptionData,
   BillingSubscriptionEventType,
   BillingSubscriptionStatus,
   BillingWebhookErrorCode,
+  CheckoutSessionInput,
+  CreateCustomerInput,
+  CreateCustomerResult,
+  PortalSessionInput,
   VerifyWebhookResult,
 } from "./contract";
