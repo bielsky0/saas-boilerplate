@@ -280,6 +280,7 @@
       "badge": "Next.js {site}",
       "title": "Ship your SaaS faster, without the boilerplate",
       "subtitle": "Authentication, multi-tenancy, RBAC, and a themed design system — production-ready and free of vendor lock-in.",
+      "subtitleSolo": "Authentication, billing, and a themed design system — production-ready and free of vendor lock-in.",
       "getStarted": "Get started",
       "logIn": "Log in"
     },
@@ -290,6 +291,8 @@
       "authBody": "Email/password with verification, password reset, and rate-limited sign-in.",
       "tenancyTitle": "Multi-tenancy",
       "tenancyBody": "Personal accounts and organizations with an instant context switcher.",
+      "soloTitle": "Personal workspace",
+      "soloBody": "Every user gets an isolated personal account — no teams to manage.",
       "rbacTitle": "RBAC",
       "rbacBody": "Owner/Admin/Member roles enforced on the backend, cosmetic in the UI.",
       "designTitle": "Design system",
@@ -301,30 +304,38 @@
     },
     "pricing": {
       "heading": "Simple pricing",
-      "subheading": "Placeholder plans — real pricing is generated from the billing configuration.",
+      "subheading": "Every plan below is generated from the billing configuration.",
       "popular": "Popular",
       "perMonth": "/mo",
-      "freeName": "Free",
-      "freePrice": "$0",
-      "freeDesc": "For trying things out.",
-      "freeF1": "1 organization",
-      "freeF2": "Up to 3 members",
-      "freeF3": "Community support",
-      "freeCta": "Get started",
-      "proName": "Pro",
-      "proPrice": "$29",
-      "proDesc": "For growing teams.",
-      "proF1": "Unlimited organizations",
-      "proF2": "Unlimited members",
-      "proF3": "Priority support",
-      "proCta": "Start free trial",
-      "entName": "Enterprise",
-      "entPrice": "Custom",
-      "entDesc": "For scale and compliance.",
-      "entF1": "SSO & SAML",
-      "entF2": "Enforced MFA",
-      "entF3": "Dedicated support",
-      "entCta": "Contact sales"
+      "perYear": "/yr",
+      "free": {
+        "desc": "For trying things out.",
+        "cta": "Get started"
+      },
+      "pro": {
+        "desc": "For growing teams.",
+        "cta": "Start with Pro"
+      },
+      "business": {
+        "desc": "For scale and compliance.",
+        "cta": "Choose Business"
+      },
+      "limits": {
+        "members": "{count, plural, one {# member} other {# members}}",
+        "membersUnlimited": "Unlimited members",
+        "files": "{count, plural, one {# file} other {# files}}",
+        "filesUnlimited": "Unlimited files",
+        "storage": "{gb} GB storage",
+        "storageUnlimited": "Unlimited storage"
+      },
+      "features": {
+        "audit": {
+          "export": "Audit log export"
+        },
+        "roles": {
+          "custom": "Custom roles"
+        }
+      }
     },
     "cta": {
       "heading": "Ready to build?",
@@ -351,7 +362,8 @@
       "members": "Members",
       "settings": "Settings",
       "files": "Files",
-      "audit": "Audit trail"
+      "audit": "Audit trail",
+      "billing": "Billing"
     },
     "settings": {
       "heading": "Settings",
@@ -477,6 +489,29 @@
       "saving": "Saving…",
       "saved": "Preferences saved.",
       "error": "Something went wrong. Please try again."
+    }
+  },
+  "billing": {
+    "heading": "Billing",
+    "personalSubtitle": "Plans for your personal account.",
+    "currentPlan": "Current plan",
+    "current": "Current",
+    "choose": "Choose {plan}",
+    "managePortal": "Manage billing",
+    "renewsOn": "renews {date}",
+    "endsOn": "ends {date}",
+    "notConfigured": "Billing is not configured for this deployment.",
+    "noPortal": "There is nothing to manage yet.",
+    "providerError": "The payment provider is unavailable. Please try again.",
+    "status": {
+      "active": "Active",
+      "trialing": "Trial",
+      "past_due": "Past due",
+      "canceled": "Canceled",
+      "unpaid": "Unpaid",
+      "incomplete": "Incomplete",
+      "incomplete_expired": "Expired",
+      "paused": "Paused"
     }
   }
 }

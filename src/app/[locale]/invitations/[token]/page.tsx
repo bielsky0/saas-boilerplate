@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 
 import { Button } from "@/components/ui";
 import { AcceptInvitationForm } from "@/features/organizations/components/accept-invitation-form";
+import { requireOrgsEnabled } from "@/features/organizations/context";
 import { getInvitationWithValidity, getOrgById } from "@/features/organizations/data";
 import { getServerSession } from "@/lib/auth";
 
@@ -31,6 +32,9 @@ export default async function AcceptInvitationPage({
 }: {
   params: Promise<{ token: string }>;
 }) {
+  // Lives outside `(app)`, so no layout reaches it — it carries the §1.4 guard
+  // itself. An invitation link already in flight 404s once orgs are disabled.
+  requireOrgsEnabled();
   const { token } = await params;
   const { invite, valid } = await getInvitationWithValidity(hashToken(token));
 

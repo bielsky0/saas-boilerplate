@@ -133,10 +133,21 @@ export function tierFor(pathname: string, method: string, isServerAction: boolea
   if (CREDENTIAL_PATHS.some((p) => pathname.startsWith(p))) return "authCredential";
   if (pathname.startsWith("/api/auth/")) return byMethod(method);
 
-  // Signs a URL / runs an agent turn — the "kosztownych obliczeniowo" case.
+  /*
+   * Signs a URL / runs an agent turn / creates a provider resource — §22.3's
+   * "kosztownych obliczeniowo/finansowo" case.
+   *
+   * Checkout and portal are here rather than at the default `write` tier because
+   * each one is an outbound call to the payment provider, and checkout can create
+   * a customer record there. Both spend a third party's rate budget and one of
+   * them leaves durable state behind, which is a different cost profile from an
+   * ordinary write against our own database.
+   */
   if (
     pathname.startsWith("/api/storage/presign") ||
     pathname.startsWith("/api/storage/confirm") ||
+    pathname.startsWith("/api/billing/checkout") ||
+    pathname.startsWith("/api/billing/portal") ||
     pathname.startsWith("/api/mcp")
   ) {
     return "expensive";

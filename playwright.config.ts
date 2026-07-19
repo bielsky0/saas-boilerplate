@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { E2E_BILLING_ENV } from "./e2e/billing-fixtures";
 import { E2E_RATE_LIMIT_ENV } from "./e2e/rate-limit-fixtures";
 import { E2E_STORAGE_ENV } from "./e2e/storage-fixtures";
+import { E2E_TENANCY_ENV, ORG_DEPENDENT_SPECS, TENANCY_MODE } from "./e2e/tenancy-fixtures";
 
 /**
  * Playwright E2E config (spec 14.1). Auth is critical, so these run on every PR
@@ -21,6 +22,12 @@ const baseURL = process.env.NEXT_PUBLIC_APP_URL ?? `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  /**
+   * Multi-tenancy mode (spec 1.4). The `disabled` leg hides the org UI, so the 13
+   * specs that drive it cannot pass — they are skipped rather than rewritten to
+   * self-skip. See e2e/tenancy-fixtures.ts for why that criterion was revised.
+   */
+  testIgnore: TENANCY_MODE === "disabled" ? ORG_DEPENDENT_SPECS : [],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -50,7 +57,15 @@ export default defineConfig({
   webServer: {
     command: "pnpm build && pnpm start",
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    /**
+     * ⚠️ Reuse is forced OFF outside `required` mode. A server already running on
+     * :3000 in the default mode would otherwise be silently reused by the
+     * `disabled` leg, which would then assert disabled behaviour against a
+     * required-mode server — and every failure message would be about a missing
+     * switcher, not about the stale server. This footgun has already cost time
+     * twice in this repo (faza 7 and faza 11a.1); here it is closed in config.
+     */
+    reuseExistingServer: !process.env.CI && TENANCY_MODE === "required",
     timeout: 120_000,
     env: {
       NODE_ENV: "test",
@@ -65,6 +80,8 @@ export default defineConfig({
       // green because each test gets its own bucket via a header fixture, not
       // because the limits are relaxed — see e2e/rate-limit-fixtures.ts.
       ...E2E_RATE_LIMIT_ENV,
+      // Which tenancy mode this leg boots in (spec 1.4). Default `required`.
+      ...E2E_TENANCY_ENV,
     },
   },
 });

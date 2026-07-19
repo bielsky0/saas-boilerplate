@@ -22,15 +22,21 @@ import { cn } from "@/lib/utils";
  * URL (`/dashboard` or `/orgs/[slug]`). The active item is derived from the
  * current path, so refresh/deep-links keep context. UI only — access is enforced
  * server-side per route.
+ *
+ * `showNewOrg` is REQUIRED rather than defaulted (spec §1.4): the mode table has
+ * exactly one call site, and a default would let it silently drift out of sync
+ * with MULTI_TENANCY_MODE. In `disabled` the whole component is never rendered.
  */
 export type SwitcherOrg = { id: string; name: string; slug: string };
 
 export function AccountSwitcher({
   personalLabel,
   orgs,
+  showNewOrg,
 }: {
   personalLabel: string;
   orgs: SwitcherOrg[];
+  showNewOrg: boolean;
 }) {
   const t = useTranslations("organizations.switcher");
   const pathname = usePathname();
@@ -77,12 +83,16 @@ export function AccountSwitcher({
           </>
         ) : null}
 
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/orgs/new">
-            <Plus className="mr-2 size-4" /> {t("newOrg")}
-          </Link>
-        </DropdownMenuItem>
+        {showNewOrg ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/orgs/new">
+                <Plus className="mr-2 size-4" /> {t("newOrg")}
+              </Link>
+            </DropdownMenuItem>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

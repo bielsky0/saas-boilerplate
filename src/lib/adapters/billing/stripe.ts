@@ -2,10 +2,16 @@ import Stripe from "stripe";
 import { z } from "zod";
 
 import { env } from "@/lib/env/server";
+import { createLogger } from "@/lib/logger";
 import type {
   BillingAdapter,
   BillingEvent,
+  BillingRedirectResult,
   BillingSubscriptionStatus,
+  CheckoutSessionInput,
+  CreateCustomerInput,
+  CreateCustomerResult,
+  PortalSessionInput,
   VerifyWebhookResult,
 } from "./contract";
 
@@ -185,8 +191,24 @@ export function createStripeBillingAdapter(): BillingAdapter {
   }
   const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: API_VERSION });
   const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
+  const log = createLogger("billing.stripe");
+
+  /**
+   * Collapse any SDK throw into the contract's coarse `PROVIDER_ERROR`.
+   *
+   * The cause is logged here and nowhere else: callers must not see Stripe's
+   * error taxonomy, or the abstraction that makes this adapter swappable leaks
+   * into the routes (spec 1.2). Logged at `error` because an outbound call
+   * failing is an operator problem — the user only ever sees a 502.
+   */
+  function providerError(operation: string, err: unknown): { ok: false; code: "PROVIDER_ERROR" } {
+    log.error("provider call failed", { operation, err });
+    return { ok: false, code: "PROVIDER_ERROR" };
+  }
 
   return {
+    provider: PROVIDER,
+
     async verifyWebhook(rawBody: string, headers: Headers): Promise<VerifyWebhookResult> {
       const signature = headers.get("stripe-signature");
       if (!signature) return { ok: false, code: "INVALID_SIGNATURE" };
@@ -208,6 +230,51 @@ export function createStripeBillingAdapter(): BillingAdapter {
           : { ok: true, status: "ignored", eventId: event.id, eventType: event.type };
       } catch {
         return { ok: false, code: "MALFORMED_PAYLOAD" };
+      }
+    },
+
+    async createCustomer(input: CreateCustomerInput): Promise<CreateCustomerResult> {
+      try {
+        const customer = await stripe.customers.create({
+          email: input.email,
+          ...(input.name ? { name: input.name } : {}),
+          ...(input.metadata ? { metadata: input.metadata } : {}),
+        });
+        return { ok: true, providerCustomerId: customer.id };
+      } catch (err) {
+        return providerError("createCustomer", err);
+      }
+    },
+
+    async createCheckoutSession(input: CheckoutSessionInput): Promise<BillingRedirectResult> {
+      try {
+        const session = await stripe.checkout.sessions.create({
+          mode: input.mode,
+          customer: input.providerCustomerId,
+          line_items: [{ price: input.providerPriceId, quantity: input.quantity }],
+          success_url: input.successUrl,
+          cancel_url: input.cancelUrl,
+        });
+        // `url` is null only for modes we never use (e.g. embedded UI). Treating
+        // it as an error beats returning an empty redirect the caller would send
+        // a browser to.
+        return session.url
+          ? { ok: true, url: session.url }
+          : providerError("createCheckoutSession", new Error("session has no url"));
+      } catch (err) {
+        return providerError("createCheckoutSession", err);
+      }
+    },
+
+    async createPortalSession(input: PortalSessionInput): Promise<BillingRedirectResult> {
+      try {
+        const session = await stripe.billingPortal.sessions.create({
+          customer: input.providerCustomerId,
+          return_url: input.returnUrl,
+        });
+        return { ok: true, url: session.url };
+      } catch (err) {
+        return providerError("createPortalSession", err);
       }
     },
   };

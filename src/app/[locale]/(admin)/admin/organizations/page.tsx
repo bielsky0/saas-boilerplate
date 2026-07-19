@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import {
+  Alert,
   Badge,
   Button,
   Input,
@@ -16,6 +17,7 @@ import {
 import { requireSuperAdmin } from "@/features/admin/context";
 import { listAllOrganizations } from "@/features/admin/data";
 import { orgListQuerySchema } from "@/features/admin/schema";
+import { TENANCY_MODE, orgsEnabled } from "@/lib/tenancy";
 
 /**
  * All organizations with their metrics (spec 6.2).
@@ -47,6 +49,22 @@ export default async function AdminOrganizationsPage({
         <h1 className="text-2xl font-semibold">Organizations</h1>
         <p className="text-muted-foreground mt-1 text-sm">Every team account in the system.</p>
       </div>
+
+      {/*
+        Read-only by construction (spec §1.4): it renders the mode and offers no
+        control, because the mode is an env var read once at startup. That is a
+        stronger guarantee than a permission check — there is no in-app switch for
+        anyone to find. The panel stays fully functional in all three modes: it is
+        a super-admin cross-tenant view, not tenant UI, and it is the one place an
+        operator can confirm that org rows survived a switch to `disabled`.
+      */}
+      <Alert role="status" variant={orgsEnabled ? "info" : "warning"}>
+        <span className="font-medium">Tenancy mode: {TENANCY_MODE}</span> — set by{" "}
+        <code>MULTI_TENANCY_MODE</code>; changing it requires a redeploy.{" "}
+        {orgsEnabled
+          ? "Organizations are available to users."
+          : "Organizations below are retained and untouched, but hidden from the app UI. Switching back needs no migration."}
+      </Alert>
 
       <form method="GET" action="/admin/organizations" className="flex flex-wrap items-end gap-3">
         <Input

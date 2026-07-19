@@ -280,6 +280,7 @@
       "badge": "Next.js {site}",
       "title": "Twórz SaaS szybciej, bez pisania podstaw od zera",
       "subtitle": "Uwierzytelnianie, wielodostępność, RBAC i system designu z motywami — gotowe na produkcję i bez uzależnienia od dostawcy.",
+      "subtitleSolo": "Uwierzytelnianie, płatności i system designu z motywami — gotowe na produkcję i bez uzależnienia od dostawcy.",
       "getStarted": "Rozpocznij",
       "logIn": "Zaloguj się"
     },
@@ -290,6 +291,8 @@
       "authBody": "E-mail i hasło z weryfikacją, resetem hasła i logowaniem z limitem prób.",
       "tenancyTitle": "Wielodostępność",
       "tenancyBody": "Konta osobiste i organizacje z natychmiastowym przełącznikiem kontekstu.",
+      "soloTitle": "Przestrzeń osobista",
+      "soloBody": "Każdy użytkownik ma odizolowane konto osobiste — bez zarządzania zespołami.",
       "rbacTitle": "RBAC",
       "rbacBody": "Role Właściciel/Administrator/Członek egzekwowane po stronie serwera, w UI tylko kosmetycznie.",
       "designTitle": "System designu",
@@ -301,30 +304,38 @@
     },
     "pricing": {
       "heading": "Proste ceny",
-      "subheading": "Plany przykładowe — prawdziwy cennik generowany jest z konfiguracji płatności.",
+      "subheading": "Każdy plan poniżej jest generowany z konfiguracji płatności.",
       "popular": "Popularny",
       "perMonth": "/mies.",
-      "freeName": "Darmowy",
-      "freePrice": "0 zł",
-      "freeDesc": "Do wypróbowania.",
-      "freeF1": "1 organizacja",
-      "freeF2": "Do 3 członków",
-      "freeF3": "Wsparcie społeczności",
-      "freeCta": "Rozpocznij",
-      "proName": "Pro",
-      "proPrice": "129 zł",
-      "proDesc": "Dla rosnących zespołów.",
-      "proF1": "Nieograniczone organizacje",
-      "proF2": "Nieograniczeni członkowie",
-      "proF3": "Priorytetowe wsparcie",
-      "proCta": "Rozpocznij okres próbny",
-      "entName": "Enterprise",
-      "entPrice": "Wycena",
-      "entDesc": "Dla skali i zgodności.",
-      "entF1": "SSO i SAML",
-      "entF2": "Wymuszone MFA",
-      "entF3": "Dedykowane wsparcie",
-      "entCta": "Skontaktuj się"
+      "perYear": "/rok",
+      "free": {
+        "desc": "Do wypróbowania.",
+        "cta": "Rozpocznij"
+      },
+      "pro": {
+        "desc": "Dla rosnących zespołów.",
+        "cta": "Wybierz Pro"
+      },
+      "business": {
+        "desc": "Dla skali i zgodności.",
+        "cta": "Wybierz Business"
+      },
+      "limits": {
+        "members": "{count, plural, one {# członek} few {# członków} many {# członków} other {# członka}}",
+        "membersUnlimited": "Bez limitu członków",
+        "files": "{count, plural, one {# plik} few {# pliki} many {# plików} other {# pliku}}",
+        "filesUnlimited": "Bez limitu plików",
+        "storage": "{gb} GB miejsca",
+        "storageUnlimited": "Bez limitu miejsca"
+      },
+      "features": {
+        "audit": {
+          "export": "Eksport dziennika audytu"
+        },
+        "roles": {
+          "custom": "Role niestandardowe"
+        }
+      }
     },
     "cta": {
       "heading": "Gotowy, by budować?",
@@ -351,7 +362,8 @@
       "members": "Członkowie",
       "settings": "Ustawienia",
       "files": "Pliki",
-      "audit": "Dziennik zmian"
+      "audit": "Dziennik zmian",
+      "billing": "Płatności"
     },
     "settings": {
       "heading": "Ustawienia",
@@ -477,6 +489,29 @@
       "saving": "Zapisywanie…",
       "saved": "Zapisano preferencje.",
       "error": "Coś poszło nie tak. Spróbuj ponownie."
+    }
+  },
+  "billing": {
+    "heading": "Płatności",
+    "personalSubtitle": "Plany dla Twojego konta osobistego.",
+    "currentPlan": "Bieżący plan",
+    "current": "Bieżący",
+    "choose": "Wybierz {plan}",
+    "managePortal": "Zarządzaj płatnościami",
+    "renewsOn": "odnawia się {date}",
+    "endsOn": "kończy się {date}",
+    "notConfigured": "Płatności nie są skonfigurowane w tym wdrożeniu.",
+    "noPortal": "Nie ma jeszcze czym zarządzać.",
+    "providerError": "Dostawca płatności jest niedostępny. Spróbuj ponownie.",
+    "status": {
+      "active": "Aktywna",
+      "trialing": "Okres próbny",
+      "past_due": "Zaległa płatność",
+      "canceled": "Anulowana",
+      "unpaid": "Nieopłacona",
+      "incomplete": "Niekompletna",
+      "incomplete_expired": "Wygasła",
+      "paused": "Wstrzymana"
     }
   }
 }
