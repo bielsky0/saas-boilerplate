@@ -397,7 +397,9 @@
       "heading": "Personal",
       "newOrg": "New organization",
       "verifyEmail": "Please verify your email address. Check your inbox for the verification link.",
-      "signedInAs": "Signed in as <strong>{email}</strong>. Use the switcher above to move between your personal account and organizations."
+      "signedInAs": "Signed in as <strong>{email}</strong>. Use the switcher above to move between your personal account and organizations.",
+      "yourOrgs": "Your academies",
+      "yourOrgsHint": "Each academy is a separate workspace with its own sign-in."
     },
     "org": {
       "yourRole": "Your role:",

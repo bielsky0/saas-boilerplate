@@ -27,13 +27,11 @@ const initial: ActionState = {};
  * Removal is confirmed in a dialog; failures stay inline, successes toast.
  */
 export function MemberActions({
-  slug,
   membershipId,
   currentRole,
   canUpdateRole,
   canRemove,
 }: {
-  slug: string;
   membershipId: string;
   currentRole: string;
   canUpdateRole: boolean;
@@ -57,7 +55,6 @@ export function MemberActions({
       <div className="flex items-center justify-end gap-2">
         {canUpdateRole ? (
           <form action={roleAction} className="flex items-center gap-1">
-            <input type="hidden" name="slug" value={slug} />
             <input type="hidden" name="membershipId" value={membershipId} />
             <Select name="role" defaultValue={currentRole}>
               <SelectTrigger className="h-8 w-32" aria-label={t("members.roleLabel")}>
@@ -81,7 +78,6 @@ export function MemberActions({
         {canRemove ? (
           <>
             <form id={removeFormId} action={removeAction}>
-              <input type="hidden" name="slug" value={slug} />
               <input type="hidden" name="membershipId" value={membershipId} />
             </form>
             <ConfirmDialog

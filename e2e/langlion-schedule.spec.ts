@@ -1,9 +1,10 @@
+import { tenantUrl } from "./host-fixtures";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 import {
   drainJobs,
   getLanglionState,
-  loginViaUi,
+  loginToAcademy,
   registerAndVerify,
   seedOrgFull,
   uniqueEmail,
@@ -65,18 +66,17 @@ function pinnedLabel(iso: string): string {
 }
 
 /**
- * Log in and WAIT for the redirect to land.
+ * Log in ON THE ACADEMY'S HOST and WAIT for the redirect to land.
  *
- * `loginViaUi` only submits the form; without waiting for the destination, the
- * next `page.goto` races the session cookie being set and silently lands back on
- * the login page. That failure is nasty to read — a permission test sees 200
- * instead of 403, and a form test times out looking for fields that are on a page
- * it never reached.
+ * Two hazards in one helper. Submitting without waiting for the destination lets
+ * the next `page.goto` race the session cookie, silently landing back on login —
+ * a failure that reads as "permission test saw 200 instead of 403" rather than
+ * as a timing bug. And since F4.6 the host matters: signing in at the apex would
+ * mint a cookie that is never sent to `{subdomain}`, because §2.19 exception #5
+ * keeps staff sessions host-scoped on purpose.
  */
-async function loginAndLand(page: Page, email: string) {
-  await page.goto("/en/login");
-  await loginViaUi(page, email, TEST_PASSWORD);
-  await page.waitForURL("**/dashboard");
+async function loginAndLand(page: Page, subdomain: string, email: string) {
+  await loginToAcademy(page, subdomain, email, TEST_PASSWORD);
 }
 
 /**
@@ -125,7 +125,7 @@ async function seedAcademy(request: APIRequestContext, prefix: string) {
 }
 
 async function createLocation(page: Page, slug: string, name: string) {
-  await page.goto(`/en/orgs/${slug}/locations`);
+  await page.goto(tenantUrl(slug, `/en/dashboard/locations`));
   await page.getByLabel("Name").fill(name);
   await page.getByLabel("Address").fill("1 Test Street");
   await page.getByRole("button", { name: "Add location" }).click();
@@ -137,7 +137,7 @@ async function createGroupType(
   slug: string,
   values: { name: string; groupSlug: string; description?: string },
 ) {
-  await page.goto(`/en/orgs/${slug}/group-types`);
+  await page.goto(tenantUrl(slug, `/en/dashboard/group-types`));
   await page.getByLabel("Name").fill(values.name);
   await page.getByLabel("URL slug").fill(values.groupSlug);
   if (values.description) {
@@ -181,7 +181,7 @@ test.describe("EPIK 2 — group type definition", () => {
     request,
   }) => {
     const { ownerEmail, slug } = await seedAcademy(request, "gt");
-    await loginAndLand(page, ownerEmail);
+    await loginAndLand(page, slug, ownerEmail);
 
     const groupSlug = uniqueSlug("obozy");
     // US-2.1/AC4 — markdown blurb, optional, purely presentational.
@@ -201,9 +201,9 @@ test.describe("EPIK 2 — group type definition", () => {
 
   test("US-2.1/AC1 — a group type without a price is refused", async ({ page, request }) => {
     const { ownerEmail, slug } = await seedAcademy(request, "gtnop");
-    await loginAndLand(page, ownerEmail);
+    await loginAndLand(page, slug, ownerEmail);
 
-    await page.goto(`/en/orgs/${slug}/group-types`);
+    await page.goto(tenantUrl(slug, `/en/dashboard/group-types`));
     await page.getByLabel("Name").fill("No price");
     await page.getByLabel("URL slug").fill(uniqueSlug("nop"));
     await page.getByLabel("Price").fill("");
@@ -219,7 +219,7 @@ test.describe("EPIK 2 — group type definition", () => {
     request,
   }) => {
     const { ownerEmail, trainerEmail, slug } = await seedAcademy(request, "def");
-    await loginAndLand(page, ownerEmail);
+    await loginAndLand(page, slug, ownerEmail);
 
     const groupSlug = uniqueSlug("regular");
     await createLocation(page, slug, "Main hall");
@@ -257,7 +257,7 @@ test.describe("EPIK 3 — season generation", () => {
     request,
   }) => {
     const { ownerEmail, trainerEmail, slug } = await seedAcademy(request, "gen");
-    await loginAndLand(page, ownerEmail);
+    await loginAndLand(page, slug, ownerEmail);
 
     const groupSlug = uniqueSlug("season");
     await createLocation(page, slug, "Sports hall");
@@ -300,7 +300,7 @@ test.describe("EPIK 3 — season generation", () => {
     request,
   }) => {
     const { ownerEmail, trainerEmail, slug } = await seedAcademy(request, "one");
-    await loginAndLand(page, ownerEmail);
+    await loginAndLand(page, slug, ownerEmail);
 
     const groupSlug = uniqueSlug("oneoff");
     await createGroupType(page, slug, { name: "One off", groupSlug });
@@ -322,7 +322,7 @@ test.describe("EPIK 3 — season generation", () => {
 
   test("US-3.2 — extending the season adds only the missing dates", async ({ page, request }) => {
     const { ownerEmail, trainerEmail, slug } = await seedAcademy(request, "ext");
-    await loginAndLand(page, ownerEmail);
+    await loginAndLand(page, slug, ownerEmail);
 
     const groupSlug = uniqueSlug("extend");
     await createGroupType(page, slug, { name: "Extend", groupSlug });
@@ -359,7 +359,7 @@ test.describe("EPIK 3 — season generation", () => {
 
   test("US-3.2/AC2 — re-running generation is idempotent", async ({ page, request }) => {
     const { ownerEmail, trainerEmail, slug } = await seedAcademy(request, "idem");
-    await loginAndLand(page, ownerEmail);
+    await loginAndLand(page, slug, ownerEmail);
 
     const groupSlug = uniqueSlug("idem");
     await createGroupType(page, slug, { name: "Idempotent", groupSlug });
@@ -397,7 +397,7 @@ test.describe("US-3.4 — editing a pattern mid-season", () => {
     request,
   }) => {
     const { ownerEmail, trainerEmail, slug } = await seedAcademy(request, "move");
-    await loginAndLand(page, ownerEmail);
+    await loginAndLand(page, slug, ownerEmail);
 
     const groupSlug = uniqueSlug("move");
     await createLocation(page, slug, "Old hall");
@@ -421,7 +421,7 @@ test.describe("US-3.4 — editing a pattern mid-season", () => {
     // and going through the page is what proves the flag is set by the path an
     // admin actually takes.
     const pinned = before.sessions[2]!;
-    await page.goto(`/en/orgs/${slug}/schedule`);
+    await page.goto(tenantUrl(slug, `/en/dashboard/schedule`));
     const pinnedRow = page.getByRole("row").filter({ hasText: pinnedLabel(pinned.startTime) });
     await pinnedRow.getByRole("button", { name: "Adjust" }).click();
     const pinnedStartInput = page.locator(`#session-${pinned.id}-start`);
@@ -437,7 +437,7 @@ test.describe("US-3.4 — editing a pattern mid-season", () => {
     expect(pinnedAfterAdjust.isManuallyAdjusted).toBe(true);
     const pinnedInstant = pinnedAfterAdjust.startTime;
 
-    await page.goto(`/en/orgs/${slug}/group-types`);
+    await page.goto(tenantUrl(slug, `/en/dashboard/group-types`));
     await page.getByRole("link", { name: "Manage" }).first().click();
 
     // Now move the whole pattern: Thursday 17:00 → Friday 19:00.
@@ -476,7 +476,7 @@ test.describe("US-3.4 — editing a pattern mid-season", () => {
     request,
   }) => {
     const { ownerEmail, trainerEmail, slug } = await seedAcademy(request, "loc");
-    await loginAndLand(page, ownerEmail);
+    await loginAndLand(page, slug, ownerEmail);
 
     const groupSlug = uniqueSlug("relocate");
     await createLocation(page, slug, "Hall A");
@@ -526,27 +526,27 @@ test.describe("§4.2 — the backend is the boundary", () => {
       members: [{ email: memberEmail, role: "member" }],
     });
 
-    await loginAndLand(page, memberEmail);
+    await loginAndLand(page, slug, memberEmail);
 
     // A member holds none of the four Faza 2 permissions, so each page 403s —
     // regardless of what the org overview chose to render. UI hiding is cosmetic
     // (spec §4.2); this is the assertion that the real check is server-side.
     for (const path of ["group-types", "schedule", "locations"]) {
-      const response = await page.goto(`/en/orgs/${slug}/${path}`);
+      const response = await page.goto(tenantUrl(slug, `/en/dashboard/${path}`));
       expect(response?.status()).toBe(403);
     }
   });
 
   test("a trainer cannot manage group types either", async ({ page, request }) => {
     const { trainerEmail, slug } = await seedAcademy(request, "trrbac");
-    await loginAndLand(page, trainerEmail);
+    await loginAndLand(page, slug, trainerEmail);
 
     // The trainer role EXISTS (so the member is not locked out of the org
     // entirely) but carries no Faza 2 permission — its grants arrive in F6.
-    const response = await page.goto(`/en/orgs/${slug}/group-types`);
+    const response = await page.goto(tenantUrl(slug, `/en/dashboard/group-types`));
     expect(response?.status()).toBe(403);
 
-    const overview = await page.goto(`/en/orgs/${slug}`);
+    const overview = await page.goto(tenantUrl(slug, "/en/dashboard"));
     expect(overview?.status()).toBe(200);
   });
 });

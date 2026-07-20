@@ -17,7 +17,7 @@
  *
  * So the split is: this module decides WHAT LABEL was addressed, the proxy
  * publishes it inward as a header, and the request layer decides WHETHER THAT
- * ACADEMY EXISTS via `findOrganizationBySubdomain`. A consequence worth stating
+ * ACADEMY EXISTS via `getOrgBySubdomain`. A consequence worth stating
  * out loud, because it looks like a gap until you see it is the design: this
  * module CANNOT tell a real academy from a typo, and must not try. An unknown
  * subdomain is a 404 produced by the request layer (D57), not by the proxy.
@@ -128,4 +128,46 @@ export function parseHost(hostHeader: string | null, rootDomain: string): HostCo
   if (!isValidLabel(label)) return { kind: "foreign" };
 
   return { kind: "tenant", subdomain: label };
+}
+
+/**
+ * Build an origin for `subdomain`, borrowing protocol and port from the request.
+ *
+ * The counterpart to `parseHost`: that reads a host, this writes one. It lives
+ * here rather than beside its caller for the reason stated above about the root
+ * domain being a parameter — port handling has to agree with `normalizeHost`,
+ * and two copies of that rule disagreeing produces unreachable links rather than
+ * a visible error.
+ *
+ * ⚠️ THE PORT IS NOT OPTIONAL. `rootDomain` is a bare domain, so dropping the
+ * port sends dev and E2E from `acme.localtest.me:3000` to `localtest.me:80` —
+ * nothing listening, and a connection-refused that looks nothing like a routing
+ * decision. In production the port is empty and this contributes nothing, which
+ * is exactly why it is easy to omit and only ever breaks the environment you
+ * develop in. Same reasoning as `apexUrl()` in src/proxy.ts.
+ *
+ * @param subdomain a validated DNS label (`organization.subdomain`)
+ * @param requestHost the incoming `Host` header, possibly carrying a port
+ * @param protocol URL-style, with the colon — `https:`
+ */
+export function buildTenantOrigin(
+  subdomain: string,
+  rootDomain: string,
+  requestHost: string | null,
+  protocol: string,
+): string {
+  const port = portOf(requestHost);
+  const host = port ? `${subdomain}.${rootDomain}:${port}` : `${subdomain}.${rootDomain}`;
+  return `${protocol}//${host}`;
+}
+
+/** The port of a Host header, or "" — bracket-aware, matching `normalizeHost`. */
+function portOf(hostHeader: string | null): string {
+  if (!hostHeader) return "";
+  const host = hostHeader.trim();
+  const lastColon = host.lastIndexOf(":");
+  const closingBracket = host.lastIndexOf("]");
+  if (lastColon <= closingBracket) return "";
+  const port = host.slice(lastColon + 1);
+  return /^\d+$/.test(port) ? port : "";
 }

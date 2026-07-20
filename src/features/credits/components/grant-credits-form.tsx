@@ -45,12 +45,10 @@ const initial: FormState = {};
  * duplicates a rule already enforced where it counts.
  */
 export function GrantCreditsForm({
-  slug,
   clients,
   creditTypes,
   athletes,
 }: {
-  slug: string;
   clients: { id: string; email: string; isVerified: boolean }[];
   creditTypes: { id: string; name: string }[];
   athletes: { id: string; name: string; parentClientId: string }[];
@@ -64,8 +62,6 @@ export function GrantCreditsForm({
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <input type="hidden" name="slug" value={slug} />
-
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField label={t("form.client")} htmlFor="grant-client">
           <Select name="clientId">

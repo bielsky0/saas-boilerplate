@@ -36,7 +36,18 @@ export type MemberRow = {
   createdAt: Date;
 };
 
-export type OrgSummary = { id: string; name: string; slug: string; role: string };
+/**
+ * `subdomain` carries the panel address since F4.6 — the directory on the apex
+ * links to `{subdomain}.{APP_ROOT_DOMAIN}/dashboard`, so a summary without it
+ * cannot name where the academy lives. `slug` stays for display and admin URLs.
+ */
+export type OrgSummary = {
+  id: string;
+  name: string;
+  slug: string;
+  subdomain: string;
+  role: string;
+};
 
 /** Idempotently ensure a user's personal account exists (spec 3.1). */
 export async function ensurePersonalAccount(userId: string): Promise<void> {
@@ -73,7 +84,46 @@ export async function getUserByEmail(email: string) {
   return row ?? null;
 }
 
-/** Load a non-deleted org by its URL slug, or null. */
+/**
+ * Load a non-deleted academy by its public subdomain, or null (langlion §2.27).
+ *
+ * Moved here from `features/client-auth/organization.ts` in F4.6, as that file's
+ * header asked: since the staff panel is host-addressed too, this is no longer
+ * client-auth's lookup — it is THE tenant lookup, and both `servedOrganization`
+ * and the client OTP routes read it.
+ *
+ * Selects the whole row, unlike the three-column projection it replaces:
+ * `requireOrgAccess` puts it in `OrgContext.org`, which the settings and billing
+ * pages render in full. `servedOrganization` is `React.cache`d, so widening the
+ * select costs no extra query.
+ *
+ * Soft-deleted academies resolve to null: a removed academy should not issue
+ * login codes or serve a panel, and the alternative — resolving it and
+ * remembering to check `deletedAt` at each call site — is a check someone
+ * eventually skips.
+ *
+ * NO RLS BYPASS IS INVOLVED, and that is structural rather than lucky:
+ * `organization` is one of the two tables deliberately outside RLS, because a
+ * policy keyed on the owner cannot be applied to the row that DEFINES the owner —
+ * this query is what PRODUCES the value `withTenant` then sets. See the note in
+ * `lib/db/schema/index.ts`.
+ */
+export async function getOrgBySubdomain(subdomain: string) {
+  const [row] = await db
+    .select()
+    .from(organization)
+    .where(and(eq(organization.subdomain, subdomain), isNull(organization.deletedAt)))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Load a non-deleted org by its URL slug, or null.
+ *
+ * NOT the panel's tenant lookup any more (F4.6) — that is `getOrgBySubdomain`.
+ * This survives for the super-admin panel, which is cross-tenant by definition
+ * and therefore has no host to read the tenant from (§2.27).
+ */
 export async function getOrgBySlug(slug: string) {
   const [row] = await db
     .select()

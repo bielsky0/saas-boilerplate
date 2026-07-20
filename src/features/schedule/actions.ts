@@ -68,9 +68,8 @@ export async function updateSessionAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const slug = str(formData.get("slug"));
   const sessionId = str(formData.get("sessionId"));
-  const ctx = await requireOrgPermission(slug, "sessions.manage");
+  const ctx = await requireOrgPermission("sessions.manage");
   const [t, tv] = await Promise.all([
     getTranslations("schedule"),
     getTranslations("schedule.validation"),
@@ -181,6 +180,6 @@ export async function updateSessionAction(
 
   if (outcome === "not-found") return { error: t("errors.notFound") };
 
-  revalidatePath(`/orgs/${slug}/schedule`);
+  revalidatePath(`/dashboard/schedule`);
   return { success: t("updated") };
 }

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const parsed = portalInputSchema.safeParse(body);
   if (!parsed.success) return validationFailed(parsed.error, "Invalid portal request");
 
-  const ctx = await resolveBillingOwner(parsed.data.slug ?? null);
+  const ctx = await resolveBillingOwner();
   const result = await openBillingPortal(ctx);
 
   if (result.ok) return NextResponse.json({ url: result.url }, { status: 200 });

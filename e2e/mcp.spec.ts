@@ -70,8 +70,8 @@ test.describe("MCP tenant isolation", () => {
     await registerViaApi(request, alice);
     await registerViaApi(request, bob);
 
-    const aliceOrg = await seedOrg(request, { ownerEmail: alice, name: "Alice Org" });
-    const bobOrg = await seedOrg(request, { ownerEmail: bob, name: "Bob Org" });
+    const { slug: aliceOrg } = await seedOrg(request, { ownerEmail: alice, name: "Alice Org" });
+    const { slug: bobOrg } = await seedOrg(request, { ownerEmail: bob, name: "Bob Org" });
 
     // list_organizations: Alice sees hers, never Bob's.
     const orgs = (await callTool(request, { email: alice, tool: "list_organizations" }))

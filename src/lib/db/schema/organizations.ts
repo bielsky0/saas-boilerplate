@@ -5,14 +5,17 @@ import { user } from "./auth";
 /**
  * Organization (spec 3.1 — the team/tenant account; langlion: one academy).
  *
- * The shared-tenant counterpart to a personal account. `slug` is the unique,
- * URL-facing identifier: the active org context is derived from `/orgs/[slug]`
- * (spec 3.5), so it is indexed via its unique constraint. Membership/role live in
+ * The shared-tenant counterpart to a personal account. `slug` is a unique
+ * internal identifier, kept indexed via its unique constraint. Membership/role live in
  * `membership`; the creator is recorded on `createdByUserId` for audit and is
  * seeded as the first Owner. `deletedAt` supports soft delete + retention (§11.3).
  *
- * TWO IDENTIFIERS, TWO SCOPES (langlion §1.2, decyzja D10). `slug` routes the
- * staff panel at `/orgs/[slug]`. `subdomain` addresses the academy's public site
+ * TWO IDENTIFIERS, TWO SCOPES (langlion §1.2, decyzja D10). `slug` NO LONGER
+ * ROUTES ANYTHING since F4.6: the staff panel moved to `{subdomain}/dashboard`
+ * and the active academy is resolved from the request host, so `slug` survives
+ * only as an internal handle (§1.2 retires it from panel routing explicitly).
+ * It stays editable precisely because nothing a parent sees depends on it.
+ * `subdomain` addresses the academy's public site AND its panel
  * at `{subdomain}.langlion.com`, under which its registration links live as
  * `/zapisy/{group_type.slug}`. They are separate columns because they answer to
  * different constraints — DNS for one, internal routing for the other — and

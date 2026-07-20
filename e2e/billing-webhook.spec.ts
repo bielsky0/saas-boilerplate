@@ -26,7 +26,7 @@ async function seedBillingOrg(request: APIRequestContext): Promise<Fixture> {
   // A unique slug per test, not just a unique name: these specs run in parallel
   // against one shared database, and letting the seeder derive the same slug
   // from a shared name races two workers onto the same unique constraint.
-  const orgSlug = await seedOrg(request, {
+  const { slug: orgSlug } = await seedOrg(request, {
     ownerEmail,
     name: "Billing Co",
     slug: uniqueId("billing-co"),

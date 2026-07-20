@@ -1168,6 +1168,14 @@ across two layers on purpose:
 | `src/proxy.ts` + `src/lib/tenant-host.ts` | parse `Host` → label; publish it as `x-org-subdomain`       | touch the database |
 | `features/organizations/served-org.ts`    | resolve label → `organization` row (`servedOrganization()`) | decide routing     |
 
+Since F4.6 the **staff panel is host-addressed too**: `{subdomain}/dashboard/…`
+replaced `/orgs/[slug]/…`, `requireOrgAccess()` takes no argument and reads the
+academy from the request, and the organization switcher is gone (§2.19 exception
+#5 — each academy is a separate authentication, cookies stay host-scoped, and
+academy hosts are covered by Better Auth `trustedOrigins`, **not** by a cookie
+domain). Cross-origin URLs are built at request time in `src/lib/tenant-url.ts`,
+never from the build-frozen `NEXT_PUBLIC_APP_URL`.
+
 **Why the proxy does not do the lookup.** Its whole design rests on being fast
 and edge-safe with no DB (see the file header), and the matcher covers nearly
 every request — including apex requests, where no academy exists at all. Next's
@@ -1189,13 +1197,34 @@ previously set conditionally, which left the client's value intact on `/api/*` �
 cosmetic for locale, an isolation hole for a tenant).
 
 **Reserved path prefixes** live in `src/features/cms/reserved-slugs.ts`, with a
-`stage` marking whether each is served on the tenant host or on the apex today.
-Staff routes are still apex-only (the panel migration is F4.6), so `/dashboard`
-on an academy host redirects to the apex rather than falling through to
-default-deny — which would bounce to `/login` on a host whose Better Auth cookie
-does not exist there, i.e. a silent login loop. That list is **not** the same as
-`RESERVED_SUBDOMAINS` in `src/lib/validation/primitives.ts`; see the header of
-either file for why merging them is a bug that looks like tidying.
+`stage` marking where each is served: `tenant`, `apex`, or `both`. That list is
+**not** the same as `RESERVED_SUBDOMAINS` in `src/lib/validation/primitives.ts`;
+see the header of either file for why merging them is a bug that looks like
+tidying.
+
+⚠️ **`both` is not a convenience — it is the safe form of the panel migration
+(F4.6).** The apex branch in `src/proxy.ts` returns `forward()` **early** for
+`tenant`-stage prefixes, which skips `isPublicBarePage` and default-deny below
+it. That is harmless only where no apex route exists to render: `zapisy` 404s
+from the app router. `/dashboard` has a route, so marking it `tenant` — which is
+what the pre-F4.6 comments proposed — forwards an anonymous request into the
+page. Mutation-tested consequence: the panel is **not** exposed, because every
+page under it carries its own `requireSession`/`requireOrgAccess` (§4.2 holds),
+but the edge guard stops being the first line and the refusal loses its locale
+(`/login?callbackUrl=%2Fdashboard` instead of `/en/login?callbackUrl=%2Fen%2Fdashboard`).
+A prefix that is guarded **and** has a route must be `both`, never `tenant`.
+Pinned by a test in `e2e/langlion-subdomain-routing.spec.ts` that a mutation to
+`tenant` must break.
+
+⚠️ **The proxy does not run on every render.** A `redirect()` issued from a
+Server Action is resolved by Next internally — the target renders in the same
+cycle, without a fresh request — so neither the locale prefix nor
+`x-org-subdomain` is applied. This shipped once as "signing in on an academy host
+shows the personal dashboard until you reload". Two consequences to respect:
+a redirecting action must **not** emit a bare path (see `finishSignIn` in
+`src/features/auth/actions.ts`), and `servedSubdomain()` treats the header as a
+**fast path** with a `parseHost(Host)` fallback — the same function on the same
+input, not a second copy of the rule.
 
 **Local dev and E2E** use `APP_ROOT_DOMAIN=localtest.me`, a public DNS name whose
 every label resolves to 127.0.0.1 — so `acme.localtest.me:3000` works with no

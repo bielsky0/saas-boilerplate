@@ -26,25 +26,31 @@ export const E2E_TENANCY_ENV = { MULTI_TENANCY_MODE: TENANCY_MODE } as const;
  * Specs that cannot run without organizations — excluded in the `disabled` leg.
  *
  * ⚠️ HAND-MAINTAINED COUPLING. A new org-driving spec that nobody adds here fails
- * in the `disabled` leg — loudly and correctly, but with a message about a missing
- * switcher rather than about this list. If you add a spec that calls `seedOrg` or
- * visits `/orgs/`, add it here too.
+ * in the `disabled` leg — loudly and correctly, but with a message about a 404
+ * rather than about this list. The criterion since F4.6: a spec belongs here if
+ * it calls `seedOrg`/`seedOrgFull`, signs in with `loginToAcademy`, or addresses
+ * an academy host at all. It is no longer "visits `/orgs/`" — that path now holds
+ * only `/orgs/new`, and the panel moved to `{subdomain}/dashboard`.
  *
  * A `@orgs` tag on every `test()` title would give the same guarantee, but needs
  * edits across 13 files instead of one reviewable list.
  */
 export const ORG_DEPENDENT_SPECS = [
   "admin-access",
+  "billing-checkout",
   "billing-webhook",
-  "context-switch",
   "emails-transactional",
   "invitation-accept",
+  "langlion-credits",
+  "langlion-schedule",
   "mcp",
   "notifications",
   "onboarding-sequence",
   "org-audit-trail",
   "org-last-owner",
+  "protected-redirect",
   "rbac-enforcement",
   "storage-isolation",
+  "tenant-host-isolation",
   "validation",
 ].map((name) => `**/${name}.spec.ts`);

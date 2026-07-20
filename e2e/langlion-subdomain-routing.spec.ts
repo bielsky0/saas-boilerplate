@@ -139,25 +139,69 @@ test("a client-supplied tenant header cannot override the academy actually addre
 
 /* ─── Reserved prefixes vs CMS (D60) ───────────────────────────────────── */
 
-test("staff routes on an academy host redirect to the apex, not to a login loop", async ({
+test("an apex-only route on an academy host hops to the apex, not into a login loop", async ({
   request,
 }) => {
   const subdomain = await seedAcademy(request, "stage-apex");
 
-  const res = await request.get(tenantUrl(subdomain, "/en/dashboard"), { maxRedirects: 0 });
+  /*
+   * `/orgs/new` rather than `/dashboard` (updated in F4.6). The panel became
+   * `stage: "both"` and is now legitimately served on academy hosts, so it is no
+   * longer an example of this rule. `/orgs/new` still is, and for a reason worth
+   * keeping a test on: creating an academy cannot happen on that academy's own
+   * host, because the tenant does not exist yet.
+   */
+  const res = await request.get(tenantUrl(subdomain, "/en/orgs/new"), { maxRedirects: 0 });
 
   expect(res.status()).toBe(307);
   const location = res.headers()["location"] ?? "";
-  // Assert the HOST, not just the path. Redirecting to `/en/login` on the tenant
+  // Assert the HOST, not just the path. A redirect to `/en/login` on the tenant
   // host would also be a 307 — and would be the login loop this hop exists to
-  // prevent, because the Better Auth cookie is scoped to the apex.
+  // prevent, since the staff cookie is scoped per host.
   expect(new URL(location).host).toBe(new URL(APEX_ORIGIN).host);
-  expect(new URL(location).pathname).toBe("/en/dashboard");
+  expect(new URL(location).pathname).toBe("/en/orgs/new");
 });
 
 test("a tenant-stage prefix is not served on the apex", async ({ request }) => {
   const res = await request.get(`${APEX_ORIGIN}/en/zapisy/anything`, { maxRedirects: 0 });
   expect(res.status()).toBe(404);
+});
+
+test("a guarded staff route on the apex still meets default-deny", async ({ request }) => {
+  /*
+   * THE REGRESSION GUARD FOR THE `stage` TABLE, and the reason `PathStage` has a
+   * third value instead of two (F4.6).
+   *
+   * The apex branch in src/proxy.ts returns `forward()` EARLY for a "tenant"-stage
+   * prefix, which skips `isPublicBarePage` AND default-deny below it. That early
+   * return is harmless while the only page-routing "tenant" prefix is `zapisy`,
+   * because no such route exists and the app router answers 404 (the test above).
+   *
+   * Marking `dashboard` as "tenant" — literally what the old comments in
+   * reserved-slugs.ts and proxy.ts proposed for this phase — changes that: the
+   * route DOES exist, so the request is forwarded into the page.
+   *
+   * MEASURED, so the assertion below is the sharp one rather than the dramatic
+   * one: the page's own `requireSession` still refuses (§4.2 holds), but it
+   * answers `/login?callbackUrl=%2Fdashboard` — WITHOUT the locale. The proxy
+   * answers `/en/login?callbackUrl=%2Fen%2Fdashboard`. So what the mutation
+   * actually costs is the edge guard as a first line plus locale preservation,
+   * and it is the PATHNAME check below that catches it, not the status.
+   *
+   * Mutation-checked: setting `dashboard` to "tenant" in RESERVED_PATH_PREFIXES
+   * fails this test on the pathname line. The sibling test above does NOT fail
+   * under that mutation, because it probes `/zapisy` — which is exactly why the
+   * naive flip would otherwise have shipped silently.
+   */
+  const res = await request.get(`${APEX_ORIGIN}/en/dashboard`, { maxRedirects: 0 });
+
+  expect(res.status(), "an anonymous request must never reach the panel").toBe(307);
+  // `Location` is relative, so it needs a base to parse against. The LOCALE in
+  // the path is the load-bearing part: it is what distinguishes the proxy's
+  // refusal from the page's, and therefore what proves the edge guard ran.
+  const location = new URL(res.headers()["location"] ?? "", APEX_ORIGIN);
+  expect(location.pathname, "the proxy must refuse, not the page").toBe("/en/login");
+  expect(location.searchParams.get("callbackUrl")).toBe("/en/dashboard");
 });
 
 /* ─── D39 closed: the academy is no longer a request field ─────────────── */

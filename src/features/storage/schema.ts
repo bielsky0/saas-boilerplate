@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { idParam, optionalSlugParam } from "@/lib/validation";
+import { idParam } from "@/lib/validation";
 
 /**
  * Storage input validation (spec 21.2 / 22.2 — validation as the entry point).
@@ -31,15 +31,14 @@ export const ALLOWED_CONTENT_TYPES = [
 export const VISIBILITIES = ["public", "private"] as const;
 
 /**
- * `slug` names the tenant the upload belongs to (absent → personal account). It
- * is part of the schema rather than read out-of-band beside it, because it is
- * the argument that decides WHOSE storage is written — the single most
- * authority-bearing field in the body. It used to be pulled off the raw object
- * with `typeof body.slug === "string"`, which accepts `""` and any junk and left
- * `resolveStorageOwner` to sort it out downstream.
+ * THE TENANT IS NO LONGER A FIELD HERE (F4.6). It used to travel as `slug`, and
+ * the note that stood here called it "the single most authority-bearing field in
+ * the body" — which was the argument for validating it, and is now the argument
+ * for removing it. `resolveStorageOwner` reads the academy from the request host
+ * instead, so a caller can no longer name whose storage is written; an academy
+ * host means that academy's files, the apex means the caller's own account.
  */
 export const presignInputSchema = z.object({
-  slug: optionalSlugParam,
   filename: z.string().trim().min(1).max(255),
   contentType: z.enum(ALLOWED_CONTENT_TYPES),
   // Declared size — validated here, then bound into the bucket policy so the
@@ -51,6 +50,5 @@ export const presignInputSchema = z.object({
 export type PresignInput = z.infer<typeof presignInputSchema>;
 
 export const confirmInputSchema = z.object({
-  slug: optionalSlugParam,
   fileId: idParam,
 });

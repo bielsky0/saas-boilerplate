@@ -38,10 +38,10 @@ const TEACHING_ROLES = new Set(["trainer", "admin", "owner"]);
 export default async function GroupTypeDetailPage({
   params,
 }: {
-  params: Promise<{ slug: string; groupTypeId: string }>;
+  params: Promise<{ groupTypeId: string }>;
 }) {
-  const { slug, groupTypeId } = await params;
-  const { org } = await requireOrgPermission(slug, "group_types.manage");
+  const { groupTypeId } = await params;
+  const { org } = await requireOrgPermission("group_types.manage");
   const [t, tr, td] = await Promise.all([
     getTranslations("groups"),
     getTranslations("groups.recurrences"),
@@ -82,7 +82,7 @@ export default async function GroupTypeDetailPage({
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
         <Button asChild variant="ghost" size="sm" className="self-start px-0">
-          <Link href={`/orgs/${slug}/group-types`}>← {t("backToList")}</Link>
+          <Link href={`/dashboard/group-types`}>← {t("backToList")}</Link>
         </Button>
         <h1 className="text-2xl font-semibold">{data.groupType.name}</h1>
         <p className="text-muted-foreground font-mono text-xs">/zapisy/{data.groupType.slug}</p>
@@ -94,7 +94,6 @@ export default async function GroupTypeDetailPage({
         </CardHeader>
         <CardContent>
           <GroupTypeForm
-            slug={slug}
             locations={data.locations}
             defaults={{
               id: data.groupType.id,
@@ -169,7 +168,6 @@ export default async function GroupTypeDetailPage({
             </CardHeader>
             <CardContent>
               <RecurrenceForm
-                slug={slug}
                 groupTypeId={groupTypeId}
                 trainers={trainers}
                 locations={data.locations}
@@ -196,7 +194,6 @@ export default async function GroupTypeDetailPage({
           </CardHeader>
           <CardContent>
             <RecurrenceForm
-              slug={slug}
               groupTypeId={groupTypeId}
               trainers={trainers}
               locations={data.locations}

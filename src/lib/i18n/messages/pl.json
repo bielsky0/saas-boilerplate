@@ -397,7 +397,9 @@
       "heading": "Osobiste",
       "newOrg": "Nowa organizacja",
       "verifyEmail": "Potwierdź swój adres e-mail. Sprawdź skrzynkę i kliknij link weryfikacyjny.",
-      "signedInAs": "Zalogowano jako <strong>{email}</strong>. Użyj przełącznika powyżej, aby przechodzić między kontem osobistym a organizacjami."
+      "signedInAs": "Zalogowano jako <strong>{email}</strong>. Użyj przełącznika powyżej, aby przechodzić między kontem osobistym a organizacjami.",
+      "yourOrgs": "Twoje akademie",
+      "yourOrgsHint": "Każda akademia to osobne miejsce pracy z własnym logowaniem."
     },
     "org": {
       "yourRole": "Twoja rola:",

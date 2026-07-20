@@ -27,7 +27,7 @@ const initialState: ActionState = {};
  * reveals whether the email already has an account. Success is surfaced as a
  * toast; validation errors stay inline next to the form.
  */
-export function InviteMemberForm({ slug }: { slug: string }) {
+export function InviteMemberForm() {
   const [state, formAction, pending] = useActionState(inviteMemberAction, initialState);
   const t = useTranslations("organizations");
 
@@ -37,7 +37,6 @@ export function InviteMemberForm({ slug }: { slug: string }) {
 
   return (
     <form action={formAction} className="flex flex-col gap-3 sm:flex-row sm:items-end" noValidate>
-      <input type="hidden" name="slug" value={slug} />
       <div className="flex-1">
         <FormField label={t("fields.email")} htmlFor="invite-email">
           <Input id="invite-email" name="email" type="email" required autoComplete="off" />

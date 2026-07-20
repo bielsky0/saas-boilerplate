@@ -1,6 +1,6 @@
 import { billing } from "@/lib/adapters/billing";
 import type { BillingRedirectResult } from "@/lib/adapters/billing";
-import { absoluteUrl } from "@/lib/site";
+import { apexUrl, tenantUrl } from "@/lib/tenant-url";
 import { withOwner } from "@/lib/db/tenant";
 import { getBillingCustomerForOwner, insertBillingCustomer } from "./data";
 import type { BillingOwner, ResolvedBillingOwner } from "./context";
@@ -23,9 +23,22 @@ import type { Plan } from "./plans";
  * subscription row.
  */
 
-/** Where the provider sends the browser back to, per tenant context. */
-function returnPath(orgSlug: string | null): string {
-  return orgSlug ? `/orgs/${orgSlug}/settings/billing` : "/settings/billing";
+/**
+ * Where the provider sends the browser back to, per tenant context.
+ *
+ * ABSOLUTE AND REQUEST-AWARE (F4.6). These URLs are handed to Stripe, which
+ * later redirects the browser to them, so they must name the host the user
+ * actually started on. `absoluteUrl()` cannot do that: it is built on
+ * `NEXT_PUBLIC_APP_URL`, which Next inlines at BUILD time, so one image can only
+ * ever point at the apex — an academy admin would finish checkout on a host
+ * where their session cookie does not exist and be asked to sign in again.
+ *
+ * The academy is identified by SUBDOMAIN, not slug: the panel is host-addressed
+ * now, and `/dashboard/settings/billing` is the same path on every academy host.
+ */
+async function returnUrl(subdomain: string | null, query = ""): Promise<string> {
+  const path = subdomain ? "/dashboard/settings/billing" : "/settings/billing";
+  return subdomain ? tenantUrl(subdomain, `${path}${query}`) : apexUrl(`${path}${query}`);
 }
 
 /**
@@ -80,15 +93,18 @@ export async function startCheckout(
   const customer = await ensureBillingCustomer(ctx.owner, ctx.email, ctx.name);
   if (!customer.ok) return customer;
 
-  const back = returnPath(ctx.orgSlug);
+  const [successUrl, cancelUrl] = await Promise.all([
+    returnUrl(ctx.orgSubdomain, "?checkout=success"),
+    returnUrl(ctx.orgSubdomain, "?checkout=canceled"),
+  ]);
   return billing.createCheckoutSession({
     providerCustomerId: customer.providerCustomerId,
     providerPriceId: plan.priceId,
     // Seats are synced from the provider via webhooks; checkout starts at one.
     quantity: 1,
     mode: plan.mode,
-    successUrl: absoluteUrl(`${back}?checkout=success`),
-    cancelUrl: absoluteUrl(`${back}?checkout=canceled`),
+    successUrl,
+    cancelUrl,
   });
 }
 
@@ -109,6 +125,6 @@ export async function openBillingPortal(
 
   return billing.createPortalSession({
     providerCustomerId: existing.providerCustomerId,
-    returnUrl: absoluteUrl(returnPath(ctx.orgSlug)),
+    returnUrl: await returnUrl(ctx.orgSubdomain),
   });
 }

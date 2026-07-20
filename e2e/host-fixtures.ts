@@ -29,9 +29,16 @@ const PORT = 3000;
  * Env for the E2E server.
  *
  * `APP_ROOT_DOMAIN` is the one that changes behaviour. The other two follow it so
- * that absolute URLs (verification links, Stripe returns, canonical tags) name a
- * host the suite can actually reach — they are build/runtime-baked to the apex,
- * which stays correct while the staff panel lives there (F4.6 changes that).
+ * that absolute URLs (verification links, canonical tags) name a host the suite
+ * can actually reach.
+ *
+ * They stay pinned to the APEX even though F4.6 moved the staff panel onto tenant
+ * hosts, and that is correct rather than leftover: `BETTER_AUTH_URL` is the
+ * origin Better Auth is mounted at, not the only origin it serves — academy hosts
+ * are covered by `trustedOrigins` (`*.{APP_ROOT_DOMAIN}`), and cookies stay
+ * host-scoped by design (§2.19 exception #5). The URLs that DO have to follow the
+ * request host no longer come from these variables at all; they are built at
+ * request time in `src/lib/tenant-url.ts`.
  */
 export const E2E_HOST_ENV = {
   APP_ROOT_DOMAIN: E2E_ROOT_DOMAIN,

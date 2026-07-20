@@ -468,17 +468,18 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     }
     if (reserved.stage === "apex") {
       /*
-       * Staff surface, which F4.5 deliberately left on the apex (D60). Without
-       * this hop, `/dashboard` on an academy host would fall through to
-       * default-deny and redirect to `/login` ON THIS HOST — where the Better
-       * Auth cookie is host-scoped and BETTER_AUTH_URL names the apex. That is a
+       * Platform surface: `/admin`, `/orgs/new`, marketing content (D60). Without
+       * this hop it would fall through to default-deny and redirect to `/login`
+       * ON THIS HOST — where the Better Auth cookie does not exist. That is a
        * login loop, and nothing in it says why.
        *
-       * F4.6 turns this off by flipping those prefixes to "tenant".
+       * `/dashboard` and the auth pages LEFT this branch in F4.6; they are now
+       * "both" and fall through here, which is what puts the staff panel on the
+       * academy's own host.
        */
       return redirectTo(apexUrl(request, pathname, search), requestId, nonce);
     }
-    // stage === "tenant": an app route that belongs on this host. Fall through.
+    // "tenant" or "both": an app route that belongs on this host. Fall through.
   } else {
     /*
      * The mirror image, on the apex (D60). A "tenant"-stage prefix names a route
@@ -493,6 +494,16 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
      * `api` is excluded: /api routes are host-agnostic plumbing, several are
      * legitimately apex-only (billing webhooks, cron, dev seeding), and the ones
      * that do need a tenant already answer `unknown_organization` themselves.
+     *
+     * ⚠️ THIS EARLY RETURN SKIPS `isPublicBarePage` AND DEFAULT-DENY BELOW, and
+     * that is the whole reason `PathStage` gained "both" in F4.6. It is safe only
+     * for prefixes with no apex route to render — `zapisy` 404s from the app
+     * router. A guarded prefix that DOES have a route (`/dashboard`) must never
+     * be "tenant": the request reaches the page, and although §4.2's own guards
+     * still refuse it, the refusal comes from the page and therefore loses the
+     * locale (`/login`, not `/en/login`). Measured, not assumed — see the note in
+     * features/cms/reserved-slugs.ts. "both" falls through instead, which is why
+     * the staff panel is marked that way.
      */
     const reserved = reservedPrefixOf(bare);
     if (reserved?.stage === "tenant" && reserved.prefix !== "api") {

@@ -13,7 +13,7 @@ import { resolveBillingOwner } from "@/features/billing/context";
  * beyond a valid session.
  */
 export default async function PersonalBillingPage() {
-  const [{ owner }, t] = await Promise.all([resolveBillingOwner(null), getTranslations("billing")]);
+  const [{ owner }, t] = await Promise.all([resolveBillingOwner(), getTranslations("billing")]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -22,7 +22,7 @@ export default async function PersonalBillingPage() {
         <p className="text-muted-foreground text-sm">{t("personalSubtitle")}</p>
       </div>
 
-      <BillingPanel owner={owner} slug={null} />
+      <BillingPanel owner={owner} />
     </div>
   );
 }

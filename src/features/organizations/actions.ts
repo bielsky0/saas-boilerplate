@@ -16,6 +16,7 @@ import { clientEnv } from "@/lib/env/client";
 import { storedLocaleForEmail, toLocale } from "@/lib/i18n/user-locale";
 import type { FormState } from "@/lib/validation";
 import { withTenant } from "@/lib/db/tenant";
+import { apexUrl } from "@/lib/tenant-url";
 import { getInvitationByTokenHash } from "./cross-tenant";
 import { requireOrgPermission, requireOrgsEnabled } from "./context";
 import {
@@ -168,7 +169,17 @@ export async function createOrganizationAction(
     });
   });
 
-  redirect(`/orgs/${slug}`);
+  /*
+   * BACK TO THE APEX DASHBOARD, NOT INTO THE NEW ACADEMY (F4.6).
+   *
+   * The academy lives on its own host now, and the staff session cookie is
+   * host-scoped (§2.19 exception #5 — deliberately, not as a simplification).
+   * Redirecting straight to `{subdomain}/dashboard` would therefore land the
+   * user on a login screen seconds after signing in, with nothing on the page
+   * explaining why. The apex dashboard instead confirms the academy exists by
+   * listing it in the directory, and the user enters it by choosing it.
+   */
+  redirect("/dashboard");
 }
 
 // --- Invitations ------------------------------------------------------------
@@ -177,8 +188,7 @@ export async function inviteMemberAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const slug = str(formData.get("slug"));
-  const ctx = await requireOrgPermission(slug, "members.invite");
+  const ctx = await requireOrgPermission("members.invite");
 
   const [t, tv, ts] = await Promise.all([
     getTranslations("organizations.errors"),
@@ -304,7 +314,7 @@ export async function inviteMemberAction(
     }
   });
 
-  revalidatePath(`/orgs/${slug}/members`);
+  revalidatePath("/dashboard/members");
   return { success: ts("invitationSent", { email: parsed.data.email }) };
 }
 
@@ -312,9 +322,8 @@ export async function revokeInvitationAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const slug = str(formData.get("slug"));
   const invitationId = str(formData.get("invitationId"));
-  const ctx = await requireOrgPermission(slug, "invitations.revoke");
+  const ctx = await requireOrgPermission("invitations.revoke");
   const ts = await getTranslations("organizations.success");
   const actor = await resolveActor(ctx.session);
 
@@ -353,7 +362,7 @@ export async function revokeInvitationAction(
     });
   });
 
-  revalidatePath(`/orgs/${slug}/members`);
+  revalidatePath("/dashboard/members");
   return { success: ts("invitationRevoked") };
 }
 
@@ -416,7 +425,9 @@ export async function acceptInvitationAction(
     });
   });
 
-  redirect(`/orgs/${org.slug}`);
+  // The apex directory, for the same reason as `createOrganizationAction` above:
+  // the invitee's session does not exist on the academy's host yet.
+  redirect("/dashboard");
 }
 
 // --- Member management ------------------------------------------------------
@@ -425,8 +436,7 @@ export async function updateMemberRoleAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const slug = str(formData.get("slug"));
-  const ctx = await requireOrgPermission(slug, "members.update_role");
+  const ctx = await requireOrgPermission("members.update_role");
   const [t, ts] = await Promise.all([
     getTranslations("organizations.errors"),
     getTranslations("organizations.success"),
@@ -495,7 +505,7 @@ export async function updateMemberRoleAction(
     throw error;
   }
 
-  revalidatePath(`/orgs/${slug}/members`);
+  revalidatePath("/dashboard/members");
   return { success: ts("roleUpdated") };
 }
 
@@ -503,8 +513,7 @@ export async function removeMemberAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const slug = str(formData.get("slug"));
-  const ctx = await requireOrgPermission(slug, "members.remove");
+  const ctx = await requireOrgPermission("members.remove");
   const [t, ts] = await Promise.all([
     getTranslations("organizations.errors"),
     getTranslations("organizations.success"),
@@ -553,16 +562,20 @@ export async function removeMemberAction(
     throw error;
   }
 
-  revalidatePath(`/orgs/${slug}/members`);
+  revalidatePath("/dashboard/members");
   return { success: ts("memberRemoved") };
 }
 
-export async function leaveOrganizationAction(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const slug = str(formData.get("slug"));
-  const ctx = await requireOrgPermission(slug, "organization.leave");
+/*
+ * NO PARAMETERS since F4.6, and that is the visible shape of the change: the
+ * academy comes from the request host, and the posted `slug` was the only field
+ * these two actions ever read. `useActionState` still calls them with
+ * (prevState, formData) — JavaScript simply ignores arguments a function does
+ * not declare, and declaring them only to leave them unread invites the next
+ * reader to start using them again.
+ */
+export async function leaveOrganizationAction(): Promise<ActionState> {
+  const ctx = await requireOrgPermission("organization.leave");
   const t = await getTranslations("organizations.errors");
   const actor = await resolveActor(ctx.session);
 
@@ -593,7 +606,13 @@ export async function leaveOrganizationAction(
     throw error;
   }
 
-  redirect("/dashboard");
+  /*
+   * The APEX dashboard, absolute — this action runs on the academy's host, and a
+   * relative "/dashboard" would land back on the panel of an academy the caller
+   * has just left or deleted. The honest answer there is a 403/404; the apex
+   * directory is where they actually belong.
+   */
+  redirect(await apexUrl("/dashboard"));
 }
 
 // --- Organization settings --------------------------------------------------
@@ -602,8 +621,7 @@ export async function updateOrganizationAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const slug = str(formData.get("slug"));
-  const ctx = await requireOrgPermission(slug, "organization.update");
+  const ctx = await requireOrgPermission("organization.update");
 
   const [t, tv, ts] = await Promise.all([
     getTranslations("organizations.errors"),
@@ -656,21 +674,19 @@ export async function updateOrganizationAction(
     });
   });
 
-  // NOTE the audit write is above this branch, not below it: `redirect()` throws,
-  // so anything after it in the success path never runs.
-  if (nextSlug !== ctx.org.slug) {
-    redirect(`/orgs/${nextSlug}/settings`);
-  }
-  revalidatePath(`/orgs/${slug}/settings`);
+  /*
+   * No redirect on slug change any more (F4.6). The panel is addressed by HOST
+   * now, and `subdomain` is a separate column that this action does not touch —
+   * so renaming the slug no longer moves the page the user is looking at. It is
+   * an internal identifier at this point (§1.2 retires it from panel routing),
+   * which is also why it stays editable: nothing a parent ever sees depends on it.
+   */
+  revalidatePath("/dashboard/settings");
   return { success: ts("organizationUpdated") };
 }
 
-export async function deleteOrganizationAction(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const slug = str(formData.get("slug"));
-  const ctx = await requireOrgPermission(slug, "organization.delete");
+export async function deleteOrganizationAction(): Promise<ActionState> {
+  const ctx = await requireOrgPermission("organization.delete");
   const actor = await resolveActor(ctx.session);
 
   await db.transaction(async (tx) => {
@@ -695,5 +711,11 @@ export async function deleteOrganizationAction(
     });
   });
 
-  redirect("/dashboard");
+  /*
+   * The APEX dashboard, absolute — this action runs on the academy's host, and a
+   * relative "/dashboard" would land back on the panel of an academy the caller
+   * has just left or deleted. The honest answer there is a 403/404; the apex
+   * directory is where they actually belong.
+   */
+  redirect(await apexUrl("/dashboard"));
 }

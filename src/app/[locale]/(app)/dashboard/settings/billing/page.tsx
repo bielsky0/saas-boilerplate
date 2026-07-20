@@ -11,9 +11,8 @@ import { requireOrgPermission } from "@/features/organizations/context";
  * org page (spec 4.2). This is also the URL the payment provider returns the
  * browser to after checkout or a portal session.
  */
-export default async function OrgBillingPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const { org } = await requireOrgPermission(slug, "billing.manage");
+export default async function OrgBillingPage() {
+  const { org } = await requireOrgPermission("billing.manage");
   const t = await getTranslations("billing");
 
   return (
@@ -23,7 +22,7 @@ export default async function OrgBillingPage({ params }: { params: Promise<{ slu
         <p className="text-muted-foreground text-sm">{org.name}</p>
       </div>
 
-      <BillingPanel owner={{ kind: "organization", organizationId: org.id }} slug={slug} />
+      <BillingPanel owner={{ kind: "organization", organizationId: org.id }} />
     </div>
   );
 }

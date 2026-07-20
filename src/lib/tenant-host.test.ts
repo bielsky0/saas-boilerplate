@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseHost } from "./tenant-host";
+import { buildTenantOrigin, parseHost } from "./tenant-host";
 
 /**
  * `parseHost` is the whole of the tenant-recognition rule (D54), and it is the
@@ -105,5 +105,46 @@ describe("parseHost — foreign", () => {
     for (const label of ["-acme", "acme-", "ac_me", "ac me", "acme!"]) {
       expect(parseHost(`${label}.langlion.pl`, ROOT), label).toEqual({ kind: "foreign" });
     }
+  });
+});
+
+describe("buildTenantOrigin", () => {
+  /**
+   * The port cases are the point. Everything else is one concatenation; the port
+   * is the part that silently breaks dev and E2E while production stays green,
+   * because production has no port to carry.
+   */
+  it("carries the port from the incoming host — the dev/E2E case", () => {
+    expect(buildTenantOrigin("acme", "localtest.me", "beta.localtest.me:3000", "http:")).toBe(
+      "http://acme.localtest.me:3000",
+    );
+  });
+
+  it("omits the port when the request has none — the production case", () => {
+    expect(buildTenantOrigin("acme", "langlion.pl", "langlion.pl", "https:")).toBe(
+      "https://acme.langlion.pl",
+    );
+  });
+
+  it("treats a bare IPv6 literal as portless", () => {
+    // A naive lastIndexOf would read `:1]` as a port and build an unreachable host.
+    expect(buildTenantOrigin("acme", "localtest.me", "[::1]", "http:")).toBe(
+      "http://acme.localtest.me",
+    );
+    expect(buildTenantOrigin("acme", "localtest.me", "[::1]:3000", "http:")).toBe(
+      "http://acme.localtest.me:3000",
+    );
+  });
+
+  it("ignores a non-numeric port rather than passing it through", () => {
+    expect(buildTenantOrigin("acme", "localtest.me", "host:notaport", "http:")).toBe(
+      "http://acme.localtest.me",
+    );
+  });
+
+  it("survives a missing Host header", () => {
+    expect(buildTenantOrigin("acme", "langlion.pl", null, "https:")).toBe(
+      "https://acme.langlion.pl",
+    );
   });
 });

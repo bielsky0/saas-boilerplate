@@ -27,9 +27,8 @@ import { withTenant } from "@/lib/db/tenant";
  * page has nothing a viewer without `locations.manage` should read, so the whole
  * route is the boundary rather than the individual buttons.
  */
-export default async function LocationsPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const { org } = await requireOrgPermission(slug, "locations.manage");
+export default async function LocationsPage() {
+  const { org } = await requireOrgPermission("locations.manage");
   const t = await getTranslations("locations");
 
   const locations = await withTenant(org.id, (tx) => listLocations(tx, org.id));
@@ -46,7 +45,7 @@ export default async function LocationsPage({ params }: { params: Promise<{ slug
           <CardTitle className="text-sm">{t("form.title")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <CreateLocationForm slug={slug} />
+          <CreateLocationForm />
         </CardContent>
       </Card>
 
@@ -67,12 +66,7 @@ export default async function LocationsPage({ params }: { params: Promise<{ slug
                 <TableCell className="font-medium">{row.name}</TableCell>
                 <TableCell className="text-muted-foreground">{row.address ?? "—"}</TableCell>
                 <TableCell className="text-right">
-                  <EditLocationForm
-                    slug={slug}
-                    locationId={row.id}
-                    name={row.name}
-                    address={row.address}
-                  />
+                  <EditLocationForm locationId={row.id} name={row.name} address={row.address} />
                 </TableCell>
               </TableRow>
             ))}

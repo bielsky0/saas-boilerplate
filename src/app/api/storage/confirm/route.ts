@@ -19,7 +19,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const parsed = confirmInputSchema.safeParse(body);
   if (!parsed.success) return validationFailed(parsed.error);
 
-  const { owner } = await resolveStorageOwner(parsed.data.slug ?? null, "storage.upload");
+  const { owner } = await resolveStorageOwner("storage.upload");
   const ok = await confirmUpload(owner, parsed.data.fileId);
   if (!ok) return apiError("Not found", 404);
 

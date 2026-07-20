@@ -53,8 +53,7 @@ class UnknownTargetError extends Error {
  * a 23503 stack trace into a message an admin can act on.
  */
 export async function grantCreditsAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const slug = str(formData.get("slug"));
-  const ctx = await requireOrgPermission(slug, "credits.manual_grant");
+  const ctx = await requireOrgPermission("credits.manual_grant");
   const [t, tv] = await Promise.all([
     getTranslations("credits"),
     getTranslations("credits.validation"),

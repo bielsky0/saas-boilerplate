@@ -25,6 +25,7 @@ const initial: FormState = {};
 export type GroupTypeDefaults = {
   id: string;
   name: string;
+  /** The GROUP TYPE's own public slug (`/zapisy/{slug}`), never the academy's. */
   slug: string;
   description: string | null;
   engine: string;
@@ -48,16 +49,17 @@ export type GroupTypeDefaults = {
  * option the action would reject is a form that fails after the user commits.
  *
  * NOTE `name="groupSlug"` for the offer's own slug. The form also posts the
- * ORGANIZATION's slug as `name="slug"`, which is what the action reads to resolve
- * the tenant — two different slugs at two different scopes (§2.27), and colliding
- * them in one FormData key would silently route the edit at the wrong entity.
+ * The field is `name="groupSlug"`, not `name="slug"`. It used to need the
+ * distinct name because the ORGANIZATION's slug travelled in the same FormData
+ * under `name="slug"`; since F4.6 the academy comes from the request host and no
+ * longer appears in the payload at all. The name stays as it is: the two slugs
+ * live at different scopes (§2.27) and reusing the generic key would invite
+ * exactly the collision it was renamed to avoid.
  */
 export function GroupTypeForm({
-  slug,
   locations,
   defaults,
 }: {
-  slug: string;
   locations: { id: string; name: string }[];
   defaults?: GroupTypeDefaults;
 }) {
@@ -74,7 +76,6 @@ export function GroupTypeForm({
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <input type="hidden" name="slug" value={slug} />
       {defaults ? <input type="hidden" name="groupTypeId" value={defaults.id} /> : null}
 
       <div className="grid gap-4 sm:grid-cols-2">

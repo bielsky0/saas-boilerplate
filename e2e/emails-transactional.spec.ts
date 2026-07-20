@@ -1,5 +1,6 @@
 import { type APIRequestContext } from "@playwright/test";
 import { expect, test } from "./rate-limit-fixtures";
+import { tenantUrl } from "./host-fixtures";
 
 import { invoiceEvent, signedRequest, subscriptionEvent, uniqueId } from "./billing-fixtures";
 import {
@@ -9,6 +10,7 @@ import {
   getJobs,
   registerAndVerify,
   registerViaApi,
+  loginToAcademy,
   seedOrg,
   uniqueEmail,
   waitForEmail,
@@ -33,10 +35,10 @@ async function seedBillingOrg(
   await registerViaApi(request, ownerEmail);
   for (const e of extraOwners) await registerViaApi(request, e);
 
-  const orgSlug = await seedOrg(request, {
+  const { slug: orgSlug } = await seedOrg(request, {
     ownerEmail,
     name: "Mail Co",
-    // Unique slug per test: the suite is parallel against one shared database.
+    // Unique subdomain per test: the suite is parallel against one shared database.
     slug: uniqueId("mail-co"),
     members: extraOwners.map((email) => ({ email, role: "owner" })),
   });
@@ -80,19 +82,16 @@ test("invitation sends via the queue, and its job payload is scrubbed", async ({
   const ownerEmail = uniqueEmail("inviter");
   const inviteeEmail = uniqueEmail("invitee");
   await registerViaApi(request, ownerEmail);
-  const slug = await seedOrg(request, {
+  const { subdomain } = await seedOrg(request, {
     ownerEmail,
     name: "Invite Co",
     slug: uniqueId("invite-co"),
   });
 
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(ownerEmail);
-  await page.getByLabel("Password").fill(TEST_PASSWORD);
-  await page.getByRole("button", { name: /log in/i }).click();
-  await page.waitForURL("**/dashboard");
-
-  await page.goto(`/orgs/${slug}/members`);
+  // On the academy's own host: the members page lives there since F4.6, and an
+  // apex session is not sent to it (§2.19 exception #5).
+  await loginToAcademy(page, subdomain, ownerEmail, TEST_PASSWORD);
+  await page.goto(tenantUrl(subdomain, "/dashboard/members"));
   await page.getByLabel("Email").fill(inviteeEmail);
   await page.getByLabel("Role", { exact: true }).click();
   await page.getByRole("option", { name: "Member" }).click();

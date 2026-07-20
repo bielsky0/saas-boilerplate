@@ -17,7 +17,7 @@ const initial: FormState = {};
  * page already hides these for viewers without the permission, which is
  * cosmetic by design (spec §4.2).
  */
-export function CreateLocationForm({ slug }: { slug: string }) {
+export function CreateLocationForm() {
   const t = useTranslations("locations");
   const [state, action, pending] = useActionState(createLocationAction, initial);
 
@@ -27,7 +27,6 @@ export function CreateLocationForm({ slug }: { slug: string }) {
 
   return (
     <form action={action} className="flex flex-col gap-4 sm:flex-row sm:items-end">
-      <input type="hidden" name="slug" value={slug} />
       <div className="flex-1">
         <FormField label={t("form.name")} htmlFor="location-name">
           <Input id="location-name" name="name" required />
@@ -53,7 +52,6 @@ export function CreateLocationForm({ slug }: { slug: string }) {
  * and a modal for two fields is more ceremony than the edit deserves.
  */
 export function EditLocationForm(props: {
-  slug: string;
   locationId: string;
   name: string;
   address: string | null;
@@ -85,13 +83,11 @@ export function EditLocationForm(props: {
 }
 
 function EditLocationFields({
-  slug,
   locationId,
   name,
   address,
   onCancel,
 }: {
-  slug: string;
   locationId: string;
   name: string;
   address: string | null;
@@ -117,7 +113,6 @@ function EditLocationFields({
 
   return (
     <form action={action} className="flex flex-wrap items-end justify-end gap-2">
-      <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="locationId" value={locationId} />
       <Input name="name" defaultValue={name} aria-label={t("form.name")} className="w-40" />
       <Input

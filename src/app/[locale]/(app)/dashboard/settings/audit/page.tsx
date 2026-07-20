@@ -33,21 +33,18 @@ import { orgAuditListQuerySchema } from "@/features/organizations/schema";
  *     Under [locale] a bare action would drop the prefix on every filter submit
  *     and bounce through a proxy redirect.
  *
- * Access is `requireOrgPermission(slug, "audit.read")` as the FIRST line — Owner
+ * Access is `requireOrgPermission("audit.read")` as the FIRST line — Owner
  * and Admin only. A Member who types the URL gets a real 403, not a hidden link.
  *
  * Timestamps render in full UTC, never relative: "2 hours ago" is unusable in the
  * incident review and compliance export this page exists for.
  */
 export default async function OrgAuditPage({
-  params,
   searchParams,
 }: {
-  params: Promise<{ slug: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { slug } = await params;
-  const { org } = await requireOrgPermission(slug, "audit.read");
+  const { org } = await requireOrgPermission("audit.read");
 
   const query = orgAuditListQuerySchema.parse(await searchParams);
   const [{ rows, page, hasNext }, t, ta, locale] = await Promise.all([
@@ -57,7 +54,7 @@ export default async function OrgAuditPage({
     getLocale(),
   ]);
 
-  const basePath = withLocale(`/orgs/${slug}/settings/audit`, locale);
+  const basePath = withLocale(`/dashboard/settings/audit`, locale);
 
   // `action` is wire vocabulary and the catalog only names the actions that exist
   // today. Narrow before translating; an action written by a NEWER deploy (the

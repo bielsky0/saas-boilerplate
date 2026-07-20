@@ -33,9 +33,8 @@ import { eq, and, isNull } from "drizzle-orm";
  * booking surface (F5). F4 builds the engine; this is the one place in it that
  * needs a human to make a decision, so it is the one place that gets a screen.
  */
-export default async function CreditsPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const { org } = await requireOrgPermission(slug, "credits.manual_grant");
+export default async function CreditsPage() {
+  const { org } = await requireOrgPermission("credits.manual_grant");
   const t = await getTranslations("credits");
 
   const { clients, creditTypes, athletes, ledger } = await withTenant(org.id, async (tx) => {
@@ -87,7 +86,6 @@ export default async function CreditsPage({ params }: { params: Promise<{ slug: 
             <p className="text-muted-foreground text-sm">{t("form.prerequisites")}</p>
           ) : (
             <GrantCreditsForm
-              slug={slug}
               clients={clients.map((row) => ({
                 id: row.id,
                 email: row.email,

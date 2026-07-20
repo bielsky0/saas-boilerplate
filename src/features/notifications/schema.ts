@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { idParam, optionalSlugParam } from "@/lib/validation";
+import { idParam } from "@/lib/validation";
 import { NOTIFICATION_META } from "./types";
 
 /**
@@ -42,23 +42,18 @@ export const notificationJobSchema = z
  * A server action is a POST endpoint with an encrypted id, not a function call —
  * Next's own docs are explicit that it "is reachable to anyone who can send the
  * same POST" and that `FormData`, query parameters and headers are untrusted.
- * TypeScript's `slug: string | null` describes what the app's own UI sends; it
- * constrains nobody else. These schemas are what actually hold the arguments to
- * a shape.
+ * TypeScript's types describe what the app's own UI sends; they constrain nobody
+ * else. These schemas are what actually hold the arguments to a shape.
  *
- * `slug` matters most: it selects WHICH tenant's notifications the call is
- * about. `resolveNotificationOwner` is still the authorization boundary and is
- * still what stops a caller reaching another tenant — this runs first so that
- * boundary is handed a well-formed slug rather than arbitrary bytes.
+ * The tenant used to travel here as `slug` — it selected WHICH tenant's
+ * notifications the call was about, which made it the field most worth
+ * validating. F4.6 removed it: the academy comes from the request host, so the
+ * caller cannot name it at all. `resolveNotificationOwner` remains the
+ * authorization boundary either way.
  *
  * Untranslated on purpose: these are argument shapes, and a failure means a
  * hand-built request, not a user mistake. There is no form to render them on.
  */
 export const markReadSchema = z.object({
-  slug: optionalSlugParam,
   id: idParam,
-});
-
-export const markAllReadSchema = z.object({
-  slug: optionalSlugParam,
 });

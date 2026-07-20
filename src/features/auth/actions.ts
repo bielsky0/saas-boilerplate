@@ -8,7 +8,8 @@ import { authAdapter } from "@/lib/adapters/auth";
 import { rateLimit } from "@/lib/adapters/rate-limit";
 import { signOut as serverSignOut } from "@/lib/auth";
 import { env } from "@/lib/env/server";
-import { LOCALE_COOKIE, type Locale, withLocale } from "@/lib/i18n/config";
+import { DEFAULT_LOCALE, LOCALE_COOKIE, type Locale, withLocale } from "@/lib/i18n/config";
+import { requestLocale } from "@/lib/i18n/request-locale";
 import { storedLocaleForEmail } from "@/lib/i18n/user-locale";
 import { LOGIN_RULE, loginRateLimitKey } from "@/lib/security/rate-limit";
 import { type FormState as SharedFormState, invalid } from "@/lib/validation";
@@ -255,8 +256,21 @@ async function finishSignIn(formData: FormData, stored: Locale | null): Promise<
    * browser said en" into "they chose en" — and that fabricated preference would
    * then outrank the browser forever, including after they change it. A user who
    * has never picked a language keeps negotiating, which is the honest answer.
+   *
+   * ⚠️ BUT THE REDIRECT TARGET STILL CARRIES A LOCALE (F4.6). It used to be a
+   * bare `/dashboard` and rely on the proxy to add the prefix. A redirect issued
+   * from a Server Action never reaches the proxy — Next resolves it internally —
+   * so the bare path was rendered as-is. On the apex that happened to look right;
+   * on an academy host it produced a locale-less URL with no tenant resolved, and
+   * a staff member landed on the PERSONAL dashboard immediately after signing in
+   * to their own academy. A reload fixed it, which is the signature of "the proxy
+   * never saw this request".
+   *
+   * Negotiating here is not the same as storing: nothing is written to
+   * `user.locale`, so the rule above is intact — the next request negotiates
+   * again exactly as before.
    */
-  if (!stored) redirect(callbackUrl);
+  if (!stored) redirect(withLocale(callbackUrl, (await requestLocale()) ?? DEFAULT_LOCALE));
 
   (await cookies()).set(LOCALE_COOKIE, stored, {
     path: "/",

@@ -4,7 +4,7 @@ import { Bell } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
-import { Link, usePathname, useRouter } from "@/lib/i18n/navigation";
+import { Link, useRouter } from "@/lib/i18n/navigation";
 import {
   Button,
   DropdownMenu,
@@ -20,8 +20,14 @@ import { isNotificationType } from "../types";
 /**
  * Global notification bell (spec 23.2 / 23.4). Polls the notifications endpoint —
  * WebSocket is deliberately out of scope for a dual serverless/standalone target
- * (spec 23.4 permits polling). Context comes from the URL slug, matching the
- * account switcher, so switching org changes what the bell shows. Text is
+ * (spec 23.4 permits polling).
+ *
+ * CONTEXT COMES FROM THE HOST, and the bell no longer computes it (F4.6). It
+ * used to parse the org slug out of `usePathname()` and send it back as a query
+ * parameter — a client deciding which tenant's notifications to be handed. The
+ * endpoint now reads the academy from the request host, so this component asks
+ * for "the notifications for wherever I am" and cannot ask for anything else.
+ * Text is
  * rendered from `type` + `params` in the VIEWER's current locale (spec 16), never
  * stored pre-rendered.
  */
@@ -37,26 +43,17 @@ type Item = {
   createdAt: string;
 };
 
-function slugFromPath(pathname: string): string | null {
-  // Path here has no locale prefix (i18n `usePathname`), e.g. `/orgs/acme/...`.
-  return pathname.startsWith("/orgs/") ? (pathname.split("/")[2] ?? null) : null;
-}
-
 export function NotificationBell() {
   const t = useTranslations("notifications");
   const format = useFormatter();
   const router = useRouter();
-  const pathname = usePathname();
-  const slug = slugFromPath(pathname);
 
   const [items, setItems] = useState<Item[]>([]);
   const [unread, setUnread] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(
-        `/api/notifications${slug ? `?slug=${encodeURIComponent(slug)}` : ""}`,
-      );
+      const res = await fetch("/api/notifications");
       if (!res.ok) return;
       const data: { unreadCount: number; items: Item[] } = await res.json();
       setUnread(data.unreadCount);
@@ -64,7 +61,7 @@ export function NotificationBell() {
     } catch {
       // Transient network error — the next tick retries. Nothing user-facing.
     }
-  }, [slug]);
+  }, []);
 
   useEffect(() => {
     // Both the first load and the poll run from timer callbacks (an external
@@ -88,7 +85,7 @@ export function NotificationBell() {
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, readAt: "now" } : i)));
       setUnread((n) => Math.max(0, n - 1));
     }
-    await markReadAction(slug, item.id);
+    await markReadAction(item.id);
     if (item.link) {
       // verify-email links are absolute (a full app URL); everything else is an
       // app-relative route the locale-aware router can take.
@@ -100,7 +97,7 @@ export function NotificationBell() {
   async function markAll() {
     setItems((prev) => prev.map((i) => ({ ...i, readAt: i.readAt ?? "now" })));
     setUnread(0);
-    await markAllReadAction(slug);
+    await markAllReadAction();
   }
 
   return (

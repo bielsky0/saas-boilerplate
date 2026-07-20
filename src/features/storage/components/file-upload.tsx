@@ -25,7 +25,7 @@ import { ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES } from "@/features/storage";
  * Then `router.refresh()` re-renders the server-side list. Client-side type/size
  * checks here are UX only; the backend + bucket policy are the real gate.
  */
-export function FileUpload({ slug }: { slug: string }) {
+export function FileUpload() {
   const t = useTranslations("storage");
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,7 +38,6 @@ export function FileUpload({ slug }: { slug: string }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        slug,
         filename: fileToUpload.name,
         contentType: fileToUpload.type,
         size: fileToUpload.size,
@@ -66,7 +65,7 @@ export function FileUpload({ slug }: { slug: string }) {
     const confirmRes = await fetch("/api/storage/confirm", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug, fileId }),
+      body: JSON.stringify({ fileId }),
     });
     if (!confirmRes.ok) {
       throw new Error(t("errors.confirm"));

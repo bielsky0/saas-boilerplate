@@ -35,12 +35,10 @@ async function openProviderUrl(
 }
 
 export function CheckoutButton({
-  slug,
   plan,
   label,
   variant = "default",
 }: {
-  slug: string | null;
   plan: PlanId;
   label: string;
   variant?: "default" | "outline";
@@ -55,7 +53,7 @@ export function CheckoutButton({
       disabled={pending}
       onClick={() => {
         setPending(true);
-        void openProviderUrl("/api/billing/checkout", { slug, plan }).then((result) => {
+        void openProviderUrl("/api/billing/checkout", { plan }).then((result) => {
           if (result.ok) return; // Navigating away; leave the button disabled.
           setPending(false);
           // 404 here means this deployment has no payment provider configured,
@@ -69,7 +67,7 @@ export function CheckoutButton({
   );
 }
 
-export function PortalButton({ slug }: { slug: string | null }) {
+export function PortalButton() {
   const t = useTranslations("billing");
   const [pending, setPending] = useState(false);
 
@@ -79,7 +77,7 @@ export function PortalButton({ slug }: { slug: string | null }) {
       disabled={pending}
       onClick={() => {
         setPending(true);
-        void openProviderUrl("/api/billing/portal", { slug }).then((result) => {
+        void openProviderUrl("/api/billing/portal", {}).then((result) => {
           if (result.ok) return;
           setPending(false);
           toast.error(result.status === 404 ? t("noPortal") : t("providerError"));

@@ -1,7 +1,7 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { findOrganizationBySubdomain } from "@/features/client-auth/organization";
+import { getOrgBySubdomain } from "@/features/organizations/data";
 import { withTenant } from "@/lib/db/tenant";
 import { client, clientOtp, clientSession } from "@/lib/db/schema";
 import { env } from "@/lib/env/server";
@@ -37,7 +37,7 @@ type Body = {
 };
 
 async function resolve(subdomain: string) {
-  return findOrganizationBySubdomain(subdomain.trim().toLowerCase());
+  return getOrgBySubdomain(subdomain.trim().toLowerCase());
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {

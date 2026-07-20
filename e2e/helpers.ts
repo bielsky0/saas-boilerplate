@@ -1,5 +1,7 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
+import { tenantOrigin, tenantUrl } from "./host-fixtures";
+
 /** Unique address per call so tests never collide. */
 export function uniqueEmail(prefix = "e2e"): string {
   return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1e6)}@example.com`;
@@ -292,8 +294,19 @@ export async function failNextEmails(
 }
 
 /**
- * Seed an organization owned by an existing seeded user, with optional members,
- * via the test-only route. Returns the (possibly de-duplicated) slug.
+ * Seed an organization owned by an existing seeded user, with optional members.
+ *
+ * Returns BOTH identifiers (F4.6), because they are no longer interchangeable and
+ * the difference is invisible at the type level — both are strings.
+ *
+ * `subdomain` is where the academy LIVES: the staff panel moved onto tenant
+ * hosts, so navigation and sign-in need it. `slug` remains an internal handle
+ * that some dev routes still look up by. They are usually equal — the seeder
+ * derives one from the other — but not always: the derivation sanitizes to a
+ * legal DNS label, so a slug carrying underscores (`uniqueId()` produces them)
+ * yields a different subdomain. Returning one string and letting specs assume it
+ * serves both roles is exactly the D63 trap, which surfaces as a 404 nowhere
+ * near its cause.
  */
 export async function seedOrg(
   request: APIRequestContext,
@@ -302,20 +315,20 @@ export async function seedOrg(
     name?: string;
     slug?: string;
     // langlion §1.2: required columns on `organization`. Omitted by almost every
-    // spec — the route defaults timezone/currency and derives the subdomain from
-    // the (already unique) slug, so only a test asserting on these needs them.
+    // spec — the route defaults timezone/currency and derives a legal-DNS-label
+    // subdomain from the (already unique) slug, so only a test asserting on
+    // these needs them.
     subdomain?: string;
     timezone?: string;
     currency?: string;
     members?: Array<{ email: string; role: string }>;
   },
-): Promise<string> {
+): Promise<{ slug: string; subdomain: string }> {
   const res = await request.post("/api/dev/seed-org", { data: opts });
   if (!res.ok()) {
     throw new Error(`seedOrg failed (${res.status()}): ${await res.text()}`);
   }
-  const body = (await res.json()) as { slug: string };
-  return body.slug;
+  return (await res.json()) as { slug: string; subdomain: string };
 }
 
 /**
@@ -350,11 +363,53 @@ export async function registerAndVerify(
   return getUserId(request, email);
 }
 
-/** Fill and submit the login form. */
+/** Fill and submit the login form on whatever page is currently open. */
 export async function loginViaUi(page: Page, email: string, password: string): Promise<void> {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: /log in/i }).click();
+}
+
+/**
+ * Sign in ON AN ACADEMY'S OWN HOST and land on its panel (F4.6).
+ *
+ * ⚠️ SIGNING IN AT THE APEX AND THEN NAVIGATING TO `{subdomain}` DOES NOT WORK,
+ * and that is the product behaviour rather than a test-harness quirk. §2.19
+ * exception #5 requires each academy to be a separate authentication: Better
+ * Auth cookies are host-scoped by default and are deliberately NOT widened to a
+ * cookie domain, so a session minted on the apex is never sent to an academy
+ * host. Every spec that drives the panel has to authenticate here.
+ *
+ * The academy is addressed by SUBDOMAIN. `seedOrg` defaults it to the slug, so
+ * passing a slug works for specs that never set one explicitly — but prefer
+ * `seedOrgFull`, which returns the subdomain, when the distinction could matter.
+ */
+export async function loginToAcademy(
+  page: Page,
+  subdomain: string,
+  email: string,
+  password: string,
+): Promise<void> {
+  await page.goto(tenantUrl(subdomain, "/login"));
+  await loginViaUi(page, email, password);
+  await page.waitForURL(`${tenantOrigin(subdomain)}/**/dashboard`);
+
+  /*
+   * ⚠️ EXPLICIT NAVIGATION AFTER THE REDIRECT, NOT A REDUNDANT STEP.
+   *
+   * The landing produced by the sign-in Server Action is not a normal request:
+   * Next resolves that redirect internally, so the proxy never sees it and the
+   * render arrives without `x-org-subdomain`. The observable effect is that the
+   * academy host briefly shows the PERSONAL dashboard — see the open note in
+   * docs/plan-implementacji.md (F4.6). A reload or any subsequent navigation
+   * resolves the tenant correctly.
+   *
+   * Navigating here keeps every spec asserting the academy panel rather than
+   * that transient state. Remove this line only once the underlying landing is
+   * fixed — and expect several specs to fail if you remove it before then, which
+   * is precisely the signal you want.
+   */
+  await page.goto(tenantUrl(subdomain, "/dashboard"));
 }
 
 // --- langlion domain fixtures (Faza 0) --------------------------------------

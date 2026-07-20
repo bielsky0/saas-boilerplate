@@ -10,6 +10,7 @@ import { enqueueEmail } from "@/features/emails/send";
 import { enqueueNotification } from "@/features/notifications/send";
 import { getSubscriptionByProviderId, resolveBillingRecipients } from "./data";
 import { PLANS, type PlanId } from "./plans";
+import { tenantUrlFromEnv } from "@/lib/tenant-url";
 
 const log = createLogger("billing:notify");
 
@@ -63,9 +64,13 @@ const notifySchema = z
  * Where the recipient goes to act on this. Becomes the provider-hosted portal
  * link when spec 5.5 lands — only this function changes.
  */
-function manageUrl(orgSlug: string | null): string {
-  return orgSlug
-    ? `${clientEnv.NEXT_PUBLIC_APP_URL}/orgs/${orgSlug}/settings`
+function manageUrl(orgSubdomain: string | null): string {
+  // `tenantUrlFromEnv`, not `tenantUrl`: this runs on the QUEUE, where there is
+  // no request and `headers()` throws. The academy panel is host-addressed since
+  // F4.6, so an apex link would send an admin to a host their session does not
+  // cover (§2.19 exception #5).
+  return orgSubdomain
+    ? tenantUrlFromEnv(orgSubdomain, "/dashboard/settings")
     : `${clientEnv.NEXT_PUBLIC_APP_URL}/dashboard`;
 }
 
@@ -112,7 +117,7 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
       return;
     }
 
-    const { ownerName, orgSlug, mailboxes } = await resolveBillingRecipients(
+    const { ownerName, orgSubdomain, mailboxes } = await resolveBillingRecipients(
       p.organizationId,
       p.accountId,
     );
@@ -120,7 +125,7 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
       await enqueueEmail(
         db,
         "subscription-confirmed",
-        { orgName: ownerName, planName: planName(sub.planId), manageUrl: manageUrl(orgSlug) },
+        { orgName: ownerName, planName: planName(sub.planId), manageUrl: manageUrl(orgSubdomain) },
         { to: box.email, ...(box.name ? { name: box.name } : {}), locale: box.locale },
         // Per-CHILD key, including the address: this parent can be re-claimed
         // after a visibility timeout, and re-running the fan-out must not re-mail
@@ -137,7 +142,7 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
           accountId: p.accountId,
           type: "subscription-confirmed",
           params: { orgName: ownerName, planName: planName(sub.planId) },
-          link: manageUrl(orgSlug),
+          link: manageUrl(orgSubdomain),
         },
         { dedupeKey: `notif:${p.kind}:${p.eventId}:${box.userId}` },
       );
@@ -145,7 +150,7 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
     return;
   }
 
-  const { ownerName, orgSlug, mailboxes } = await resolveBillingRecipients(
+  const { ownerName, orgSubdomain, mailboxes } = await resolveBillingRecipients(
     p.organizationId,
     p.accountId,
   );
@@ -159,7 +164,12 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
     await enqueueEmail(
       db,
       "payment-failed",
-      { orgName: ownerName, amount: p.amount, currency: p.currency, manageUrl: manageUrl(orgSlug) },
+      {
+        orgName: ownerName,
+        amount: p.amount,
+        currency: p.currency,
+        manageUrl: manageUrl(orgSubdomain),
+      },
       { to: box.email, ...(box.name ? { name: box.name } : {}), locale: box.locale },
       { dedupeKey: `email:${p.kind}:${p.eventId}:${box.email.toLowerCase()}` },
     );
@@ -172,7 +182,7 @@ export const billingNotifyHandler: JobHandler<"billing.notify"> = async (payload
         accountId: p.accountId,
         type: "payment-failed",
         params: { orgName: ownerName, amount: p.amount, currency: p.currency },
-        link: manageUrl(orgSlug),
+        link: manageUrl(orgSubdomain),
       },
       { dedupeKey: `notif:${p.kind}:${p.eventId}:${box.userId}` },
     );

@@ -49,13 +49,11 @@ export type RecurrenceDefaults = {
  * so only the missing dates are created (US-3.2/AC1).
  */
 export function RecurrenceForm({
-  slug,
   groupTypeId,
   trainers,
   locations,
   defaults,
 }: {
-  slug: string;
   groupTypeId: string;
   trainers: { id: string; label: string }[];
   locations: { id: string; name: string }[];
@@ -78,7 +76,6 @@ export function RecurrenceForm({
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="groupTypeId" value={groupTypeId} />
       {defaults ? <input type="hidden" name="recurrenceId" value={defaults.id} /> : null}
 

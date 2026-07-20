@@ -27,9 +27,8 @@ import { RevokeInviteButton } from "@/features/organizations/components/invitati
  * pending invitations. All buttons are gated cosmetically by `hasPermission`;
  * the actions re-check permissions and the last-owner rule server-side (spec §4.2).
  */
-export default async function MembersPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const { org, role } = await requireOrgAccess(slug);
+export default async function MembersPage() {
+  const { org, role } = await requireOrgAccess();
   const [t, tr, locale] = await Promise.all([
     getTranslations("dashboard.members"),
     getTranslations("organizations.roles"),
@@ -69,7 +68,7 @@ export default async function MembersPage({ params }: { params: Promise<{ slug: 
             <CardTitle className="text-sm">{t("inviteTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <InviteMemberForm slug={slug} />
+            <InviteMemberForm />
           </CardContent>
         </Card>
       ) : null}
@@ -106,7 +105,6 @@ export default async function MembersPage({ params }: { params: Promise<{ slug: 
                 {canUpdateRole || canRemove ? (
                   <TableCell className="text-right">
                     <MemberActions
-                      slug={slug}
                       membershipId={m.membershipId}
                       currentRole={m.role}
                       canUpdateRole={canUpdateRole}
@@ -143,7 +141,7 @@ export default async function MembersPage({ params }: { params: Promise<{ slug: 
                     {formatContentDate(inv.expiresAt.toISOString().slice(0, 10), locale)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <RevokeInviteButton slug={slug} invitationId={inv.id} />
+                    <RevokeInviteButton invitationId={inv.id} />
                   </TableCell>
                 </TableRow>
               ))}

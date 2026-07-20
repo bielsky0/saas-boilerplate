@@ -1,3 +1,4 @@
+import { tenantUrl } from "./host-fixtures";
 import { expect, test, type Page } from "@playwright/test";
 
 import {
@@ -8,7 +9,7 @@ import {
   seedCreditType,
 } from "./credits-fixtures";
 import {
-  loginViaUi,
+  loginToAcademy,
   registerAndVerify,
   seedLanglion,
   seedOrgFull,
@@ -91,10 +92,14 @@ async function seedAcademy(request: Parameters<typeof seedOrgFull>[0]) {
   };
 }
 
-async function loginAndLand(page: Page, email: string) {
-  await page.goto("/en/login");
-  await loginViaUi(page, email, TEST_PASSWORD);
-  await page.waitForURL("**/dashboard");
+/**
+ * Log in on the academy's own host (F4.6) and wait for the panel to load.
+ *
+ * An apex sign-in would not carry to `{subdomain}` — staff cookies are
+ * host-scoped by design (§2.19 exception #5).
+ */
+async function loginAndLand(page: Page, subdomain: string, email: string) {
+  await loginToAcademy(page, subdomain, email, TEST_PASSWORD);
 }
 
 test.describe("credit engine", () => {
@@ -371,9 +376,9 @@ test.describe("manual grant (US-7.3)", () => {
     request,
   }) => {
     const fx = await seedAcademy(request);
-    await loginAndLand(page, fx.ownerEmail);
+    await loginAndLand(page, fx.org.slug, fx.ownerEmail);
 
-    await page.goto(`/en/orgs/${fx.org.slug}/credits`);
+    await page.goto(tenantUrl(fx.org.slug, `/en/dashboard/credits`));
     await expect(page.getByRole("heading", { name: "Credits", exact: true })).toBeVisible();
 
     /**
@@ -438,7 +443,7 @@ test.describe("manual grant (US-7.3)", () => {
     expect(local).toMatch(/01\/\d{2}\/\d{4}, 00:00/);
 
     // AC2 — recoverable afterwards: who, whom, how many, which type, why.
-    await page.goto(`/en/orgs/${fx.org.slug}/settings/audit`);
+    await page.goto(tenantUrl(fx.org.slug, `/en/dashboard/settings/audit`));
     await expect(page.getByText("Credits granted").first()).toBeVisible();
   });
 
@@ -457,8 +462,8 @@ test.describe("manual grant (US-7.3)", () => {
       members: [{ email: receptionEmail, role: "reception" }],
     });
 
-    await loginAndLand(page, receptionEmail);
-    const res = await page.goto(`/en/orgs/${org.slug}/credits`);
+    await loginAndLand(page, org.slug, receptionEmail);
+    const res = await page.goto(tenantUrl(org.slug, `/en/dashboard/credits`));
     // 403, not a redirect and not an empty page: the backend is the boundary,
     // and reception genuinely holds a role in this academy — it simply is not
     // granted this permission yet (it arrives in F12 for cash purchases).

@@ -214,7 +214,8 @@ export const env = createEnv({
     // "optional": organizations still work, but the main flow never pushes you
     //   into one. Personal is the default context; /orgs/new stays reachable by
     //   direct URL and is simply not advertised.
-    // "disabled": pure B2C. /orgs/* and /invitations/* answer 404, every org
+    // "disabled": pure B2C. /orgs/*, /dashboard on academy hosts and /invitations/*
+    // answer 404, every org
     //   server action refuses, and the switcher/CTAs are gone. Existing org rows
     //   are retained and untouched — just unreachable from the tenant UI.
     MULTI_TENANCY_MODE: z.enum(["required", "optional", "disabled"]).default("required"),

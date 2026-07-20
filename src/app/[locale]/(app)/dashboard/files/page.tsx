@@ -14,9 +14,8 @@ import { FileUpload } from "@/features/storage/components/file-upload";
  * the owner-scoped data layer, so org A never sees org B's files. The upload
  * control renders only with `storage.upload` (cosmetic — the API re-checks).
  */
-export default async function OrgFilesPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const { org, role } = await requireOrgAccess(slug);
+export default async function OrgFilesPage() {
+  const { org, role } = await requireOrgAccess();
   const t = await getTranslations("storage");
 
   const owner = { kind: "organization", organizationId: org.id } as const;
@@ -44,12 +43,12 @@ export default async function OrgFilesPage({ params }: { params: Promise<{ slug:
             <CardDescription>{t("uploadHint")}</CardDescription>
           </CardHeader>
           <CardContent>
-            <FileUpload slug={slug} />
+            <FileUpload />
           </CardContent>
         </Card>
       ) : null}
 
-      <FileList slug={slug} files={files} canDelete={canDelete} />
+      <FileList files={files} canDelete={canDelete} />
     </div>
   );
 }

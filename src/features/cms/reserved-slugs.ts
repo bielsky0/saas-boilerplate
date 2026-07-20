@@ -30,22 +30,46 @@ import { LOCALES } from "@/lib/i18n/config";
  */
 
 /**
- * Which host serves a reserved prefix, IN THE CURRENT PHASE (D60).
+ * Which host serves a reserved prefix (D60, widened in F4.6).
  *
- * This exists because F4.5 deliberately did not migrate the staff panel. Without
- * the distinction, `/dashboard` on a tenant host would fall through to the app
- * router, hit default-deny, and redirect to `/login` ON THE TENANT HOST — where
- * the Better Auth cookie is host-scoped and `BETTER_AUTH_URL` points at the
- * apex. The result is a login loop with no message explaining it.
+ *   - "tenant" — means something only inside an academy. On the apex the proxy
+ *     forwards it so the app router answers 404, rather than sending an
+ *     anonymous visitor to log in to a page that still would not exist.
+ *   - "apex"   — platform surface. On an academy host the proxy hops to the
+ *     apex; without that hop `/admin` on a tenant host would fall through to
+ *     default-deny and redirect to `/login` ON THAT HOST, where the Better Auth
+ *     cookie does not exist — a login loop with no message explaining it.
+ *   - "both"   — the same path means different things on the two hosts and is
+ *     legitimate on each. Added by F4.6 for the staff panel and the auth surface.
  *
- * F4.6 (panel migration) is then a matter of flipping `dashboard`, `login` and
- * `logout` from "apex" to "tenant" and moving the route folders — not of
- * redesigning the routing.
+ * ⚠️ "both" IS NOT A CONVENIENCE, IT IS THE SAFE FORM OF WHAT F4.6 ORIGINALLY
+ * PLANNED. The earlier note here proposed flipping `dashboard`/`login`/`logout`
+ * to "tenant". That is wrong, and the reason is worth stating precisely because
+ * the obvious guess overstates it.
+ *
+ * The apex branch in src/proxy.ts returns `forward()` EARLY for "tenant"-stage
+ * prefixes, which SKIPS `isPublicBarePage` and default-deny below it. That is
+ * harmless while the only such prefix is `zapisy`, whose route does not exist —
+ * the early return happens to 404. `/dashboard` HAS a route, so the same path
+ * forwards an anonymous request into the page.
+ *
+ * MEASURED CONSEQUENCE (mutation-tested, F4.6): the panel is NOT exposed, because
+ * every page under it calls `requireSession`/`requireOrgAccess` itself — §4.2's
+ * rule that the backend is the boundary is what saves it. What is actually lost
+ * is (a) the edge guard as a first line, so any future route added under this
+ * prefix without its own check would be served, and (b) locale preservation: the
+ * page-level redirect answers `/login?callbackUrl=%2Fdashboard` instead of the
+ * proxy's `/en/login?callbackUrl=%2Fen%2Fdashboard`, so a Polish reader is
+ * bounced into an English login and returned to an English page.
+ *
+ * "both" falls through on both hosts and therefore stays behind the guard on
+ * both. Pinned by an e2e test that a mutation to "tenant" must break (see
+ * e2e/langlion-subdomain-routing.spec.ts).
  */
-export type PathStage = "tenant" | "apex";
+export type PathStage = "tenant" | "apex" | "both";
 
 /**
- * First path segments the app router owns, and where each is served today.
+ * First path segments the app router owns, and where each is served.
  *
  * The six from CMS spec §2.1 (`dashboard`, `admin`, `api`, `zapisy`, `login`,
  * `logout`) are the required minimum; the rest are the remaining top-level
@@ -57,19 +81,42 @@ export const RESERVED_PATH_PREFIXES: Readonly<Record<string, PathStage>> = {
   api: "tenant",
   zapisy: "tenant",
 
-  // Served on the platform apex until F4.6 moves the panel.
-  dashboard: "apex",
+  /*
+   * Staff panel and auth surface — the same path on both hosts, different
+   * meaning (F4.6). On the apex `/dashboard` is the personal account and its
+   * directory of academies; on an academy host it is that academy's panel.
+   *
+   * The auth pages belong here for a reason that is easy to miss: the login
+   * redirect in src/proxy.ts is built with `new URL(…, request.url)`, so it
+   * STAYS ON THE HOST THE REQUEST CAME IN ON. Leaving `login` as "apex" would
+   * have the tenant branch bounce it back to the apex the moment it was issued.
+   */
+  dashboard: "both",
+  login: "both",
+  logout: "both",
+  signup: "both",
+  "verify-email": "both",
+  "forgot-password": "both",
+  "reset-password": "both",
+  oauth: "both",
+
+  /*
+   * Platform surface. `admin` is cross-tenant by definition (§2.27), and `orgs`
+   * holds `/orgs/new` — creating an academy cannot happen on that academy's own
+   * host, because the tenant does not exist yet. Invitations and unsubscribe are
+   * cross-org by nature and their links are built from the apex.
+   */
   admin: "apex",
   orgs: "apex",
+  /*
+   * ACCOUNT settings only (billing, notifications for the personal account).
+   * An academy's settings live at `/dashboard/settings/*` and are covered by the
+   * `dashboard` entry above — this top-level prefix never means an academy, so
+   * marking it "both" would put the personal account's billing page on every
+   * academy host for no reason.
+   */
   settings: "apex",
-  login: "apex",
-  logout: "apex",
-  signup: "apex",
-  "verify-email": "apex",
-  "forgot-password": "apex",
-  "reset-password": "apex",
   invitations: "apex",
-  oauth: "apex",
   unsubscribe: "apex",
   blog: "apex",
   changelog: "apex",

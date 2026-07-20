@@ -33,7 +33,6 @@ const initial: FormState = {};
  * "correct" it into being genuinely wrong.
  */
 export function SessionEditForm({
-  slug,
   sessionId,
   startLocal,
   endLocal,
@@ -41,7 +40,6 @@ export function SessionEditForm({
   capacity,
   locations,
 }: {
-  slug: string;
   sessionId: string;
   /** `YYYY-MM-DDTHH:mm` in the academy's zone — see header. */
   startLocal: string;
@@ -72,7 +70,6 @@ export function SessionEditForm({
   return (
     <SessionEditFields
       key={attempt}
-      slug={slug}
       sessionId={sessionId}
       startLocal={startLocal}
       endLocal={endLocal}
@@ -85,7 +82,6 @@ export function SessionEditForm({
 }
 
 function SessionEditFields({
-  slug,
   sessionId,
   startLocal,
   endLocal,
@@ -94,7 +90,6 @@ function SessionEditFields({
   locations,
   onCancel,
 }: {
-  slug: string;
   sessionId: string;
   startLocal: string;
   endLocal: string;
@@ -124,7 +119,6 @@ function SessionEditFields({
 
   return (
     <form action={action} className="flex flex-col gap-3">
-      <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="sessionId" value={sessionId} />
 
       <div className="grid gap-3 sm:grid-cols-2">

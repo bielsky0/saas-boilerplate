@@ -36,7 +36,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const plan = purchasablePlan(parsed.data.plan);
   if (!plan) return apiError("Plan is not available for purchase", 404);
 
-  const ctx = await resolveBillingOwner(parsed.data.slug ?? null);
+  const ctx = await resolveBillingOwner();
   const result = await startCheckout(ctx, plan);
 
   if (result.ok) return NextResponse.json({ url: result.url }, { status: 200 });

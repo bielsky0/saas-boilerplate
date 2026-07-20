@@ -2,11 +2,9 @@ import { cache } from "react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
-import { ORG_SUBDOMAIN_HEADER } from "@/lib/tenant-host";
-import {
-  findOrganizationBySubdomain,
-  type ServedOrganization,
-} from "@/features/client-auth/organization";
+import { ORG_SUBDOMAIN_HEADER, parseHost } from "@/lib/tenant-host";
+import { env } from "@/lib/env/server";
+import { getOrgBySubdomain } from "./data";
 
 /**
  * The academy addressed by the CURRENT request's `Host` (langlion §2.27, F4.5).
@@ -32,15 +30,41 @@ import {
  * ⚠️ THE HEADER IS TRUSTED BECAUSE THE PROXY STRIPS IT FIRST. A client can send
  * `x-org-subdomain`; `forward()` deletes it unconditionally before setting its
  * own value (D56). If that delete is ever removed, this module becomes a
- * tenant-selection API for anyone who can set a header.
+ * tenant-selection API for anyone who can set a header — and since F4.6 that
+ * means the staff panel's tenant, not only the public signup page's.
+ *
+ * ─── Why there is a fallback to `Host` (found in F4.6) ──────────────────────
+ *
+ * THE PROXY DOES NOT RUN ON EVERY RENDER. A redirect issued from a Server Action
+ * is resolved by Next internally: it renders the target in the same cycle rather
+ * than making the browser issue a fresh request. No request means no proxy, which
+ * means no `x-org-subdomain` — so a staff member signing in on their academy host
+ * was shown the PERSONAL dashboard, on the academy's own host, until they
+ * navigated again. Measured, not theorized: a `page.reload()` fixed it, which is
+ * exactly the signature of "the proxy never saw it".
+ *
+ * So the header is a FAST PATH, not the source of truth. The fallback re-parses
+ * `Host` with the very same `parseHost` the proxy uses — not a second copy of the
+ * rule, which is what the note above warns against, but the same function on the
+ * same input. It is therefore exactly as trustworthy as the header: both derive
+ * from `Host`, and the anti-spoofing property is preserved because the header is
+ * only believed after `forward()` has overwritten anything a client sent.
  */
 
-export type { ServedOrganization };
+/** The academy row this request is served for. Whole row since F4.6. */
+export type ServedOrganization = NonNullable<Awaited<ReturnType<typeof getOrgBySubdomain>>>;
 
-/** The tenant label the proxy resolved, or null on the apex. */
+/** The tenant label for this render, or null on the apex. */
 export async function servedSubdomain(): Promise<string | null> {
   try {
-    return (await headers()).get(ORG_SUBDOMAIN_HEADER);
+    const h = await headers();
+    const published = h.get(ORG_SUBDOMAIN_HEADER);
+    if (published) return published;
+
+    // The proxy did not run for this render (Server Action redirect, see above).
+    // Same parse, same input — just performed here instead of at the edge.
+    const host = parseHost(h.get("host"), env.APP_ROOT_DOMAIN);
+    return host.kind === "tenant" ? host.subdomain : null;
   } catch {
     // No request scope (a job drain, an engine hook). Not an error — the same
     // shape `requestLocale()` uses for the same reason.
@@ -57,12 +81,13 @@ export async function servedSubdomain(): Promise<string | null> {
  * distinction the callers do not act on.
  *
  * `cache` deduplicates within one request: a layout, its page and a route
- * handler asking the same question issue one SELECT, not three.
+ * handler asking the same question issue one SELECT, not three. That matters
+ * more since F4.6, where the panel layout and every page under it ask.
  */
 export const servedOrganization = cache(async (): Promise<ServedOrganization | null> => {
   const subdomain = await servedSubdomain();
   if (!subdomain) return null;
-  return findOrganizationBySubdomain(subdomain);
+  return getOrgBySubdomain(subdomain);
 });
 
 /**

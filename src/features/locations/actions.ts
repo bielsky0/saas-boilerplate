@@ -40,8 +40,7 @@ export async function createLocationAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const slug = str(formData.get("slug"));
-  const ctx = await requireOrgPermission(slug, "locations.manage");
+  const ctx = await requireOrgPermission("locations.manage");
   const [t, tv] = await Promise.all([
     getTranslations("locations"),
     getTranslations("locations.validation"),
@@ -77,7 +76,7 @@ export async function createLocationAction(
     });
   });
 
-  revalidatePath(`/orgs/${slug}/locations`);
+  revalidatePath(`/dashboard/locations`);
   return { success: t("created") };
 }
 
@@ -85,9 +84,8 @@ export async function updateLocationAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const slug = str(formData.get("slug"));
   const locationId = str(formData.get("locationId"));
-  const ctx = await requireOrgPermission(slug, "locations.manage");
+  const ctx = await requireOrgPermission("locations.manage");
   const [t, tv] = await Promise.all([
     getTranslations("locations"),
     getTranslations("locations.validation"),
@@ -146,6 +144,6 @@ export async function updateLocationAction(
 
   if (!found) return { error: t("errors.notFound") };
 
-  revalidatePath(`/orgs/${slug}/locations`);
+  revalidatePath(`/dashboard/locations`);
   return { success: t("updated") };
 }

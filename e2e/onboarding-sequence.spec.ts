@@ -73,7 +73,7 @@ test("verifying twice does not start the sequence twice", async ({ request }) =>
 
 /** A paying org owned by `ownerEmail`, as a completed checkout would leave it. */
 async function subscribeOrg(request: APIRequestContext, ownerEmail: string): Promise<void> {
-  const orgSlug = await seedOrg(request, {
+  const { slug: orgSlug } = await seedOrg(request, {
     ownerEmail,
     name: "Paying Co",
     slug: uniqueId("paying-co"),

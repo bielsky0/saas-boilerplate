@@ -1,14 +1,17 @@
 import { requireSession } from "@/lib/auth";
 import type { Permission } from "@/features/rbac";
 import { requireOrgAccess, requireOrgPermission } from "@/features/organizations/context";
+import { servedSubdomain } from "@/features/organizations/served-org";
 import { ensurePersonalAccount, getPersonalAccountByUserId } from "@/features/organizations/data";
 import type { FileOwner } from "./data";
 
 /**
  * Resolve which tenant a storage request acts as (spec 21.3 → 1.3).
  *
- * A request is ORG-scoped when it carries a `slug`, PERSONAL-scoped otherwise —
- * the same two owner contexts a user switches between (§3.5). Org access runs
+ * A request is ORG-scoped when it was addressed to an ACADEMY HOST,
+ * PERSONAL-scoped on the apex (F4.6) — the same two owner contexts, but the
+ * discriminator is now the host rather than a field the caller supplies. Org
+ * access runs
  * through the shared RBAC guard (`requireOrgPermission`, or `requireOrgAccess`
  * when the action needs membership but no specific permission, e.g. reads), so
  * authorization is enforced identically to every other org action (§4.2), not
@@ -18,13 +21,12 @@ import type { FileOwner } from "./data";
 export type ResolvedOwner = { owner: FileOwner; userId: string };
 
 export async function resolveStorageOwner(
-  slug: string | null,
   orgPermission: Permission | null,
 ): Promise<ResolvedOwner> {
-  if (slug) {
+  if (await servedSubdomain()) {
     const ctx = orgPermission
-      ? await requireOrgPermission(slug, orgPermission)
-      : await requireOrgAccess(slug);
+      ? await requireOrgPermission(orgPermission)
+      : await requireOrgAccess();
     return {
       owner: { kind: "organization", organizationId: ctx.org.id },
       userId: ctx.session.user.id,

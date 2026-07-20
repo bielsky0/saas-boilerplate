@@ -25,20 +25,27 @@ import type { OrgSummary } from "./data";
  */
 
 /**
- * The orgs a user actively belongs to (for the account switcher). Personal
- * context is derived separately from the user record, not returned here.
+ * The academies a user actively belongs to. Personal context is derived
+ * separately from the user record, not returned here.
+ *
+ * Feeds the apex directory that REPLACED the account switcher in F4.6 (§2.19
+ * exception #5). The difference is not cosmetic: a switcher changed the active
+ * tenant inside one session, whereas each row here is a separate origin that
+ * requires its own sign-in. Hence `subdomain` in the projection — the link needs
+ * a host, not a path.
  *
  * BYPASS: the question is "which tenants does this person belong to", so no
  * single tenant can be named before asking it — naming one would presuppose the
  * answer. Scoped by `userId`, which is the caller's own session user.
  */
 export async function listUserOrgs(userId: string): Promise<OrgSummary[]> {
-  return withSystemBypass("account switcher — lists every org a user belongs to", (tx) =>
+  return withSystemBypass("academy directory — lists every org a user belongs to", (tx) =>
     tx
       .select({
         id: organization.id,
         name: organization.name,
         slug: organization.slug,
+        subdomain: organization.subdomain,
         role: membership.role,
       })
       .from(membership)

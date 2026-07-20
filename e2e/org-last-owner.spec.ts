@@ -1,6 +1,7 @@
 import { expect, test } from "./rate-limit-fixtures";
+import { tenantUrl } from "./host-fixtures";
 
-import { loginViaUi, registerViaApi, TEST_PASSWORD, uniqueEmail } from "./helpers";
+import { loginToAcademy, loginViaUi, registerViaApi, TEST_PASSWORD, uniqueEmail } from "./helpers";
 
 /**
  * Spec §3.2/§3.4 — an organization must always keep at least one Owner. The sole
@@ -24,9 +25,15 @@ test("the last owner cannot be demoted or removed", async ({ page, request }) =>
   // the subdomain keeps parallel workers off each other's UNIQUE constraint.
   await page.getByLabel("Subdomain").fill(slug);
   await page.getByRole("button", { name: /create organization/i }).click();
-  await page.waitForURL(`**/orgs/${slug}`);
+  // Back to the APEX dashboard, not into the new academy (F4.6): the staff
+  // cookie is host-scoped, so redirecting into `{subdomain}` would land on a
+  // login screen seconds after signing in. The directory confirms it exists.
+  await page.waitForURL("**/dashboard");
+  await expect(page.getByRole("link", { name: "Last Owner Co" })).toBeVisible();
 
-  await page.goto(`/orgs/${slug}/members`);
+  // Entering the academy is a separate sign-in, by design (§2.19 exception #5).
+  await loginToAcademy(page, slug, owner, TEST_PASSWORD);
+  await page.goto(tenantUrl(slug, "/dashboard/members"));
   const row = page.getByRole("row").filter({ hasText: owner });
   await expect(row).toBeVisible();
 

@@ -1,7 +1,15 @@
+import { tenantUrl } from "./host-fixtures";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 import { signedRequest, subscriptionEvent, uniqueId, E2E_PRO_PRICE_ID } from "./billing-fixtures";
-import { loginViaUi, registerViaApi, seedOrg, TEST_PASSWORD, uniqueEmail } from "./helpers";
+import {
+  loginToAcademy,
+  loginViaUi,
+  registerViaApi,
+  seedOrg,
+  TEST_PASSWORD,
+  uniqueEmail,
+} from "./helpers";
 
 /**
  * Checkout & customer portal E2E (spec 5.3, 5.5).
@@ -17,6 +25,7 @@ import { loginViaUi, registerViaApi, seedOrg, TEST_PASSWORD, uniqueEmail } from 
  * expensive call is last, and everything that can reject a request cheaply does.
  */
 
+/** Sign in on the apex — for the personal-account cases. */
 async function loginAs(page: Page, email: string): Promise<void> {
   await page.goto("/login");
   await loginViaUi(page, email, TEST_PASSWORD);
@@ -72,15 +81,19 @@ test.describe("checkout authorization (spec 4.2 → 5.3)", () => {
     const member = uniqueEmail("bill-member");
     await registerViaApi(page.request, owner);
     await registerViaApi(page.request, member);
-    const slug = await seedOrg(page.request, {
+    const { subdomain } = await seedOrg(page.request, {
       ownerEmail: owner,
       name: "Checkout Co",
       slug: uniqueId("checkout-co"),
       members: [{ email: member, role: "member" }],
     });
 
-    await loginAs(page, member);
-    const res = await page.request.post("/api/billing/checkout", { data: { slug, plan: "pro" } });
+    await loginToAcademy(page, subdomain, member, TEST_PASSWORD);
+    // The academy comes from the HOST now (F4.6), so this posts to its own origin
+    // and carries no tenant field at all.
+    const res = await page.request.post(tenantUrl(subdomain, "/api/billing/checkout"), {
+      data: { plan: "pro" },
+    });
     expect(res.status()).toBe(403);
   });
 
@@ -95,15 +108,19 @@ test.describe("checkout authorization (spec 4.2 → 5.3)", () => {
     const admin = uniqueEmail("bill-admin");
     await registerViaApi(page.request, owner);
     await registerViaApi(page.request, admin);
-    const slug = await seedOrg(page.request, {
+    const { subdomain } = await seedOrg(page.request, {
       ownerEmail: owner,
       name: "Admin Checkout Co",
       slug: uniqueId("admin-checkout-co"),
       members: [{ email: admin, role: "admin" }],
     });
 
-    await loginAs(page, admin);
-    const res = await page.request.post("/api/billing/checkout", { data: { slug, plan: "pro" } });
+    await loginToAcademy(page, subdomain, admin, TEST_PASSWORD);
+    // The academy comes from the HOST now (F4.6), so this posts to its own origin
+    // and carries no tenant field at all.
+    const res = await page.request.post(tenantUrl(subdomain, "/api/billing/checkout"), {
+      data: { plan: "pro" },
+    });
     expect(res.status()).toBe(403);
   });
 });
@@ -112,16 +129,16 @@ test.describe("customer portal (spec 5.5)", () => {
   test("a tenant that never checked out has no portal", async ({ page }) => {
     const owner = uniqueEmail("portal-owner");
     await registerViaApi(page.request, owner);
-    const slug = await seedOrg(page.request, {
+    const { subdomain } = await seedOrg(page.request, {
       ownerEmail: owner,
       name: "Portal Co",
       slug: uniqueId("portal-co"),
     });
 
-    await loginAs(page, owner);
+    await loginToAcademy(page, subdomain, owner, TEST_PASSWORD);
     // Resolved from our own table before any provider call: no mapping → 404,
     // rather than creating a customer just to show an empty portal.
-    const res = await page.request.post("/api/billing/portal", { data: { slug } });
+    const res = await page.request.post(tenantUrl(subdomain, "/api/billing/portal"), { data: {} });
     expect(res.status()).toBe(404);
   });
 
@@ -130,15 +147,15 @@ test.describe("customer portal (spec 5.5)", () => {
     const member = uniqueEmail("portal-member");
     await registerViaApi(page.request, owner);
     await registerViaApi(page.request, member);
-    const slug = await seedOrg(page.request, {
+    const { subdomain } = await seedOrg(page.request, {
       ownerEmail: owner,
       name: "Portal Guard Co",
       slug: uniqueId("portal-guard-co"),
       members: [{ email: member, role: "member" }],
     });
 
-    await loginAs(page, member);
-    const res = await page.request.post("/api/billing/portal", { data: { slug } });
+    await loginToAcademy(page, subdomain, member, TEST_PASSWORD);
+    const res = await page.request.post(tenantUrl(subdomain, "/api/billing/portal"), { data: {} });
     // 403 before the "no customer" 404: authorization is decided first, so the
     // response cannot be used to probe whether the org has ever paid.
     expect(res.status()).toBe(403);
@@ -154,7 +171,7 @@ test.describe("customer portal (spec 5.5)", () => {
 test("access follows the webhook, not the success redirect", async ({ page, request }) => {
   const owner = uniqueEmail("redirect-owner");
   await registerViaApi(request, owner);
-  const slug = await seedOrg(request, {
+  const { slug, subdomain } = await seedOrg(request, {
     ownerEmail: owner,
     name: "Redirect Co",
     slug: uniqueId("redirect-co"),
@@ -165,13 +182,15 @@ test("access follows the webhook, not the success redirect", async ({ page, requ
   });
   expect(seeded.ok(), `seed-billing-customer failed: ${await seeded.text()}`).toBe(true);
 
-  await loginAs(page, owner);
+  await loginToAcademy(page, subdomain, owner, TEST_PASSWORD);
 
   // Walk the exact URL the provider would send the browser back to. Asserting
   // the status matters: `returnPath` in `features/billing/checkout.ts` builds
   // this URL, and a typo there would strand every paying customer on a 404 that
   // no other test would notice.
-  const landed = await page.goto(`/orgs/${slug}/settings/billing?checkout=success`);
+  const landed = await page.goto(
+    tenantUrl(subdomain, "/dashboard/settings/billing?checkout=success"),
+  );
   expect(landed?.status(), "the checkout return URL must resolve").toBe(200);
   await expect(page.getByRole("heading", { name: /billing/i })).toBeVisible();
 

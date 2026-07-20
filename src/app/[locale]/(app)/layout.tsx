@@ -4,31 +4,32 @@ import type { ReactNode } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SignOutButton } from "@/features/auth";
 import { NotificationBell } from "@/features/notifications";
-import { AccountSwitcher } from "@/features/organizations";
 import { ensurePersonalAccount } from "@/features/organizations/data";
-import { listUserOrgs } from "@/features/organizations/cross-tenant";
+import { servedOrganization } from "@/features/organizations/served-org";
 import { requireSession } from "@/lib/auth";
-import { orgsEnabled, orgsExposed } from "@/lib/tenancy";
 
 /**
- * Authenticated app shell (spec 7.4). Wraps both the personal dashboard and the
- * org context routes so they share one navbar + the global account switcher
- * (spec 3.5). `requireSession` is the authoritative guard; the switcher's data is
- * resolved here server-side. The personal account is ensured on entry as a
- * backfill for users created before the registration hook existed (spec 3.1) —
- * unconditionally in all three tenancy modes, because in `disabled` the personal
- * account IS the tenant, which makes it more load-bearing, not less.
+ * Authenticated app shell (spec 7.4). Wraps both the apex account surface and an
+ * academy's panel. `requireSession` is the authoritative guard. The personal
+ * account is ensured on entry as a backfill for users created before the
+ * registration hook existed (spec 3.1) — unconditionally in all three tenancy
+ * modes, because in `disabled` the personal account IS the tenant, which makes it
+ * more load-bearing, not less.
+ *
+ * THE ACCOUNT SWITCHER IS GONE (F4.6, §2.19 exception #5). Its replacement is a
+ * directory on the apex dashboard, not a control in this navbar: an academy is a
+ * separate origin requiring its own sign-in, so there is nothing to switch
+ * between within one session. What the navbar shows instead is WHERE YOU ARE —
+ * the academy's name on its host, the product name on the apex — because with
+ * several academies open in several tabs, that is the question the header has to
+ * answer.
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const session = await requireSession("/dashboard");
   await ensurePersonalAccount(session.user.id);
-  // Skipping the query in `disabled` is not just an optimization: it is the
-  // layout stating that the org table is not consulted at all in that mode (§1.4).
-  const orgs = orgsEnabled ? await listUserOrgs(session.user.id) : [];
-  // `optional` shows the switcher only to users who already have an org — orgs
-  // work, but the main flow never advertises them.
-  const showSwitcher = orgsEnabled && (orgsExposed || orgs.length > 0);
-  const personalLabel = session.user.name ?? session.user.email;
+  // Null on the apex. Deliberately not `requireServedOrganization` — this layout
+  // also serves the apex, where having no academy is the normal case.
+  const org = await servedOrganization();
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -36,11 +37,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <Link href="/dashboard" className="shrink-0 font-semibold">
-              SaaS
+              {org ? org.name : "SaaS"}
             </Link>
-            {showSwitcher ? (
-              <AccountSwitcher personalLabel={personalLabel} orgs={orgs} showNewOrg={orgsExposed} />
-            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />

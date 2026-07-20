@@ -29,21 +29,13 @@ export type FileRow = {
  * refreshes. Delete is shown only when the caller has `storage.delete` — cosmetic
  * gating over the server's real check (§4.2).
  */
-export function FileList({
-  slug,
-  files,
-  canDelete,
-}: {
-  slug: string;
-  files: FileRow[];
-  canDelete: boolean;
-}) {
+export function FileList({ files, canDelete }: { files: FileRow[]; canDelete: boolean }) {
   const t = useTranslations("storage");
   const router = useRouter();
   const [pendingId, setPendingId] = useState<string | null>(null);
 
   async function open(id: string): Promise<void> {
-    const res = await fetch(`/api/storage/file/${id}?slug=${encodeURIComponent(slug)}`);
+    const res = await fetch(`/api/storage/file/${id}`);
     if (!res.ok) {
       toast.error(t("errors.open"));
       return;
@@ -55,7 +47,7 @@ export function FileList({
   async function remove(id: string): Promise<void> {
     setPendingId(id);
     try {
-      const res = await fetch(`/api/storage/file/${id}?slug=${encodeURIComponent(slug)}`, {
+      const res = await fetch(`/api/storage/file/${id}`, {
         method: "DELETE",
       });
       if (!res.ok) {

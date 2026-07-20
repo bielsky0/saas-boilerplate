@@ -29,9 +29,8 @@ import { withTenant } from "@/lib/db/tenant";
  * tenant GUC. Sequential inside one transaction is two round-trips on one
  * connection (the pattern established in members/page.tsx).
  */
-export default async function GroupTypesPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const { org } = await requireOrgPermission(slug, "group_types.manage");
+export default async function GroupTypesPage() {
+  const { org } = await requireOrgPermission("group_types.manage");
   const t = await getTranslations("groups");
 
   const { groupTypes, locations } = await withTenant(org.id, async (tx) => ({
@@ -83,7 +82,7 @@ export default async function GroupTypesPage({ params }: { params: Promise<{ slu
                 <TableCell className="tabular-nums">{row.price}</TableCell>
                 <TableCell className="text-right">
                   <Button asChild variant="ghost" size="sm">
-                    <Link href={`/orgs/${slug}/group-types/${row.id}`}>{t("manage")}</Link>
+                    <Link href={`/dashboard/group-types/${row.id}`}>{t("manage")}</Link>
                   </Button>
                 </TableCell>
               </TableRow>
@@ -97,7 +96,7 @@ export default async function GroupTypesPage({ params }: { params: Promise<{ slu
           <CardTitle className="text-sm">{t("form.createTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <GroupTypeForm slug={slug} locations={locations} />
+          <GroupTypeForm locations={locations} />
         </CardContent>
       </Card>
     </div>

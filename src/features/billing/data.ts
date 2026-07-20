@@ -184,8 +184,13 @@ export interface Mailbox {
 export interface BillingRecipients {
   /** How the owner is named in the email body. */
   ownerName: string;
-  /** Present for organizations only — the deep link to their settings. */
-  orgSlug: string | null;
+  /**
+   * Present for organizations only — the deep link to their settings.
+   *
+   * SUBDOMAIN, not slug (F4.6): the panel is host-addressed, so a deep link has
+   * to name the academy's host rather than a path segment.
+   */
+  orgSubdomain: string | null;
   mailboxes: Mailbox[];
 }
 
@@ -225,7 +230,7 @@ export async function resolveBillingRecipients(
           name: user.name,
           locale: user.locale,
           orgName: organization.name,
-          orgSlug: organization.slug,
+          orgSubdomain: organization.subdomain,
         })
         .from(membership)
         .innerJoin(user, eq(user.id, membership.userId))
@@ -243,7 +248,7 @@ export async function resolveBillingRecipients(
 
     return {
       ownerName: rows[0]?.orgName ?? "your organization",
-      orgSlug: rows[0]?.orgSlug ?? null,
+      orgSubdomain: rows[0]?.orgSubdomain ?? null,
       mailboxes: rows.map((r) => ({
         userId: r.userId,
         email: r.email,
@@ -268,7 +273,7 @@ export async function resolveBillingRecipients(
 
     return {
       ownerName: rows[0]?.name ?? "your account",
-      orgSlug: null,
+      orgSubdomain: null,
       mailboxes: rows.map((r) => ({
         userId: r.userId,
         email: r.email,
@@ -278,7 +283,7 @@ export async function resolveBillingRecipients(
     };
   }
 
-  return { ownerName: "your account", orgSlug: null, mailboxes: [] };
+  return { ownerName: "your account", orgSubdomain: null, mailboxes: [] };
 }
 
 /** Processed webhook markers for an organization, newest first (spec 6.3 trail). */

@@ -7,12 +7,18 @@ import { requireOrgAccess } from "@/features/organizations/context";
 import { LeaveOrgButton } from "@/features/organizations/components/org-settings";
 
 /**
- * Organization overview (spec 3.5). Entry point for an org context; access is
- * enforced by `requireOrgAccess` (403 for non-members, 404 for unknown slugs).
+ * Academy panel home (spec 3.5, langlion §2.27).
+ *
+ * NOT a route of its own — `dashboard/page.tsx` renders this when the request
+ * addresses an academy host, and the personal account view when it does not.
+ * Same path, two meanings, decided by `Host`; the file is split out only because
+ * one `page.tsx` holding both would obscure which guard covers which half.
+ *
+ * Access is enforced by `requireOrgAccess` (403 for non-members, 404 when the
+ * host names no academy), not by the caller having checked already.
  */
-export default async function OrganizationPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const { org, role } = await requireOrgAccess(slug);
+export default async function AcademyHome() {
+  const { org, role } = await requireOrgAccess();
   const [t, tr] = await Promise.all([
     getTranslations("dashboard.org"),
     getTranslations("organizations.roles"),
@@ -28,52 +34,52 @@ export default async function OrganizationPage({ params }: { params: Promise<{ s
       </div>
       <nav className="flex gap-2">
         <Button asChild variant="outline" size="sm">
-          <Link href={`/orgs/${slug}/members`}>{t("members")}</Link>
+          <Link href="/dashboard/members">{t("members")}</Link>
         </Button>
         <Button asChild variant="outline" size="sm">
-          <Link href={`/orgs/${slug}/files`}>{t("files")}</Link>
+          <Link href="/dashboard/files">{t("files")}</Link>
         </Button>
         <Button asChild variant="outline" size="sm">
-          <Link href={`/orgs/${slug}/settings`}>{t("settings")}</Link>
+          <Link href="/dashboard/settings">{t("settings")}</Link>
         </Button>
         {/* langlion (EPIK 2, 3, 22). Same cosmetic gating as below — each page
             calls requireOrgPermission itself, which is the real boundary. */}
         {hasPermission(role, "group_types.manage") ? (
           <Button asChild variant="outline" size="sm">
-            <Link href={`/orgs/${slug}/group-types`}>{t("groupTypes")}</Link>
+            <Link href="/dashboard/group-types">{t("groupTypes")}</Link>
           </Button>
         ) : null}
         {hasPermission(role, "sessions.manage") ? (
           <Button asChild variant="outline" size="sm">
-            <Link href={`/orgs/${slug}/schedule`}>{t("schedule")}</Link>
+            <Link href="/dashboard/schedule">{t("schedule")}</Link>
           </Button>
         ) : null}
         {hasPermission(role, "credits.manual_grant") ? (
           <Button asChild variant="outline" size="sm">
-            <Link href={`/orgs/${slug}/credits`}>{t("credits")}</Link>
+            <Link href="/dashboard/credits">{t("credits")}</Link>
           </Button>
         ) : null}
         {hasPermission(role, "locations.manage") ? (
           <Button asChild variant="outline" size="sm">
-            <Link href={`/orgs/${slug}/locations`}>{t("locations")}</Link>
+            <Link href="/dashboard/locations">{t("locations")}</Link>
           </Button>
         ) : null}
         {/* Cosmetic gating only (spec 4.2) — the page itself calls
             requireOrgPermission, which is the actual boundary. */}
         {hasPermission(role, "audit.read") ? (
           <Button asChild variant="outline" size="sm">
-            <Link href={`/orgs/${slug}/settings/audit`}>{t("audit")}</Link>
+            <Link href="/dashboard/settings/audit">{t("audit")}</Link>
           </Button>
         ) : null}
         {hasPermission(role, "billing.manage") ? (
           <Button asChild variant="outline" size="sm">
-            <Link href={`/orgs/${slug}/settings/billing`}>{t("billing")}</Link>
+            <Link href="/dashboard/settings/billing">{t("billing")}</Link>
           </Button>
         ) : null}
       </nav>
 
       <div className="border-border border-t pt-6">
-        <LeaveOrgButton slug={slug} />
+        <LeaveOrgButton />
       </div>
     </div>
   );

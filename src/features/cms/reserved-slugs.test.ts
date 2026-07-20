@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isReservedSlug, reservedPrefixOf } from "./reserved-slugs";
+import { RESERVED_PATH_PREFIXES, isReservedSlug, reservedPrefixOf } from "./reserved-slugs";
 
 /**
  * `isReservedSlug` has NO production call site in F4.5 — its consumer is the CMS
@@ -52,7 +52,27 @@ describe("isReservedSlug", () => {
 describe("reservedPrefixOf", () => {
   it("returns the stage, so the proxy can tell tenant routes from apex ones (D60)", () => {
     expect(reservedPrefixOf("/zapisy/lato")).toEqual({ prefix: "zapisy", stage: "tenant" });
-    expect(reservedPrefixOf("/dashboard")).toEqual({ prefix: "dashboard", stage: "apex" });
+    expect(reservedPrefixOf("/admin")).toEqual({ prefix: "admin", stage: "apex" });
+    // F4.6: the staff panel is legitimate on both hosts, meaning something
+    // different on each — the apex account vs. that academy's panel.
+    expect(reservedPrefixOf("/dashboard")).toEqual({ prefix: "dashboard", stage: "both" });
+  });
+
+  it("never marks a guarded staff prefix as tenant-only (F4.6 authorization guard)", () => {
+    /*
+     * The apex branch in src/proxy.ts returns `forward()` early for "tenant"
+     * prefixes, SKIPPING default-deny. That is safe only where no apex route
+     * exists to render. Every prefix below has one and sits behind the guard, so
+     * "tenant" here would serve it to an anonymous request on the apex.
+     *
+     * This is the cheap half of the check; the e2e counterpart in
+     * langlion-subdomain-routing.spec.ts proves the actual response is a 307.
+     */
+    expect(RESERVED_PATH_PREFIXES["dashboard"]).toBe("both");
+    // `settings` is the personal account's, not an academy's (academy settings
+    // are under /dashboard/settings). It must stay apex-only, but it must never
+    // be "tenant" either — same early-return hazard, opposite direction.
+    expect(RESERVED_PATH_PREFIXES["settings"]).toBe("apex");
   });
 
   it("returns null for the root, which is the academy home page", () => {

@@ -72,8 +72,7 @@ export async function createGroupTypeAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const slug = str(formData.get("slug"));
-  const ctx = await requireOrgPermission(slug, "group_types.manage");
+  const ctx = await requireOrgPermission("group_types.manage");
   const [t, tv] = await Promise.all([
     getTranslations("groups"),
     getTranslations("groups.validation"),
@@ -140,7 +139,7 @@ export async function createGroupTypeAction(
     throw error;
   }
 
-  revalidatePath(`/orgs/${slug}/group-types`);
+  revalidatePath(`/dashboard/group-types`);
   return { success: t("created") };
 }
 
@@ -151,9 +150,8 @@ export async function updateGroupTypeAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const slug = str(formData.get("slug"));
   const groupTypeId = str(formData.get("groupTypeId"));
-  const ctx = await requireOrgPermission(slug, "group_types.manage");
+  const ctx = await requireOrgPermission("group_types.manage");
   const [t, tv] = await Promise.all([
     getTranslations("groups"),
     getTranslations("groups.validation"),
@@ -263,8 +261,8 @@ export async function updateGroupTypeAction(
 
   if (!found) return { error: t("errors.notFound") };
 
-  revalidatePath(`/orgs/${slug}/group-types`);
-  revalidatePath(`/orgs/${slug}/group-types/${groupTypeId}`);
+  revalidatePath(`/dashboard/group-types`);
+  revalidatePath(`/dashboard/group-types/${groupTypeId}`);
   return { success: t("updated") };
 }
 
@@ -287,8 +285,7 @@ export async function createRecurrenceAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const slug = str(formData.get("slug"));
-  const ctx = await requireOrgPermission(slug, "sessions.generate_season");
+  const ctx = await requireOrgPermission("sessions.generate_season");
   const [t, tg, tv] = await Promise.all([
     getTranslations("groups.recurrences"),
     getTranslations("groups"),
@@ -402,8 +399,8 @@ export async function createRecurrenceAction(
   if (outcome.kind === "needs-trainer") return { error: tg("errors.engineNeedsTrainer") };
   if (outcome.kind === "unknown-location") return { error: tg("errors.locationNotFound") };
 
-  revalidatePath(`/orgs/${slug}/group-types/${parsed.data.groupTypeId}`);
-  revalidatePath(`/orgs/${slug}/schedule`);
+  revalidatePath(`/dashboard/group-types/${parsed.data.groupTypeId}`);
+  revalidatePath(`/dashboard/schedule`);
 
   if (outcome.kind === "queued") {
     return { success: `${t("created")} ${t("generationQueued", { count: outcome.count })}` };
@@ -457,9 +454,8 @@ export async function updateRecurrenceAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  const slug = str(formData.get("slug"));
   const recurrenceId = str(formData.get("recurrenceId"));
-  const ctx = await requireOrgPermission(slug, "sessions.generate_season");
+  const ctx = await requireOrgPermission("sessions.generate_season");
   const [t, tg, tv] = await Promise.all([
     getTranslations("groups.recurrences"),
     getTranslations("groups"),
@@ -697,8 +693,8 @@ export async function updateRecurrenceAction(
   if (outcome.kind === "not-found") return { error: tg("errors.notFound") };
   if (outcome.kind === "unknown-location") return { error: tg("errors.locationNotFound") };
 
-  revalidatePath(`/orgs/${slug}/group-types/${parsed.data.groupTypeId}`);
-  revalidatePath(`/orgs/${slug}/schedule`);
+  revalidatePath(`/dashboard/group-types/${parsed.data.groupTypeId}`);
+  revalidatePath(`/dashboard/schedule`);
 
   // AC7 — the skipped list, with its reason, surfaced to the admin rather than
   // buried. Partial success reports as success WITH the caveats attached; the

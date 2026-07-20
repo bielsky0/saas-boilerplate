@@ -108,24 +108,28 @@ test("API schema failures answer with one envelope: 422 + per-field issues", asy
   expect(confirmBody.error).toBeTruthy();
   expect(confirmBody.issues.fileId).toBeTruthy();
 
-  // A tenant slug is held to a shape BEFORE the authorization guard sees it.
+  /*
+   * The tenant is no longer a field to validate (F4.6). This used to post
+   * `slug: "Not A Slug!!"` and assert a 422 with an issue on `slug`, proving the
+   * value was stopped at the schema instead of travelling into
+   * `resolveStorageOwner`. That claim is now vacuous in the best way: the caller
+   * cannot name a tenant at all, because the academy comes from the request host.
+   *
+   * The assertion is kept rather than deleted, re-aimed at a field that IS still
+   * caller-supplied — so the envelope shape (422 + per-field issues) stays pinned.
+   */
   const presign = await page.request.post("/api/storage/presign", {
     data: {
-      slug: "Not A Slug!!",
       filename: "pixel.png",
       contentType: "image/png",
-      size: 100,
+      size: -1,
       visibility: "private",
     },
   });
 
-  // 422 and not 403/404 is the assertion that matters: it proves the value was
-  // stopped at the schema rather than travelling into `resolveStorageOwner` and
-  // failing there as a missing-org lookup. Same rejection, different reason, and
-  // the difference is whether unvalidated input reaches the data layer at all.
   expect(presign.status()).toBe(422);
   const presignBody = (await presign.json()) as { issues: Record<string, string[]> };
-  expect(presignBody.issues.slug).toBeTruthy();
+  expect(presignBody.issues.size).toBeTruthy();
 });
 
 test("the public unsubscribe endpoint rejects a malformed link", async ({ request }) => {

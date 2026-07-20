@@ -1,6 +1,7 @@
+import { tenantUrl } from "./host-fixtures";
 import { expect, test } from "@playwright/test";
 
-import { loginViaUi, registerViaApi, seedOrg, TEST_PASSWORD, uniqueEmail } from "./helpers";
+import { loginToAcademy, registerViaApi, seedOrg, TEST_PASSWORD, uniqueEmail } from "./helpers";
 
 /**
  * Spec §6.4 — the organization-scoped audit trail.
@@ -19,33 +20,31 @@ import { loginViaUi, registerViaApi, seedOrg, TEST_PASSWORD, uniqueEmail } from 
  * here would pass locally and flake in CI, which is the worst way to learn this.
  */
 
-/** The audit page for an org, with an optional search filter. */
-function auditUrl(slug: string, q?: string): string {
+/** The audit page for an academy, with an optional search filter. */
+function auditUrl(subdomain: string, q?: string): string {
   return q
-    ? `/orgs/${slug}/settings/audit?q=${encodeURIComponent(q)}`
-    : `/orgs/${slug}/settings/audit`;
+    ? tenantUrl(subdomain, `/dashboard/settings/audit?q=${encodeURIComponent(q)}`)
+    : tenantUrl(subdomain, `/dashboard/settings/audit`);
 }
 
 test("an org admin sees tenant mutations in their own audit trail", async ({ page, request }) => {
   const owner = uniqueEmail("audit-owner");
   const invitee = uniqueEmail("audit-invitee");
   await registerViaApi(request, owner);
-  const slug = await seedOrg(request, { ownerEmail: owner, name: "Audit Co" });
+  const { subdomain } = await seedOrg(request, { ownerEmail: owner, name: "Audit Co" });
 
-  await page.goto("/login");
-  await loginViaUi(page, owner, TEST_PASSWORD);
-  await page.waitForURL("**/dashboard");
+  await loginToAcademy(page, subdomain, owner, TEST_PASSWORD);
 
   // Drive the REAL invite path, not a seeded row — the point is that the audit
   // write is wired into the action, not that the table can hold a row.
-  await page.goto(`/orgs/${slug}/members`);
+  await page.goto(tenantUrl(subdomain, `/dashboard/members`));
   await page.getByLabel("Email").fill(invitee);
   await page.getByLabel("Role", { exact: true }).click();
   await page.getByRole("option", { name: "Member" }).click();
   await page.getByRole("button", { name: /send invite/i }).click();
   await expect(page.getByText(/invitation sent to/i)).toBeVisible();
 
-  await page.goto(auditUrl(slug, invitee));
+  await page.goto(auditUrl(subdomain, invitee));
 
   const row = page.getByRole("row").filter({ hasText: invitee });
   await expect(row, "the invitee is the target").toContainText(invitee);
@@ -62,17 +61,15 @@ test("a role change records the field-level before and after", async ({ page, re
   const member = uniqueEmail("diff-member");
   await registerViaApi(request, owner);
   await registerViaApi(request, member);
-  const slug = await seedOrg(request, {
+  const { subdomain } = await seedOrg(request, {
     ownerEmail: owner,
     name: "Diff Co",
     members: [{ email: member, role: "member" }],
   });
 
-  await page.goto("/login");
-  await loginViaUi(page, owner, TEST_PASSWORD);
-  await page.waitForURL("**/dashboard");
+  await loginToAcademy(page, subdomain, owner, TEST_PASSWORD);
 
-  await page.goto(`/orgs/${slug}/members`);
+  await page.goto(tenantUrl(subdomain, `/dashboard/members`));
   const memberRow = page.getByRole("row").filter({ hasText: member });
   await memberRow.getByLabel(/member role/i).click();
   await page.getByRole("option", { name: "Admin" }).click();
@@ -84,7 +81,7 @@ test("a role change records the field-level before and after", async ({ page, re
   // their toast.
   await expect(page.getByText(/role updated/i)).toBeVisible();
 
-  await page.goto(auditUrl(slug, member));
+  await page.goto(auditUrl(subdomain, member));
 
   // §6.4's "stara wartość → nowa wartość", asserted through the rendered page
   // rather than the column — a diff nobody can read is not an audit trail.
@@ -105,21 +102,21 @@ test("a role change records the field-level before and after", async ({ page, re
 test("filtering preserves the locale prefix", async ({ page, request }) => {
   const owner = uniqueEmail("locale-owner");
   await registerViaApi(request, owner);
-  const slug = await seedOrg(request, { ownerEmail: owner, name: "Locale Co" });
+  const { subdomain } = await seedOrg(request, { ownerEmail: owner, name: "Locale Co" });
 
-  await page.goto("/login");
-  await loginViaUi(page, owner, TEST_PASSWORD);
-  await page.waitForURL("**/dashboard");
+  await loginToAcademy(page, subdomain, owner, TEST_PASSWORD);
 
-  await page.goto(`/pl/orgs/${slug}/settings/audit`);
+  await page.goto(tenantUrl(subdomain, `/pl/dashboard/settings/audit`));
   // Polish catalog, not a missing-message fallback or an English leak.
   await expect(page.getByRole("heading", { name: "Dziennik zmian" })).toBeVisible();
 
   await page.getByRole("searchbox").fill("member");
   await page.getByRole("button", { name: "Filtruj" }).click();
 
-  await page.waitForURL(/\/pl\/orgs\/.*\/settings\/audit\?/);
-  expect(page.url(), "the filter submit must not drop /pl/").toContain(`/pl/orgs/${slug}`);
+  await page.waitForURL(/\/pl\/dashboard\/settings\/audit\?/);
+  expect(page.url(), "the filter submit must not drop /pl/").toContain(
+    tenantUrl(subdomain, "/pl/dashboard"),
+  );
   await expect(page.getByRole("heading", { name: "Dziennik zmian" })).toBeVisible();
 });
 
@@ -128,24 +125,22 @@ test("a member cannot read the audit trail", async ({ page, request }) => {
   const member = uniqueEmail("rbac-member");
   await registerViaApi(request, owner);
   await registerViaApi(request, member);
-  const slug = await seedOrg(request, {
+  const { subdomain } = await seedOrg(request, {
     ownerEmail: owner,
     name: "Rbac Audit Co",
     members: [{ email: member, role: "member" }],
   });
 
-  await page.goto("/login");
-  await loginViaUi(page, member, TEST_PASSWORD);
-  await page.waitForURL("**/dashboard");
+  await loginToAcademy(page, subdomain, member, TEST_PASSWORD);
 
   // Backend enforcement, not a hidden link: `audit.read` is granted to owner and
   // admin only, and the page calls requireOrgPermission as its first line.
-  const resp = await page.goto(auditUrl(slug));
+  const resp = await page.goto(auditUrl(subdomain));
   expect(resp?.status()).toBe(403);
   await expect(page.getByText(/access denied/i)).toBeVisible();
 
   // …and the nav link is hidden too (cosmetic, per §4.2).
-  await page.goto(`/orgs/${slug}`);
+  await page.goto(tenantUrl(subdomain, "/dashboard"));
   await expect(page.getByRole("link", { name: /audit trail/i })).toHaveCount(0);
 });
 
@@ -155,14 +150,12 @@ test("one organization never sees another's audit entries", async ({ page, reque
   const inviteeB = uniqueEmail("tenant-b-invitee");
   await registerViaApi(request, ownerA);
   await registerViaApi(request, ownerB);
-  const slugA = await seedOrg(request, { ownerEmail: ownerA, name: "Tenant A" });
-  const slugB = await seedOrg(request, { ownerEmail: ownerB, name: "Tenant B" });
+  const { subdomain: subA } = await seedOrg(request, { ownerEmail: ownerA, name: "Tenant A" });
+  const { subdomain: subB } = await seedOrg(request, { ownerEmail: ownerB, name: "Tenant B" });
 
   // Generate an audited event in org B.
-  await page.goto("/login");
-  await loginViaUi(page, ownerB, TEST_PASSWORD);
-  await page.waitForURL("**/dashboard");
-  await page.goto(`/orgs/${slugB}/members`);
+  await loginToAcademy(page, subB, ownerB, TEST_PASSWORD);
+  await page.goto(tenantUrl(subB, `/dashboard/members`));
   await page.getByLabel("Email").fill(inviteeB);
   await page.getByLabel("Role", { exact: true }).click();
   await page.getByRole("option", { name: "Member" }).click();
@@ -170,7 +163,7 @@ test("one organization never sees another's audit entries", async ({ page, reque
   await expect(page.getByText(/invitation sent to/i)).toBeVisible();
 
   // It is visible to org B's owner…
-  await page.goto(auditUrl(slugB, inviteeB));
+  await page.goto(auditUrl(subB, inviteeB));
   await expect(page.getByRole("row").filter({ hasText: inviteeB })).toBeVisible();
 
   await page.getByRole("button", { name: /sign out/i }).click();
@@ -178,9 +171,8 @@ test("one organization never sees another's audit entries", async ({ page, reque
 
   // …and invisible to org A's, who has full `audit.read` on their OWN org. This is
   // the tenant boundary: not "A lacks permission", but "the row is not A's".
-  await loginViaUi(page, ownerA, TEST_PASSWORD);
-  await page.waitForURL("**/dashboard");
-  const respA = await page.goto(auditUrl(slugA, inviteeB));
+  await loginToAcademy(page, subA, ownerA, TEST_PASSWORD);
+  const respA = await page.goto(auditUrl(subA, inviteeB));
   expect(respA?.status(), "org A's owner may read org A's trail").toBe(200);
   await expect(page.getByRole("row").filter({ hasText: inviteeB })).toHaveCount(0);
   await expect(page.getByText(/no audit entries match/i)).toBeVisible();

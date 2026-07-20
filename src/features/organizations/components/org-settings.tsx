@@ -13,7 +13,13 @@ import type { ActionState } from "../actions";
 
 const initial: ActionState = {};
 
-/** Edit org name + slug (spec §3.2). Re-checks `organization.update` server-side. */
+/**
+ * Edit org name + slug (spec §3.2). Re-checks `organization.update` server-side.
+ *
+ * `slug` is no longer the tenant selector — the action resolves the academy from
+ * the request host (F4.6). It survives here purely as the CURRENT VALUE of the
+ * rename field, which is why there is no hidden input carrying it any more.
+ */
 export function OrgSettingsForm({ slug, name }: { slug: string; name: string }) {
   const [state, action, pending] = useActionState(updateOrganizationAction, initial);
   const t = useTranslations("organizations");
@@ -24,7 +30,6 @@ export function OrgSettingsForm({ slug, name }: { slug: string; name: string }) 
 
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
-      <input type="hidden" name="slug" value={slug} />
       <FormField label={t("fields.orgName")} htmlFor="org-name">
         <Input id="org-name" name="name" defaultValue={name} required />
       </FormField>
@@ -44,16 +49,16 @@ export function OrgSettingsForm({ slug, name }: { slug: string; name: string }) 
 }
 
 /** Soft-delete the org (spec §11.3). Re-checks `organization.delete` server-side. */
-export function DeleteOrgButton({ slug }: { slug: string }) {
+export function DeleteOrgButton() {
   const [state, action, pending] = useActionState(deleteOrganizationAction, initial);
   const formId = useId();
   const t = useTranslations("organizations.settings");
 
   return (
     <div className="flex flex-col gap-2">
-      <form id={formId} action={action}>
-        <input type="hidden" name="slug" value={slug} />
-      </form>
+      {/* Empty by design since F4.6: the action reads the academy from the
+          request host, so this form carries no fields — only the submit. */}
+      <form id={formId} action={action} />
       <div>
         <ConfirmDialog
           trigger={
@@ -74,16 +79,16 @@ export function DeleteOrgButton({ slug }: { slug: string }) {
 }
 
 /** Leave the org (spec §3.4). Blocked for the sole owner (server-side). */
-export function LeaveOrgButton({ slug }: { slug: string }) {
+export function LeaveOrgButton() {
   const [state, action, pending] = useActionState(leaveOrganizationAction, initial);
   const formId = useId();
   const t = useTranslations("organizations.settings");
 
   return (
     <div className="flex flex-col gap-2">
-      <form id={formId} action={action}>
-        <input type="hidden" name="slug" value={slug} />
-      </form>
+      {/* Empty by design since F4.6: the action reads the academy from the
+          request host, so this form carries no fields — only the submit. */}
+      <form id={formId} action={action} />
       <div>
         <ConfirmDialog
           trigger={

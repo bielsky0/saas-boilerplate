@@ -32,7 +32,7 @@ type Fixture = { ownerEmail: string; orgSlug: string; customerId: string };
 async function seedBillingOrg(request: APIRequestContext): Promise<Fixture> {
   const ownerEmail = uniqueEmail("notif-owner");
   await registerViaApi(request, ownerEmail);
-  const orgSlug = await seedOrg(request, {
+  const { slug: orgSlug } = await seedOrg(request, {
     ownerEmail,
     name: "Notif Co",
     slug: uniqueId("notif-co"),

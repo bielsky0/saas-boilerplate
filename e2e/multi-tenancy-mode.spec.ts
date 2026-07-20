@@ -1,4 +1,5 @@
 import { expect, test } from "./rate-limit-fixtures";
+import { tenantUrl } from "./host-fixtures";
 
 import { loginViaUi, registerAndVerify, seedOrg, TEST_PASSWORD, uniqueEmail } from "./helpers";
 import { TENANCY_MODE } from "./tenancy-fixtures";
@@ -29,12 +30,11 @@ test.describe("tenancy mode: required", () => {
     await loginViaUi(page, email, TEST_PASSWORD);
     await page.waitForURL("**/dashboard");
 
-    // The switcher is present and advertises org creation.
-    const switcher = page.getByRole("button", { name: "Switch account" });
-    await expect(switcher).toBeVisible();
-    await switcher.click();
-    await expect(page.getByRole("menuitem", { name: /new organization/i })).toBeVisible();
-    await page.keyboard.press("Escape");
+    // The account switcher was removed in F4.6 (§2.19 exception #5); what
+    // advertises organizations in `required` mode is now the create button on the
+    // apex dashboard. Same claim as before — the mode is exposed — asserted
+    // against the control that actually exists.
+    await expect(page.getByRole("link", { name: /new organization/i })).toBeVisible();
 
     // And the route actually serves.
     const res = await page.goto("/orgs/new");
@@ -80,14 +80,14 @@ test.describe("tenancy mode: disabled", () => {
     // THE CENTRAL ASSERTION (§1.4, "kosmetyczna zmiana" + "zero migracji"): the
     // data layer still creates and stores an organization perfectly well while
     // the mode is disabled — it is only the UI that is gone.
-    const slug = await seedOrg(request, { ownerEmail: email, name: "Ghost Team" });
+    const { subdomain } = await seedOrg(request, { ownerEmail: email, name: "Ghost Team" });
 
     await page.goto("/login");
     await loginViaUi(page, email, TEST_PASSWORD);
     await page.waitForURL("**/dashboard");
 
-    // ...and its own OWNER cannot reach it.
-    const orgRes = await page.goto(`/orgs/${slug}`);
+    // ...and its own OWNER cannot reach it, on the academy's own host.
+    const orgRes = await page.goto(tenantUrl(subdomain, "/dashboard"));
     expect(orgRes?.status()).toBe(404);
 
     const newRes = await page.goto("/orgs/new");

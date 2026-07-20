@@ -11,9 +11,8 @@ import { DeleteOrgButton, OrgSettingsForm } from "@/features/organizations/compo
  * the backend, independent of the hidden nav link (spec §4.2). Delete is further
  * gated to Owners.
  */
-export default async function OrgSettingsPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const { org, role } = await requireOrgPermission(slug, "organization.update");
+export default async function OrgSettingsPage() {
+  const { org, role } = await requireOrgPermission("organization.update");
   const canDelete = hasPermission(role, "organization.delete");
   const t = await getTranslations("dashboard.settings");
 
@@ -29,7 +28,7 @@ export default async function OrgSettingsPage({ params }: { params: Promise<{ sl
           <CardTitle>{t("general")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <OrgSettingsForm slug={slug} name={org.name} />
+          <OrgSettingsForm slug={org.slug} name={org.name} />
         </CardContent>
       </Card>
 
@@ -40,7 +39,7 @@ export default async function OrgSettingsPage({ params }: { params: Promise<{ sl
             <p className="text-muted-foreground text-sm">{t("dangerBody")}</p>
           </CardHeader>
           <CardContent>
-            <DeleteOrgButton slug={slug} />
+            <DeleteOrgButton />
           </CardContent>
         </Card>
       ) : null}

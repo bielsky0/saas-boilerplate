@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/auth";
 import type { Owner } from "@/lib/db/tenant";
 import { requireOrgPermission } from "@/features/organizations/context";
+import { servedSubdomain } from "@/features/organizations/served-org";
 import { ensurePersonalAccount, getPersonalAccountByUserId } from "@/features/organizations/data";
 
 /**
@@ -31,19 +32,24 @@ export interface ResolvedBillingOwner {
   /** Who to name on the provider customer record. */
   email: string;
   name: string | null;
-  /** Present for organizations only — used to build return URLs. */
-  orgSlug: string | null;
+  /**
+   * Present for organizations only — used to build provider return URLs.
+   *
+   * SUBDOMAIN, not slug (F4.6): the return URL has to name a HOST, and the panel
+   * is host-addressed now. The slug no longer appears in any panel URL.
+   */
+  orgSubdomain: string | null;
 }
 
-export async function resolveBillingOwner(slug: string | null): Promise<ResolvedBillingOwner> {
-  if (slug) {
-    const ctx = await requireOrgPermission(slug, "billing.manage");
+export async function resolveBillingOwner(): Promise<ResolvedBillingOwner> {
+  if (await servedSubdomain()) {
+    const ctx = await requireOrgPermission("billing.manage");
     return {
       owner: { kind: "organization", organizationId: ctx.org.id },
       userId: ctx.session.user.id,
       email: ctx.session.user.email,
       name: ctx.org.name,
-      orgSlug: ctx.org.slug,
+      orgSubdomain: ctx.org.subdomain,
     };
   }
 
@@ -62,6 +68,6 @@ export async function resolveBillingOwner(slug: string | null): Promise<Resolved
     userId: session.user.id,
     email: session.user.email,
     name: session.user.name,
-    orgSlug: null,
+    orgSubdomain: null,
   };
 }

@@ -17,4 +17,12 @@
 
 export * from "./schema";
 export { slugify } from "./slug";
-export { AccountSwitcher } from "./components/account-switcher";
+
+/*
+ * `AccountSwitcher` was removed in F4.6 (§2.19 exception #5). An organization is
+ * not a switchable context inside one session any more — it is a separate
+ * installation under its own subdomain, each requiring its own sign-in. What
+ * replaced it is a DIRECTORY on the apex dashboard rendering cross-origin links
+ * (`app/[locale]/(app)/dashboard/page.tsx`), not a control that swaps tenants.
+ * Do not reintroduce a switcher here without revisiting that exception.
+ */

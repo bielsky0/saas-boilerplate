@@ -10,7 +10,7 @@ import type { ActionState } from "../actions";
 const initial: ActionState = {};
 
 /** Revoke a pending invitation (spec §3.3). Re-checks `invitations.revoke` server-side. */
-export function RevokeInviteButton({ slug, invitationId }: { slug: string; invitationId: string }) {
+export function RevokeInviteButton({ invitationId }: { invitationId: string }) {
   const [state, action, pending] = useActionState(revokeInvitationAction, initial);
   const formId = useId();
   const t = useTranslations("organizations.invitationActions");
@@ -22,7 +22,6 @@ export function RevokeInviteButton({ slug, invitationId }: { slug: string; invit
   return (
     <div className="flex flex-col items-end gap-1">
       <form id={formId} action={action}>
-        <input type="hidden" name="slug" value={slug} />
         <input type="hidden" name="invitationId" value={invitationId} />
       </form>
       <ConfirmDialog

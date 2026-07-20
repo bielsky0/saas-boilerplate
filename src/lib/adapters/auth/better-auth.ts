@@ -90,6 +90,25 @@ async function recipientLocale(userId: string): Promise<Locale> {
 export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
+  /*
+   * Every academy host, plus the apex (F4.6, langlion §2.27).
+   *
+   * Better Auth defaults `trustedOrigins` to `[baseURL]` and rejects requests
+   * whose `Origin` does not match — a CSRF check, and a correct one. Since the
+   * staff panel moved onto `{subdomain}.{APP_ROOT_DOMAIN}`, sign-in happens on
+   * hosts that `baseURL` does not name, so without this every login on an
+   * academy host fails the origin check.
+   *
+   * ⚠️ THIS IS NOT A SHARED SESSION, AND MUST NOT BECOME ONE. §2.19 exception #5
+   * requires each academy to have its OWN authentication: cookies stay
+   * host-scoped (Better Auth's default — note there is deliberately no
+   * `advanced.crossSubDomainCookies` and no cookie `domain` here), so a session
+   * minted on `a.example.com` is simply not sent to `b.example.com`. Trusting an
+   * origin says "requests may come from this host", not "one session spans these
+   * hosts". Adding a cookie domain would collapse that distinction and break the
+   * isolation the exception exists to guarantee.
+   */
+  trustedOrigins: [env.BETTER_AUTH_URL, `*.${env.APP_ROOT_DOMAIN}`],
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {

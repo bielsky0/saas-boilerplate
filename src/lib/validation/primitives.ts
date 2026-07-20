@@ -58,7 +58,8 @@ export const idParam = z.string().trim().min(1).max(255);
  * A DNS label for an academy's public subdomain (langlion §1.2, decyzja D10).
  *
  * Separate from `SLUG_PATTERN` even though the two look alike, because they
- * answer to different authorities. A slug is ours and routes `/orgs/[slug]`; a
+ * answer to different authorities. A slug is ours and internal (it routed
+ * `/orgs/[slug]` until F4.6); a
  * subdomain is DNS's and becomes `{subdomain}.langlion.com`, so its rule is
  * RFC 1035's: letters, digits and hyphens, never leading or trailing, 63 chars
  * max. Three chars minimum is ours, not DNS's — one- and two-letter subdomains

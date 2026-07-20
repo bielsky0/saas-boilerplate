@@ -6,7 +6,7 @@ import { USER_STATUSES, type UserListQuery } from "../schema";
  *
  * A plain GET form with zero client JavaScript. The filter state lives in the URL,
  * so it is refresh-safe, shareable, back-button-correct, and survives with JS off
- * — the same principle as deriving the active org from `/orgs/[slug]` rather than
+ * — the same principle as deriving the active academy from the request host rather than
  * hidden session state (spec 3.5).
  *
  * The status control is a NATIVE <select>, not the Radix `Select` primitive:

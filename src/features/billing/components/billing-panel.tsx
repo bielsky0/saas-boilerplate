@@ -13,14 +13,14 @@ import { CheckoutButton, PortalButton } from "./billing-actions";
  * (spec 5.3, 5.5, 5.7).
  *
  * One component for both contexts because the only difference is which owner is
- * being billed — the same reason `resolveBillingOwner` takes a nullable slug
+ * being billed — the same distinction `resolveBillingOwner` now draws from the host
  * rather than having two call paths.
  *
  * The current plan is read from the SUBSCRIPTION ROW, which only ever exists
  * because a webhook wrote it (spec 5.4). Nothing here asks the provider anything,
  * and nothing here infers a plan from a redirect the user just came back from.
  */
-export async function BillingPanel({ owner, slug }: { owner: BillingOwner; slug: string | null }) {
+export async function BillingPanel({ owner }: { owner: BillingOwner }) {
   const [t, format, active] = await Promise.all([
     getTranslations("billing"),
     getFormatter(),
@@ -60,7 +60,7 @@ export async function BillingPanel({ owner, slug }: { owner: BillingOwner; slug:
           <CardContent>
             {/* Plan changes and cancellation happen in the provider's portal and
                 come back as webhooks — we never mutate subscriptions ourselves. */}
-            <PortalButton slug={slug} />
+            <PortalButton />
           </CardContent>
         ) : null}
       </Card>
@@ -88,7 +88,6 @@ export async function BillingPanel({ owner, slug }: { owner: BillingOwner; slug:
                     current plan has nothing to buy again. */}
                 {plan.priceId && !isCurrent ? (
                   <CheckoutButton
-                    slug={slug}
                     plan={plan.id}
                     label={t("choose", { plan: plan.name })}
                     variant={plan.featured ? "default" : "outline"}

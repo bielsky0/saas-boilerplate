@@ -7,7 +7,7 @@ import type { FormState } from "@/lib/validation";
 import { withOwner } from "@/lib/db/tenant";
 import { markAllRead, markRead, setPreference } from "./data";
 import { resolveNotificationOwner } from "./context";
-import { markAllReadSchema, markReadSchema } from "./schema";
+import { markReadSchema } from "./schema";
 import { NOTIFICATION_TYPES, isSuppressibleType } from "./types";
 
 /**
@@ -31,20 +31,17 @@ import { NOTIFICATION_TYPES, isSuppressibleType } from "./types";
  * cannot produce. The `if (id)` guard this replaces did the same job for exactly
  * one of the two arguments.
  */
-export async function markReadAction(slug: string | null, id: string): Promise<void> {
-  const parsed = markReadSchema.safeParse({ slug, id });
+export async function markReadAction(id: string): Promise<void> {
+  const parsed = markReadSchema.safeParse({ id });
   if (!parsed.success) return;
 
-  const { owner, userId } = await resolveNotificationOwner(parsed.data.slug ?? null);
+  const { owner, userId } = await resolveNotificationOwner();
   await withOwner(owner, (tx) => markRead(tx, userId, owner, parsed.data.id));
 }
 
 /** Mark every notification in the active context read. */
-export async function markAllReadAction(slug: string | null): Promise<void> {
-  const parsed = markAllReadSchema.safeParse({ slug });
-  if (!parsed.success) return;
-
-  const { owner, userId } = await resolveNotificationOwner(parsed.data.slug ?? null);
+export async function markAllReadAction(): Promise<void> {
+  const { owner, userId } = await resolveNotificationOwner();
   await withOwner(owner, (tx) => markAllRead(tx, userId, owner));
 }
 

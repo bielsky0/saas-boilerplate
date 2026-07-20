@@ -26,11 +26,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const parsed = presignInputSchema.safeParse(body);
   if (!parsed.success) return validationFailed(parsed.error, "Invalid upload");
 
-  const { slug, ...input } = parsed.data;
-  const { owner, userId } = await resolveStorageOwner(slug ?? null, "storage.upload");
+  const { owner, userId } = await resolveStorageOwner("storage.upload");
 
   try {
-    const result = await createUpload(owner, userId, input);
+    const result = await createUpload(owner, userId, parsed.data);
     return NextResponse.json({ fileId: result.fileId, upload: result.upload }, { status: 201 });
   } catch (err) {
     const mapped = storageErrorResponse(err);

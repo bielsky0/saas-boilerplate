@@ -34,15 +34,12 @@ import { withTenant } from "@/lib/db/tenant";
  * client-facing pages, not this one.
  */
 export default async function SchedulePage({
-  params,
   searchParams,
 }: {
-  params: Promise<{ slug: string }>;
   searchParams: Promise<{ location?: string }>;
 }) {
-  const { slug } = await params;
   const { location: locationFilter } = await searchParams;
-  const { org } = await requireOrgPermission(slug, "sessions.manage");
+  const { org } = await requireOrgPermission("sessions.manage");
   const [t, locale] = await Promise.all([getTranslations("schedule"), getLocale()]);
 
   const { sessions, locations } = await withTenant(org.id, async (tx) => ({
@@ -94,7 +91,7 @@ export default async function SchedulePage({
       {locations.length > 0 ? (
         <nav className="flex flex-wrap items-center gap-2" aria-label={t("filter.location")}>
           <Button asChild size="sm" variant={locationFilter ? "outline" : "secondary"}>
-            <Link href={`/orgs/${slug}/schedule`}>{t("filter.all")}</Link>
+            <Link href={`/dashboard/schedule`}>{t("filter.all")}</Link>
           </Button>
           {locations.map((row) => (
             <Button
@@ -103,7 +100,7 @@ export default async function SchedulePage({
               size="sm"
               variant={locationFilter === row.id ? "secondary" : "outline"}
             >
-              <Link href={`/orgs/${slug}/schedule?location=${row.id}`}>{row.name}</Link>
+              <Link href={`/dashboard/schedule?location=${row.id}`}>{row.name}</Link>
             </Button>
           ))}
         </nav>
@@ -152,7 +149,6 @@ export default async function SchedulePage({
                 </TableCell>
                 <TableCell className="text-right align-top">
                   <SessionEditForm
-                    slug={slug}
                     sessionId={row.id}
                     startLocal={toLocalInput(row.startTime)}
                     endLocal={toLocalInput(row.endTime)}
