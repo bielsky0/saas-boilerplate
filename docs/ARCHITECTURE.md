@@ -1104,6 +1104,58 @@ once, ensure the DB is migrated, then `pnpm test:e2e`.
 > read `src/content/` from disk on purpose — fs is free in a test runner, and it
 > is what catches a post whose registry line was forgotten.
 
+### Two session mechanisms: staff and parents (langlion §2.19, F3)
+
+There are **two unrelated ways to be signed in**, and code that confuses them is
+the failure this section exists to prevent.
+
+|            | Staff (owner/admin/reception/trainer)    | Parent (`client`)                                          |
+| ---------- | ---------------------------------------- | ---------------------------------------------------------- |
+| Identity   | Better Auth `user` + `membership`        | domain `client`, unique per `(organizationId, email)`      |
+| Credential | password / OAuth                         | 6-digit OTP, emailed, scoped to `(organizationId, email)`  |
+| Session    | Better Auth `session`                    | `client_session` row + opaque cookie (`ll_client_session`) |
+| Gate       | `requireSession`, `requireOrgPermission` | `requireClient(organizationId)`                            |
+| Reaches    | `/dashboard`, `/orgs/…`, `/admin`        | nothing under those — parents have no RBAC role at all     |
+
+A parent is **not** a `user` with fewer permissions; there is no `membership`
+row, no role, and nothing in `features/client-auth/` grants staff access. The
+reason is a business requirement rather than a schema preference: from a parent's
+point of view Academy A and Academy B are unrelated businesses, so the same
+address at two academies is two logins (spec rewizja 14.1, the fourth deliberate
+departure from the boilerplate).
+
+**`requireClient` takes an `organizationId`, and that is not boilerplate.** There
+is no answer to "who is signed in" without naming the academy: one cookie
+resolves to a parent at the academy that issued it and to nobody anywhere else.
+The lookup is tenant-scoped, so a foreign cookie finds no row rather than being
+filtered out afterwards.
+
+**Why the session is a row and not a signed cookie.** A signed cookie carrying
+`{clientId, organizationId, exp}` needs no table and no read — and cannot be
+revoked, so "log out" and "this parent's access ends now" both become "wait for
+the expiry you already granted". Second reason, specific to now: §2.19 rests
+isolation on a cookie scoped per host, but **the subdomain middleware does not
+exist yet (F5)**, so every academy answers on one host and cookie scope isolates
+nothing. With the owner on the row, `organizationId` decides — before the
+middleware and after it, where host scoping becomes a second, independent layer.
+
+Until F5, one browser holds one academy at a time (signing in at B overwrites the
+cookie for A). That is a dev/E2E wrinkle, not an isolation hole.
+
+**One-time codes are consumed by a single conditional UPDATE** — never a SELECT
+followed by an UPDATE (decyzja D38). Two requests carrying the same code would
+both observe `consumedAt IS NULL` under READ COMMITTED and both proceed; being
+inside a transaction does not close that window. Same principle as `FOR UPDATE
+SKIP LOCKED` on credit consumption and `FOR UPDATE` on session capacity: the
+guarantee lives in the database. `e2e/langlion-client-auth.spec.ts` fires two
+simultaneous redemptions and asserts exactly one session exists afterwards.
+
+**The row-level attempt cap is load-bearing, not belt-and-braces.** The rate
+limiter in front of it fails open when its store is unavailable — correct for a
+password form, where argon2 still stands behind it, and wrong for six digits with
+nothing behind them. `client_otp.attempts` is enforced inside the UPDATE, so a
+store outage cannot lift it.
+
 ### Canonical URLs are baked at BUILD time (spec 9.1, 19.1)
 
 `NEXT_PUBLIC_APP_URL` feeds `src/lib/site.ts`, which feeds `metadataBase`, every

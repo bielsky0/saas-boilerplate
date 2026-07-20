@@ -23,6 +23,8 @@ export type TemplateName =
   | "invitation"
   | "payment-failed"
   | "subscription-confirmed"
+  /** The parent's one-time sign-in code (langlion §2.19, US-4.5). */
+  | "client-otp"
   // Onboarding sequence (spec 10.3) — carries an unsubscribe link.
   | "welcome"
   | "onboarding-tips"
@@ -47,6 +49,13 @@ export interface TemplateProps {
    */
   "payment-failed": { orgName: string; amount: number; currency: string; manageUrl: string };
   "subscription-confirmed": { orgName: string; planName: string; manageUrl: string };
+  /**
+   * `code` is the RAW one-time code — the only place in the system it exists
+   * outside the parent's browser, since only its hash is stored (see
+   * `schema/client-otps.ts`). `expiresInMinutes` is passed rather than derived so
+   * the message and `OTP_TTL_MS` cannot disagree about how long the parent has.
+   */
+  "client-otp": { code: string; orgName: string; expiresInMinutes: number };
   welcome: { name?: string | null; unsubscribeUrl: string };
   "onboarding-tips": { name?: string | null; unsubscribeUrl: string };
   "onboarding-features": { name?: string | null; unsubscribeUrl: string };

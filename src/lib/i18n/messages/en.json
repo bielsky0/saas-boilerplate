@@ -61,6 +61,14 @@
       "manage": "You can manage your plan, payment method, and invoices any time.",
       "cta": "Manage subscription"
     },
+    "client-otp": {
+      "subject": "{code} is your sign-in code",
+      "preview": "Your one-time code for {orgName}.",
+      "heading": "Sign in to {orgName}",
+      "body": "Enter this code in the tab where you started signing in to {orgName}.",
+      "expiry": "The code expires in {minutes} minutes and can be used once.",
+      "note": "If you did not request this code, you can ignore this message — nobody can sign in without it."
+    },
     "welcome": {
       "subject": "Welcome aboard",
       "preview": "Your account is ready.",

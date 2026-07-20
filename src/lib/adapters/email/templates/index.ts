@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { type Locale, getTranslator } from "@/lib/i18n";
 import type { RenderedEmail, TemplateData, TemplateName, TemplateProps } from "../contract";
 import type { EmailTranslator } from "./layout";
+import { ClientOtp, clientOtpSubject } from "./client-otp";
 import { Invitation, invitationSubject } from "./invitation";
 import { OnboardingFeatures, onboardingFeaturesSubject } from "./onboarding-features";
 import { OnboardingTips, onboardingTipsSubject } from "./onboarding-tips";
@@ -48,6 +49,7 @@ const templates: { [N in TemplateName]: TemplateDef<N> } = {
     subject: subscriptionConfirmedSubject,
     component: SubscriptionConfirmed,
   },
+  "client-otp": { subject: clientOtpSubject, component: ClientOtp },
   welcome: { subject: welcomeSubject, component: Welcome },
   "onboarding-tips": { subject: onboardingTipsSubject, component: OnboardingTips },
   "onboarding-features": {

@@ -117,5 +117,7 @@ export * from "./group-types";
 export * from "./group-type-recurrences";
 export * from "./class-sessions";
 export * from "./clients";
+export * from "./client-otps";
+export * from "./client-sessions";
 export * from "./athletes";
 export * from "./bookings";

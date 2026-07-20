@@ -61,6 +61,14 @@
       "manage": "W każdej chwili możesz zarządzać planem, metodą płatności i fakturami.",
       "cta": "Zarządzaj subskrypcją"
     },
+    "client-otp": {
+      "subject": "{code} — Twój kod logowania",
+      "preview": "Twój jednorazowy kod do {orgName}.",
+      "heading": "Zaloguj się do {orgName}",
+      "body": "Wpisz ten kod w oknie, w którym zacząłeś logowanie do {orgName}.",
+      "expiry": "Kod wygasa za {minutes} min i można go użyć tylko raz.",
+      "note": "Jeśli nie prosiłeś o ten kod, zignoruj tę wiadomość — bez niego nikt się nie zaloguje."
+    },
     "welcome": {
       "subject": "Witamy na pokładzie",
       "preview": "Twoje konto jest gotowe.",

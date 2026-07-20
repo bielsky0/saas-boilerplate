@@ -208,7 +208,7 @@ function hash(value: string): string {
  * Guarded by NODE_ENV exactly like the /api/dev routes: in production this header
  * is ignored, so it cannot be used to escape a bucket.
  */
-const E2E_BUCKET_HEADER = "x-e2e-rate-limit-bucket";
+export const E2E_BUCKET_HEADER = "x-e2e-rate-limit-bucket";
 
 function testBucket(headers: Headers): string {
   if (env.NODE_ENV === "production") return "";

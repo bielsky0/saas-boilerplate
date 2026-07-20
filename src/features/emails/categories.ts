@@ -46,6 +46,10 @@ export const TEMPLATE_CATEGORY: Record<TemplateName, EmailCategory> = {
   invitation: "transactional",
   "payment-failed": "transactional",
   "subscription-confirmed": "transactional",
+  // Unsuppressible by construction, and this is the clearest case in the map: the
+  // parent asked for it seconds ago, and an opt-out that silenced it would be a
+  // lockout with no other way in — parents have no password to fall back on.
+  "client-otp": "transactional",
   welcome: "onboarding",
   "onboarding-tips": "onboarding",
   "onboarding-features": "onboarding",

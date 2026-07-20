@@ -109,6 +109,16 @@ function isPublicApiPath(pathname: string): boolean {
   // exempt above; the root /.well-known/* metadata routes bypass this proxy via
   // the matcher's `.*\..*` dot rule.)
   if (pathname.startsWith("/api/mcp")) return true;
+  // Parent authentication (langlion §2.19, F3). The session this guard looks for
+  // is Better Auth's, which is STAFF ONLY — parents are a domain entity with a
+  // separate session mechanism (`features/client-auth/session.ts`), so a parent
+  // signing in has, by definition, nothing the guard can recognise. Without this
+  // exemption the sign-in endpoints would 307 to the staff /login page.
+  //
+  // Not unguarded: `request-code` and `verify` are rate-limited per address and
+  // per IP inside their handlers, and `session`/`logout` do nothing at all
+  // without a valid opaque token in the cookie.
+  if (pathname.startsWith("/api/client-auth/")) return true;
   return false;
 }
 
