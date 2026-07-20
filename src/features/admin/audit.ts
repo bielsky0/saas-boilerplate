@@ -161,6 +161,16 @@ export const AUDIT_ACTIONS = [
   "recurrence.create",
   "recurrence.update",
   "class_session.update",
+  // langlion §2.4 / EPIK 7 — the credit ledger.
+  //
+  // ONLY the manual grant is logged, and the omission of the other five sources
+  // is deliberate rather than pending. A grant creates settlement value out of
+  // nothing on one person's say-so (US-7.3), which is exactly the kind of act
+  // §6.4 exists to make answerable. The other five are consequences of an event
+  // that already has its own record — a payment, a webhook, a cancellation — and
+  // logging them here would restate that record while burying this one. Expiry
+  // is not logged either: a deadline passing is not an act by anybody.
+  "credit.grant",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -176,7 +186,13 @@ export type AuditTargetType =
   | "location"
   | "group_type"
   | "recurrence"
-  | "class_session";
+  | "class_session"
+  /**
+   * The PARENT is the target of a credit grant, not the credit rows: a grant of
+   * ten credits is one decision about one family, and an auditor asks "what did
+   * we give this client", never "what happened to credit #7 of 10".
+   */
+  | "client";
 
 /**
  * WHO acted, as a kind — §6.4's actor model. A different question from WHICH

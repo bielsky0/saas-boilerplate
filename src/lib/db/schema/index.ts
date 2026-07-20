@@ -121,3 +121,5 @@ export * from "./client-otps";
 export * from "./client-sessions";
 export * from "./athletes";
 export * from "./bookings";
+export * from "./credit-types";
+export * from "./credits";

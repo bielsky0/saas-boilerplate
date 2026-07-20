@@ -48,6 +48,11 @@ export default async function OrganizationPage({ params }: { params: Promise<{ s
             <Link href={`/orgs/${slug}/schedule`}>{t("schedule")}</Link>
           </Button>
         ) : null}
+        {hasPermission(role, "credits.manual_grant") ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/orgs/${slug}/credits`}>{t("credits")}</Link>
+          </Button>
+        ) : null}
         {hasPermission(role, "locations.manage") ? (
           <Button asChild variant="outline" size="sm">
             <Link href={`/orgs/${slug}/locations`}>{t("locations")}</Link>

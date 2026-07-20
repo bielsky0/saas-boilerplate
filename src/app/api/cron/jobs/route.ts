@@ -75,6 +75,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
    */
   const thisHour = new Date().toISOString().slice(0, 13);
   await jobs.enqueue(db, "ratelimit.prune", {}, { dedupeKey: `ratelimit.prune:${thisHour}` });
+  /*
+   * Credit expiry (langlion §1.2, US-1.2/AC3). Daily, keyed like the two above.
+   *
+   * A missed day is tolerable here in a way it would not be for a job that
+   * gated availability: `validUntil` is honoured directly by the booking and
+   * wallet paths, so a credit is unspendable from the instant it lapses whether
+   * or not this ran. The sweep only settles the `status` column (see
+   * `features/credits/expire.ts`), which is why daily-only cron on Vercel Hobby
+   * is not a correctness problem for it.
+   */
+  await jobs.enqueue(db, "credits.expire", {}, { dedupeKey: `credits.expire:${today}` });
 
   const result = await jobs.drain(registry, { budgetMs: BATCH_BUDGET_MS });
   const stats = await jobStats();

@@ -308,6 +308,9 @@
       },
       "class_session": {
         "update": "Skorygowano sesję"
+      },
+      "credit": {
+        "grant": "Kredyty przyznane"
       }
     }
   },
@@ -405,7 +408,8 @@
       "billing": "Płatności",
       "locations": "Lokalizacje",
       "groupTypes": "Typy grup",
-      "schedule": "Grafik"
+      "schedule": "Grafik",
+      "credits": "Kredyty"
     },
     "settings": {
       "heading": "Ustawienia",
@@ -770,6 +774,47 @@
   "bookings": {
     "validation": {
       "athleteRequired": "Wybierz uczestnika."
+    }
+  },
+  "credits": {
+    "validation": {
+      "creditTypeRequired": "Wybierz typ kredytu do przyznania.",
+      "quantityMin": "Przyznaj co najmniej jeden kredyt.",
+      "quantityMax": "Możesz przyznać maksymalnie 100 kredytów naraz.",
+      "reasonRequired": "Powód jest wymagany — rejestr odnotowuje, dlaczego przyznano kredyty."
+    },
+    "granted": "Kredyty przyznane.",
+    "errors": {
+      "generic": "Coś poszło nie tak. Spróbuj ponownie.",
+      "clientNotFound": "Ten klient nie należy do tej akademii.",
+      "creditTypeNotFound": "Ten typ kredytu nie należy do tej akademii.",
+      "athleteNotFound": "Ten uczestnik nie należy do tego klienta."
+    },
+    "title": "Kredyty",
+    "subtitle": "Waluta rozliczeniowa akademii. Każda rezerwacja, niezależnie od sposobu zapłaty, zużywa jeden kredyt.",
+    "empty": "Nie wydano jeszcze żadnych kredytów.",
+    "form": {
+      "title": "Przyznaj kredyty ręcznie",
+      "prerequisites": "Dodaj klienta i typ kredytu, zanim przyznasz kredyty.",
+      "choose": "Wybierz…",
+      "client": "Klient",
+      "unverified": "(niezweryfikowany)",
+      "creditType": "Typ kredytu",
+      "athlete": "Uczestnik",
+      "athleteHint": "Zostaw portfel rodzinny, aby kredyt mogło wykorzystać dowolne dziecko tego klienta.",
+      "familyWallet": "Portfel rodzinny (dowolne dziecko)",
+      "quantity": "Ile",
+      "reason": "Powód",
+      "reasonHint": "Wymagany — rejestr odnotowuje, dlaczego te kredyty powstały.",
+      "submit": "Przyznaj kredyty",
+      "submitting": "Przyznawanie…"
+    },
+    "table": {
+      "client": "Klient",
+      "status": "Status",
+      "source": "Źródło",
+      "validUntil": "Ważny do",
+      "reason": "Powód"
     }
   }
 }

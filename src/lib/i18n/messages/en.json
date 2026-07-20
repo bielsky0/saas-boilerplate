@@ -308,6 +308,9 @@
       },
       "class_session": {
         "update": "Session adjusted"
+      },
+      "credit": {
+        "grant": "Credits granted"
       }
     }
   },
@@ -405,7 +408,8 @@
       "billing": "Billing",
       "locations": "Locations",
       "groupTypes": "Group types",
-      "schedule": "Schedule"
+      "schedule": "Schedule",
+      "credits": "Credits"
     },
     "settings": {
       "heading": "Settings",
@@ -770,6 +774,47 @@
   "bookings": {
     "validation": {
       "athleteRequired": "Choose a participant."
+    }
+  },
+  "credits": {
+    "validation": {
+      "creditTypeRequired": "Choose which credit type to grant.",
+      "quantityMin": "Grant at least one credit.",
+      "quantityMax": "Grant at most 100 credits at a time.",
+      "reasonRequired": "A reason is required — the ledger records why credits were granted."
+    },
+    "granted": "Credits granted.",
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "clientNotFound": "That client does not belong to this academy.",
+      "creditTypeNotFound": "That credit type does not belong to this academy.",
+      "athleteNotFound": "That participant does not belong to this client."
+    },
+    "title": "Credits",
+    "subtitle": "The academy's settlement currency. Every booking, however it was paid for, spends one credit.",
+    "empty": "No credits issued yet.",
+    "form": {
+      "title": "Grant credits manually",
+      "prerequisites": "Add a client and a credit type before granting credits.",
+      "choose": "Choose…",
+      "client": "Client",
+      "unverified": "(unverified)",
+      "creditType": "Credit type",
+      "athlete": "Participant",
+      "athleteHint": "Leave as the family wallet to let any of this client's children use it.",
+      "familyWallet": "Family wallet (any child)",
+      "quantity": "How many",
+      "reason": "Reason",
+      "reasonHint": "Required — the ledger records why these credits were created.",
+      "submit": "Grant credits",
+      "submitting": "Granting…"
+    },
+    "table": {
+      "client": "Client",
+      "status": "Status",
+      "source": "Source",
+      "validUntil": "Valid until",
+      "reason": "Reason"
     }
   }
 }

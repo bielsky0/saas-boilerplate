@@ -70,3 +70,21 @@ export async function listAthletes(tx: TenantDb, organizationId: string, parentC
     )
     .orderBy(athlete.name);
 }
+
+/**
+ * Every parent of an academy — the picker a manual credit grant needs (US-7.3).
+ *
+ * Unverified rows included: the registration upsert creates a `client` before the
+ * OTP is confirmed (US-4.1), and an academy that took cash at the desk from a
+ * parent who never finished the email flow still has someone to grant credits to.
+ * The list shows verification status rather than hiding those rows, because
+ * "this person exists but has not confirmed their address" is information the
+ * admin wants, not a reason to make them invisible.
+ */
+export async function listClients(tx: TenantDb, organizationId: string) {
+  return tx
+    .select()
+    .from(client)
+    .where(and(eq(client.organizationId, organizationId), isNull(client.deletedAt)))
+    .orderBy(client.email);
+}

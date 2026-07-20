@@ -48,19 +48,25 @@ export type Permission =
   | "billing.manage"
   // ── langlion domain permissions (§2.10) ──────────────────────────────────
   //
-  // FIRST BATCH ONLY — the ones Faza 2 actually enforces. The spec's §2.10 table
+  // FIRST BATCHES ONLY — the ones a phase actually enforces at a call site. The spec's §2.10 table
   // names roughly twenty; they arrive with the phase that has a call site to
   // guard, because a permission granted before anything checks it is
   // indistinguishable from one that was forgotten.
   | "locations.manage"
   | "group_types.manage"
   | "sessions.generate_season"
-  | "sessions.manage";
+  | "sessions.manage"
+  /**
+   * Creating settlement value out of nothing (§2.4, US-7.3). Owner+Admin only,
+   * and paired in the action with a REQUIRED reason — the permission answers
+   * "who may", the reason answers "why", and the audit trail needs both.
+   */
+  | "credits.manual_grant";
 
 /**
  * role → permissions. Owner is a superset; Admin manages members; Member reads.
  *
- * The four langlion permissions are Owner+Admin only, exactly as §2.10 lists
+ * The five langlion permissions are Owner+Admin only, exactly as §2.10 lists
  * them. Note what is deliberately absent from every row: there is no
  * "exceed session capacity" permission and there never will be (US-17.1/AC2) —
  * capacity is guarded by a row lock in a transaction (§5.2), not by a role, so a
@@ -85,6 +91,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "group_types.manage",
     "sessions.generate_season",
     "sessions.manage",
+    "credits.manual_grant",
   ],
   // Admin manages people and settings, but NOT money.
   //
@@ -108,6 +115,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "group_types.manage",
     "sessions.generate_season",
     "sessions.manage",
+    "credits.manual_grant",
   ],
   /**
    * The three langlion staff roles (§2.10), all currently carrying only what

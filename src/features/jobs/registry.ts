@@ -1,5 +1,6 @@
 import type { JobRegistry } from "@/lib/adapters/jobs";
 import { billingNotifyHandler } from "@/features/billing/notify";
+import { creditsExpireHandler } from "@/features/credits/expire";
 import { emailSendHandler } from "@/features/emails/handler";
 import { notificationCreateHandler } from "@/features/notifications/handler";
 import { onboardingStepHandler } from "@/features/onboarding/handler";
@@ -31,4 +32,5 @@ export const registry: JobRegistry = {
   "storage.purge": storagePurgeHandler,
   "ratelimit.prune": rateLimitPruneHandler,
   "sessions.generate": sessionsGenerateHandler,
+  "credits.expire": creditsExpireHandler,
 };

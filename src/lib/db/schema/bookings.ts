@@ -60,9 +60,23 @@ export const booking = pgTable(
      */
     priceSnapshot: jsonb("priceSnapshot").$type<{ amount: number; currency: string }>().notNull(),
     /**
-     * The credit this booking consumed (§2.4). No foreign key yet — the `credit`
-     * table arrives in F4, which adds it. Deliberately not a dangling promise:
-     * nothing writes this column until then.
+     * The credit this booking consumed (§2.4).
+     *
+     * ITS FOREIGN KEY LIVES IN HAND-WRITTEN SQL (`0022_rls_credits.sql`), not in
+     * this file, and the reason is a module cycle rather than an oversight.
+     * `credit` points back here twice (`sourceBookingId`, `usedInBookingId`), so
+     * declaring this side in Drizzle would make `bookings.ts` and `credits.ts`
+     * import each other — an ES cycle in the schema barrel, which is precisely
+     * the class of problem that produced `class_session` (see index.ts).
+     *
+     * The constraint is therefore invisible to the Drizzle snapshot, like the
+     * EXCLUDE constraints and the RLS policies: `generate` will never propose
+     * dropping it, and `push` (banned repo-wide) would.
+     *
+     * The two directions are redundant by the spec's own model (§1.2 defines
+     * both), and `features/credits/consume.ts` is the single writer of the pair —
+     * it sets `credit.usedInBookingId` and `booking.consumedCreditId` in one
+     * transaction. Do not write either one alone.
      */
     consumedCreditId: text("consumedCreditId"),
     /** Denormalised from `session` — see header. Maintained by ON UPDATE CASCADE. */

@@ -61,7 +61,8 @@ export type JobName =
   | "job.prune"
   | "storage.purge"
   | "ratelimit.prune"
-  | "sessions.generate";
+  | "sessions.generate"
+  | "credits.expire";
 
 /**
  * `email.send`'s `template` is `string`, not the email adapter's `TemplateName`:
@@ -158,6 +159,15 @@ export interface JobPayloads {
    * — succeeding, silently, forever.
    */
   "sessions.generate": { organizationId: string; recurrenceId: string };
+  /**
+   * Credit expiry sweep (langlion §1.2, US-1.2/AC3) — cron-shaped, no payload.
+   *
+   * CARRIES NO `organizationId`, unlike `sessions.generate` directly above, and
+   * the contrast is the point: credits lapse in every academy at once, so there
+   * is no single tenant to name. The handler reads its work list under a narrow
+   * system bypass and then re-enters each row's own tenant context to write.
+   */
+  "credits.expire": Record<string, never>;
 }
 
 export interface EnqueueOptions {
