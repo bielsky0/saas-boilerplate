@@ -15,6 +15,7 @@ import {
   toast,
 } from "@/components/ui";
 import { removeMemberAction, updateMemberRoleAction } from "../actions";
+import { assignableRole } from "../schema";
 import type { ActionState } from "../actions";
 
 const initial: ActionState = {};
@@ -63,9 +64,12 @@ export function MemberActions({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="owner">{t("roles.owner")}</SelectItem>
-                <SelectItem value="admin">{t("roles.admin")}</SelectItem>
-                <SelectItem value="member">{t("roles.member")}</SelectItem>
+                {/* Off the zod enum — see the note in invite-member-form.tsx. */}
+                {assignableRole.options.map((role) => (
+                  <SelectItem key={role} value={role}>
+                    {t(`roles.${role}`)}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button type="submit" variant="ghost" size="sm" disabled={rolePending}>

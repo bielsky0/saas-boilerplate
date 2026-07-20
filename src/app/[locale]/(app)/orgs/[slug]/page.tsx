@@ -36,6 +36,23 @@ export default async function OrganizationPage({ params }: { params: Promise<{ s
         <Button asChild variant="outline" size="sm">
           <Link href={`/orgs/${slug}/settings`}>{t("settings")}</Link>
         </Button>
+        {/* langlion (EPIK 2, 3, 22). Same cosmetic gating as below — each page
+            calls requireOrgPermission itself, which is the real boundary. */}
+        {hasPermission(role, "group_types.manage") ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/orgs/${slug}/group-types`}>{t("groupTypes")}</Link>
+          </Button>
+        ) : null}
+        {hasPermission(role, "sessions.manage") ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/orgs/${slug}/schedule`}>{t("schedule")}</Link>
+          </Button>
+        ) : null}
+        {hasPermission(role, "locations.manage") ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/orgs/${slug}/locations`}>{t("locations")}</Link>
+          </Button>
+        ) : null}
         {/* Cosmetic gating only (spec 4.2) — the page itself calls
             requireOrgPermission, which is the actual boundary. */}
         {hasPermission(role, "audit.read") ? (

@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, lt } from "drizzle-orm";
 
 import type { TenantDb } from "@/lib/db/tenant";
-import { classSession } from "@/lib/db/schema";
+import { classSession, groupType, location, user } from "@/lib/db/schema";
 
 /**
  * Class session data access (langlion §1.2, §2.2).
@@ -36,6 +36,69 @@ export async function listSessionsBetween(
       ),
     )
     .orderBy(asc(classSession.startTime));
+}
+
+/**
+ * The staff schedule: upcoming sessions with the names an admin needs to read
+ * them, optionally narrowed to one location (§2.12, US-22.5).
+ *
+ * JOINED, not fetched per row. The list renders a group type, a trainer and a
+ * location for every session, and resolving those separately would be an N+1 —
+ * on a season of 40 sessions, 121 queries inside one RLS transaction holding one
+ * pooled connection.
+ *
+ * `leftJoin` for trainer and location because both are genuinely optional: a
+ * Slot-First session has no trainer at definition time (US-2.1/AC3), and a
+ * location can be absent when neither the pattern nor the group type set one.
+ * An inner join would silently drop exactly the rows an admin most needs to
+ * notice.
+ */
+export async function listUpcomingSessions(
+  tx: TenantDb,
+  organizationId: string,
+  options: { from?: Date; locationId?: string; limit?: number } = {},
+) {
+  const from = options.from ?? new Date();
+  const filters = [
+    eq(classSession.organizationId, organizationId),
+    gte(classSession.startTime, from),
+  ];
+  if (options.locationId) filters.push(eq(classSession.locationId, options.locationId));
+
+  return tx
+    .select({
+      id: classSession.id,
+      startTime: classSession.startTime,
+      endTime: classSession.endTime,
+      capacity: classSession.capacity,
+      status: classSession.status,
+      isManuallyAdjusted: classSession.isManuallyAdjusted,
+      groupTypeId: classSession.groupTypeId,
+      groupTypeName: groupType.name,
+      trainerName: user.name,
+      trainerEmail: user.email,
+      locationId: classSession.locationId,
+      locationName: location.name,
+    })
+    .from(classSession)
+    .innerJoin(
+      groupType,
+      and(
+        eq(groupType.id, classSession.groupTypeId),
+        eq(groupType.organizationId, classSession.organizationId),
+      ),
+    )
+    .leftJoin(user, eq(user.id, classSession.trainerId))
+    .leftJoin(
+      location,
+      and(
+        eq(location.id, classSession.locationId),
+        eq(location.organizationId, classSession.organizationId),
+      ),
+    )
+    .where(and(...filters))
+    .orderBy(asc(classSession.startTime))
+    .limit(options.limit ?? 200);
 }
 
 /** One session by id, or null. Includes cancelled ones — the caller decides. */

@@ -3,6 +3,8 @@
 
 Don't remove agents.md file
 
+DON'T COMMIT
+
 # Zasady pracy nad langlion
 
 `docs/plan-implementacji.md` jest **jedynym trwałym źródłem prawdy o planie i postępie** implementacji langlion. Specyfikacja fundamentu boilerplate'owego (cel odwołań „boilerplate §X"): `docs/boilerplate-spec.md`. Konwencje kodu: `docs/ARCHITECTURE.md`.

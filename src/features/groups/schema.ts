@@ -42,6 +42,23 @@ export function createGroupTypeSchema(t: ValidationTranslator) {
         .min(SLUG_MIN, t("slugMin"))
         .max(SLUG_MAX, t("slugMax"))
         .regex(SLUG_PATTERN, t("slugFormat")),
+      /**
+       * Markdown blurb for the public offer page (US-2.1/AC4). Optional by
+       * design: no description means one section is not rendered, never a
+       * blocked save. The cap is generous rather than absent — this is a
+       * paragraph or two of prose, and an unbounded text field posted from a
+       * form is a payload-size question, not a product one.
+       */
+      description: z
+        .string()
+        // HTML forms post textarea content with CRLF line endings (the HTML spec's
+        // "normalize newlines"), so the stored text would not round-trip the value
+        // an author typed — and every later diff, hash or markdown render would
+        // disagree with it in ways that are invisible on screen. Normalise once,
+        // here, at the boundary.
+        .transform((value) => value.replace(/\r\n/g, "\n"))
+        .pipe(z.string().trim().max(4000))
+        .optional(),
       engine,
       paymentPolicy,
       /** Minor units of `organization.currency` — grosze, not złote (§2.14). */

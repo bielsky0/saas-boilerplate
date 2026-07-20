@@ -116,9 +116,16 @@ export function createOrgSchema(t: ValidationTranslator) {
  * reader's language. Their DISPLAY names are `organizations.roles.*`, resolved at
  * render — see member-actions.tsx.
  */
-export const invitableRole = z.enum(["admin", "member"]);
+export const invitableRole = z.enum(["admin", "secretariat", "reception", "trainer", "member"]);
 /** Assignable roles when updating an existing member (Owner promotion allowed). */
-export const assignableRole = z.enum(["owner", "admin", "member"]);
+export const assignableRole = z.enum([
+  "owner",
+  "admin",
+  "secretariat",
+  "reception",
+  "trainer",
+  "member",
+]);
 
 export function inviteMemberSchema(t: ValidationTranslator) {
   return z.object({

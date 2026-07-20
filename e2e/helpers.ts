@@ -447,6 +447,83 @@ export async function seedLanglion(
   return (await res.json()) as SeedLanglionResult;
 }
 
+export type LanglionState = {
+  timezone: string;
+  groupTypes: {
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    price: number;
+    engine: string;
+    defaultLocationId: string | null;
+    allowedPurchaseModes: string[];
+    allowedBillingTypes: string[] | null;
+  }[];
+  recurrences: {
+    id: string;
+    groupTypeId: string;
+    dayOfWeek: number;
+    startTime: string;
+    durationMinutes: number;
+    capacity: number;
+    isRecurring: boolean;
+    occurrencesCount: number | null;
+    locationId: string | null;
+    trainerId: string | null;
+  }[];
+  sessions: {
+    id: string;
+    startTime: string;
+    endTime: string;
+    capacity: number;
+    status: string;
+    locationId: string | null;
+    trainerId: string | null;
+    isManuallyAdjusted: boolean;
+    generatedFromRecurrenceId: string | null;
+  }[];
+};
+
+/**
+ * Read what the schedule actually contains (Faza 2).
+ *
+ * The admin pages prove an operator can SEE the season; this proves the rows are
+ * right — instants, flags and provenance, none of which a rendered table states
+ * precisely enough to assert on.
+ */
+export async function getLanglionState(
+  request: APIRequestContext,
+  query: { orgSlug: string; recurrenceId?: string; groupTypeSlug?: string },
+): Promise<LanglionState> {
+  const params = new URLSearchParams({ orgSlug: query.orgSlug });
+  if (query.recurrenceId) params.set("recurrenceId", query.recurrenceId);
+  if (query.groupTypeSlug) params.set("groupTypeSlug", query.groupTypeSlug);
+  const res = await request.get(`/api/dev/langlion-state?${params.toString()}`);
+  if (!res.ok()) {
+    throw new Error(`getLanglionState failed (${res.status()}): ${await res.text()}`);
+  }
+  return (await res.json()) as LanglionState;
+}
+
+/** The local wall-clock time an instant falls on in a given IANA zone, as `HH:MM`. */
+export function wallClockIn(timeZone: string, iso: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(iso));
+}
+
+/** The local weekday (0 = Sunday) an instant falls on in a given IANA zone. */
+export function weekdayIn(timeZone: string, iso: string): number {
+  const label = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(
+    new Date(iso),
+  );
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(label);
+}
+
 export type RlsProbeResult = {
   ok: boolean;
   sqlState?: string | null;

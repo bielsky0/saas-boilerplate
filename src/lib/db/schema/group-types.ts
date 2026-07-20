@@ -49,6 +49,16 @@ export const groupType = pgTable(
       .references(() => organization.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
+    /**
+     * Markdown blurb shown to parents on the public offer page (§2.27, US-2.1/AC4).
+     *
+     * PURELY PRESENTATIONAL — nothing in the booking engine, the pricing path or
+     * the signup validation reads it, and its absence means one section is not
+     * rendered rather than an offer that cannot be published. It lives here from
+     * Faza 2 because the group-type CRUD form is being built anyway; the page
+     * that renders it belongs to EPIK 4.
+     */
+    description: text("description"),
     engine: text("engine")
       .$type<"schedule_first" | "availability_first" | "slot_first">()
       .notNull(),

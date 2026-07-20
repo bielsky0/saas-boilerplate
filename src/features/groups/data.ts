@@ -1,7 +1,7 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import type { TenantDb } from "@/lib/db/tenant";
-import { groupType, groupTypeRecurrence } from "@/lib/db/schema";
+import { classSession, groupType, groupTypeRecurrence, location, user } from "@/lib/db/schema";
 
 /**
  * Group type + recurrence data access (langlion §1.2, EPIK 2).
@@ -63,6 +63,68 @@ export async function listRecurrences(tx: TenantDb, organizationId: string, grou
   return tx
     .select()
     .from(groupTypeRecurrence)
+    .where(
+      and(
+        eq(groupTypeRecurrence.organizationId, organizationId),
+        eq(groupTypeRecurrence.groupTypeId, groupTypeId),
+        isNull(groupTypeRecurrence.deletedAt),
+      ),
+    )
+    .orderBy(groupTypeRecurrence.dayOfWeek, groupTypeRecurrence.startTime);
+}
+
+/**
+ * Patterns under one group type, with the names and season progress the
+ * management page renders.
+ *
+ * `generatedCount` counts FUTURE, non-cancelled sessions — the number that
+ * answers "is this pattern actually producing a season?". Deliberately not a
+ * lifetime total: a pattern that ran all last season and generates nothing now
+ * would otherwise look healthy at a glance, which is the confusion the column
+ * exists to prevent.
+ *
+ * Joined rather than looked up per row, for the reason spelled out in
+ * `features/schedule/data.ts`: one row per pattern, otherwise an N+1 inside a
+ * single pooled connection.
+ */
+export async function listRecurrencesWithDetails(
+  tx: TenantDb,
+  organizationId: string,
+  groupTypeId: string,
+  now: Date = new Date(),
+) {
+  return tx
+    .select({
+      id: groupTypeRecurrence.id,
+      dayOfWeek: groupTypeRecurrence.dayOfWeek,
+      startTime: groupTypeRecurrence.startTime,
+      durationMinutes: groupTypeRecurrence.durationMinutes,
+      capacity: groupTypeRecurrence.capacity,
+      isRecurring: groupTypeRecurrence.isRecurring,
+      occurrencesCount: groupTypeRecurrence.occurrencesCount,
+      startDate: groupTypeRecurrence.startDate,
+      trainerId: groupTypeRecurrence.trainerId,
+      trainerName: user.name,
+      trainerEmail: user.email,
+      locationId: groupTypeRecurrence.locationId,
+      locationName: location.name,
+      generatedCount: sql<number>`(
+        select count(*) from ${classSession}
+        where ${classSession.generatedFromRecurrenceId} = ${groupTypeRecurrence.id}
+          and ${classSession.organizationId} = ${organizationId}
+          and ${classSession.status} = 'scheduled'
+          and ${classSession.startTime} >= ${now.toISOString()}::timestamptz
+      )`.as("generatedCount"),
+    })
+    .from(groupTypeRecurrence)
+    .leftJoin(user, eq(user.id, groupTypeRecurrence.trainerId))
+    .leftJoin(
+      location,
+      and(
+        eq(location.id, groupTypeRecurrence.locationId),
+        eq(location.organizationId, groupTypeRecurrence.organizationId),
+      ),
+    )
     .where(
       and(
         eq(groupTypeRecurrence.organizationId, organizationId),

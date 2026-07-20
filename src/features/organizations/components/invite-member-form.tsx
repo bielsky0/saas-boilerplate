@@ -16,6 +16,7 @@ import {
   toast,
 } from "@/components/ui";
 import { inviteMemberAction } from "../actions";
+import { invitableRole } from "../schema";
 import type { ActionState } from "../actions";
 
 const initialState: ActionState = {};
@@ -48,8 +49,17 @@ export function InviteMemberForm({ slug }: { slug: string }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="member">{t("roles.member")}</SelectItem>
-            <SelectItem value="admin">{t("roles.admin")}</SelectItem>
+            {/*
+              Driven off the zod enum rather than a hand-written list. The two
+              have to agree — an option the action would reject is a form that
+              fails after the user commits — and six roles is where "keep them in
+              sync by remembering" stops being reliable.
+            */}
+            {invitableRole.options.map((role) => (
+              <SelectItem key={role} value={role}>
+                {t(`roles.${role}`)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </FormField>

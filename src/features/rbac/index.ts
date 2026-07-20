@@ -12,8 +12,22 @@
  * extension that would layer a DB-backed role→permission map over this same shape.
  */
 
-/** Predefined roles, lowest to highest privilege. */
-export const ROLES = ["member", "admin", "owner"] as const;
+/**
+ * Predefined roles, lowest to highest privilege.
+ *
+ * The three langlion staff roles (§2.10) sit between `member` and `admin`, and
+ * the ordering is a documentation convenience only — nothing computes privilege
+ * from the array index. They are SIDEWAYS from each other, not a ladder:
+ * reception handles money at the desk, a trainer handles their own sessions, the
+ * secretariat handles client requests. Each gets exactly the permissions §2.10
+ * names for it and nothing by inheritance.
+ *
+ * Roles stay STATIC here rather than becoming DB-backed rows (Rozstrzygnięcie #4
+ * in docs/plan-implementacji.md). A custom-role mechanism (boilerplate §4.3)
+ * would layer over this same shape later without a data migration, because the
+ * `membership.role` column already stores the name as text.
+ */
+export const ROLES = ["member", "trainer", "reception", "secretariat", "admin", "owner"] as const;
 export type Role = (typeof ROLES)[number];
 
 /**
@@ -31,9 +45,29 @@ export type Permission =
   | "storage.upload"
   | "storage.delete"
   | "audit.read"
-  | "billing.manage";
+  | "billing.manage"
+  // ── langlion domain permissions (§2.10) ──────────────────────────────────
+  //
+  // FIRST BATCH ONLY — the ones Faza 2 actually enforces. The spec's §2.10 table
+  // names roughly twenty; they arrive with the phase that has a call site to
+  // guard, because a permission granted before anything checks it is
+  // indistinguishable from one that was forgotten.
+  | "locations.manage"
+  | "group_types.manage"
+  | "sessions.generate_season"
+  | "sessions.manage";
 
-/** role → permissions. Owner is a superset; Admin manages members; Member reads. */
+/**
+ * role → permissions. Owner is a superset; Admin manages members; Member reads.
+ *
+ * The four langlion permissions are Owner+Admin only, exactly as §2.10 lists
+ * them. Note what is deliberately absent from every row: there is no
+ * "exceed session capacity" permission and there never will be (US-17.1/AC2) —
+ * capacity is guarded by a row lock in a transaction (§5.2), not by a role, so a
+ * permission that claimed to override it would be a lie the database refuses to
+ * honour. Trainer conflict is the opposite case and gets `sessions.force_override`
+ * in F18; capacity gets nothing, ever.
+ */
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   owner: [
     "members.invite",
@@ -47,6 +81,10 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "storage.delete",
     "audit.read",
     "billing.manage",
+    "locations.manage",
+    "group_types.manage",
+    "sessions.generate_season",
+    "sessions.manage",
   ],
   // Admin manages people and settings, but NOT money.
   //
@@ -66,7 +104,32 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "storage.upload",
     "storage.delete",
     "audit.read",
+    "locations.manage",
+    "group_types.manage",
+    "sessions.generate_season",
+    "sessions.manage",
   ],
+  /**
+   * The three langlion staff roles (§2.10), all currently carrying only what
+   * every member has.
+   *
+   * They exist NOW, ahead of their permissions, on purpose: `membership.role` is
+   * a text column, so a role that does not exist in this map fails `isRole` and
+   * lands the holder on a 403 for the entire organization (`requireOrgAccess`).
+   * Introducing the names in the phase that invites them, and the grants in the
+   * phase that enforces them, keeps those two failure modes apart — an
+   * unrecognised role is a locked-out human, a missing permission is one refused
+   * button.
+   *
+   * Where the grants land: `credits.confirm_on_site` and
+   * `bookings.mark_attendance` (trainer, own sessions only — enforced in the
+   * action, since this map cannot express "own") in F6; `credits.purchase_cash`
+   * (reception) in F12; `group_swap.approve` and `credits.reassign_athlete`
+   * (secretariat) in F15.
+   */
+  secretariat: ["organization.leave", "storage.upload"],
+  reception: ["organization.leave", "storage.upload"],
+  trainer: ["organization.leave", "storage.upload"],
   // Members may upload content, but not delete other people's files.
   //
   // NOT granted `audit.read` (§6.4): the trail records who removed whom and whose

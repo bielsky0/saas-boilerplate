@@ -60,7 +60,8 @@ export type JobName =
   | "notification.create"
   | "job.prune"
   | "storage.purge"
-  | "ratelimit.prune";
+  | "ratelimit.prune"
+  | "sessions.generate";
 
 /**
  * `email.send`'s `template` is `string`, not the email adapter's `TemplateName`:
@@ -144,6 +145,19 @@ export interface JobPayloads {
    * correctness. A no-op on the memory provider.
    */
   "ratelimit.prune": Record<string, never>;
+  /**
+   * Materialise a Schedule-First season from a recurrence pattern (langlion
+   * §2.2, US-3.1/AC1). Enqueued by the action that saved the pattern, in the
+   * same transaction, so a rolled-back save never generates a season.
+   *
+   * `organizationId` travels in the payload because it CANNOT BE RECOVERED at
+   * drain time — same reason `email.send` carries its locale. The handler runs
+   * after the enqueuing request is gone, with no session and no org context, and
+   * every table it touches is under RLS. Without this field the handler would
+   * open no tenant context, see zero rows, and conclude there was no work to do
+   * — succeeding, silently, forever.
+   */
+  "sessions.generate": { organizationId: string; recurrenceId: string };
 }
 
 export interface EnqueueOptions {

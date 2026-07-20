@@ -179,7 +179,10 @@
     "roles": {
       "owner": "Właściciel",
       "admin": "Administrator",
-      "member": "Członek"
+      "member": "Członek",
+      "trainer": "Trener",
+      "reception": "Recepcja",
+      "secretariat": "Sekretariat"
     },
     "fields": {
       "orgName": "Nazwa organizacji",
@@ -282,6 +285,21 @@
       },
       "retention": {
         "purge": "Czyszczenie danych"
+      },
+      "location": {
+        "create": "Dodano lokalizację",
+        "update": "Zaktualizowano lokalizację"
+      },
+      "group_type": {
+        "create": "Utworzono typ grupy",
+        "update": "Zaktualizowano typ grupy"
+      },
+      "recurrence": {
+        "create": "Utworzono wzorzec",
+        "update": "Zaktualizowano wzorzec"
+      },
+      "class_session": {
+        "update": "Skorygowano sesję"
       }
     }
   },
@@ -376,7 +394,10 @@
       "settings": "Ustawienia",
       "files": "Pliki",
       "audit": "Dziennik zmian",
-      "billing": "Płatności"
+      "billing": "Płatności",
+      "locations": "Lokalizacje",
+      "groupTypes": "Typy grup",
+      "schedule": "Grafik"
     },
     "settings": {
       "heading": "Ustawienia",
@@ -530,6 +551,34 @@
   "locations": {
     "validation": {
       "nameMin": "Nazwa lokalizacji musi mieć co najmniej 2 znaki."
+    },
+    "title": "Lokalizacje",
+    "subtitle": "Miejsca, w których odbywają się zajęcia.",
+    "empty": "Brak lokalizacji. Dodaj pierwszą poniżej.",
+    "created": "Lokalizacja dodana.",
+    "updated": "Lokalizacja zaktualizowana.",
+    "form": {
+      "title": "Dodaj lokalizację",
+      "name": "Nazwa",
+      "address": "Adres",
+      "addressHint": "Opcjonalnie — widoczny dla rodziców w potwierdzeniach rezerwacji.",
+      "submit": "Dodaj lokalizację",
+      "submitting": "Dodawanie…"
+    },
+    "table": {
+      "name": "Nazwa",
+      "address": "Adres",
+      "actions": "Akcje"
+    },
+    "edit": {
+      "open": "Edytuj",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "cancel": "Anuluj"
+    },
+    "errors": {
+      "generic": "Nie udało się zapisać lokalizacji.",
+      "notFound": "Ta lokalizacja już nie istnieje."
     }
   },
   "groups": {
@@ -546,6 +595,117 @@
       "capacityInvalid": "Pojemność musi być liczbą dodatnią.",
       "startDateFormat": "Podaj datę w formacie RRRR-MM-DD.",
       "occurrencesRequired": "Wzorzec cykliczny wymaga liczby powtórzeń."
+    },
+    "title": "Typy grup",
+    "subtitle": "Oferty sprzedawane przez akademię. Edycja nigdy nie zmienia już wygenerowanych sesji.",
+    "empty": "Brak typów grup. Utwórz pierwszy poniżej.",
+    "created": "Typ grupy utworzony.",
+    "updated": "Typ grupy zaktualizowany.",
+    "manage": "Zarządzaj",
+    "backToList": "Wszystkie typy grup",
+    "form": {
+      "createTitle": "Nowy typ grupy",
+      "editTitle": "Szczegóły",
+      "name": "Nazwa",
+      "slug": "Slug URL",
+      "slugHint": "Używany w publicznym linku zapisu. Unikalny w obrębie akademii.",
+      "description": "Opis",
+      "descriptionHint": "Opcjonalnie. Markdown, widoczny dla rodziców na stronie oferty.",
+      "engine": "Silnik",
+      "paymentPolicy": "Metody płatności",
+      "price": "Cena",
+      "priceHint": "W najmniejszej jednostce waluty — 10000 to 100,00.",
+      "isNewClientOnly": "Priorytet dla nowych klientów",
+      "defaultLocation": "Domyślna lokalizacja",
+      "noLocation": "Brak domyślnej",
+      "allowedPurchaseModes": "Tryby zakupu",
+      "allowedBillingTypes": "Rozliczenie pakietów",
+      "submit": "Utwórz typ grupy",
+      "submitting": "Tworzenie…",
+      "save": "Zapisz zmiany",
+      "saving": "Zapisywanie…"
+    },
+    "engine": {
+      "schedule_first": "Schedule-First",
+      "availability_first": "Availability-First",
+      "slot_first": "Slot-First"
+    },
+    "paymentPolicy": {
+      "online": "Tylko online",
+      "on_site": "Tylko na miejscu",
+      "both": "Online lub na miejscu"
+    },
+    "purchaseMode": {
+      "single_class": "Pojedyncze zajęcia",
+      "package": "Pakiet"
+    },
+    "billingType": {
+      "one_time": "Jednorazowy",
+      "recurring": "Subskrypcja"
+    },
+    "table": {
+      "name": "Nazwa",
+      "slug": "Slug",
+      "engine": "Silnik",
+      "price": "Cena",
+      "actions": "Akcje"
+    },
+    "errors": {
+      "generic": "Nie udało się zapisać typu grupy.",
+      "slugTaken": "Ten slug jest już używany przez inną ofertę w Twojej akademii.",
+      "notFound": "Ten typ grupy już nie istnieje.",
+      "locationNotFound": "Ta lokalizacja nie należy do Twojej akademii.",
+      "engineNeedsTrainer": "Wzorce Schedule-First wymagają trenera."
+    },
+    "recurrences": {
+      "title": "Wzorce",
+      "subtitle": "Jeden typ grupy może mieć kilka równoległych wzorców — różne dni, trenerzy lub sale.",
+      "empty": "Brak wzorców. Dodaj pierwszy, aby zacząć generować sesje.",
+      "created": "Wzorzec zapisany.",
+      "updated": "Wzorzec zaktualizowany.",
+      "form": {
+        "title": "Dodaj wzorzec",
+        "editTitle": "Edytuj wzorzec",
+        "dayOfWeek": "Dzień",
+        "startTime": "Początek",
+        "durationMinutes": "Czas trwania (minuty)",
+        "trainer": "Trener",
+        "noTrainer": "Bez trenera",
+        "capacity": "Pojemność",
+        "location": "Lokalizacja",
+        "inheritLocation": "Dziedzicz z typu grupy",
+        "isRecurring": "Powtarza się co tydzień",
+        "occurrencesCount": "Liczba sesji",
+        "startDate": "Pierwsza data",
+        "submit": "Dodaj wzorzec",
+        "submitting": "Zapisywanie…",
+        "save": "Zapisz wzorzec",
+        "saving": "Zapisywanie…"
+      },
+      "table": {
+        "when": "Kiedy",
+        "trainer": "Trener",
+        "capacity": "Pojemność",
+        "location": "Lokalizacja",
+        "occurrences": "Sesje",
+        "actions": "Akcje",
+        "oneOff": "Jednorazowy"
+      },
+      "generationQueued": "Generowanie {count} sesji w tle.",
+      "generatedOne": "Utworzono jedną sesję.",
+      "sessionsUpdated": "Zaktualizowano {count} przyszłych sesji.",
+      "skippedManual": "Pominięto {count} — skorygowane wcześniej ręcznie.",
+      "skippedTrainerConflict": "Pominięto {count} — trener jest wtedy zajęty.",
+      "skippedAthleteConflict": "Pominięto {count} — uczestnik kolidowałby z inną rezerwacją."
+    },
+    "days": {
+      "0": "Niedziela",
+      "1": "Poniedziałek",
+      "2": "Wtorek",
+      "3": "Środa",
+      "4": "Czwartek",
+      "5": "Piątek",
+      "6": "Sobota"
     }
   },
   "schedule": {
@@ -553,6 +713,44 @@
       "capacityInvalid": "Pojemność musi być liczbą dodatnią.",
       "endBeforeStart": "Godzina zakończenia musi być późniejsza niż rozpoczęcia.",
       "bothTimesRequired": "Zmień godzinę rozpoczęcia i zakończenia razem."
+    },
+    "title": "Grafik",
+    "subtitle": "Wygenerowane sesje, od najbliższej.",
+    "empty": "Brak sesji w tym zakresie.",
+    "updated": "Sesja zaktualizowana.",
+    "filter": {
+      "location": "Lokalizacja",
+      "all": "Wszystkie lokalizacje"
+    },
+    "table": {
+      "when": "Kiedy",
+      "groupType": "Typ grupy",
+      "trainer": "Trener",
+      "location": "Lokalizacja",
+      "capacity": "Pojemność",
+      "status": "Status",
+      "actions": "Akcje"
+    },
+    "status": {
+      "scheduled": "Zaplanowana",
+      "cancelled": "Odwołana"
+    },
+    "manuallyAdjusted": "Skorygowana ręcznie",
+    "noTrainer": "—",
+    "noLocation": "—",
+    "errors": {
+      "generic": "Nie udało się zaktualizować sesji.",
+      "notFound": "Ta sesja już nie istnieje.",
+      "trainerConflict": "Trener ma już sesję nakładającą się na tę."
+    },
+    "edit": {
+      "open": "Skoryguj",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "cancel": "Anuluj",
+      "start": "Początek",
+      "end": "Koniec",
+      "capacityHint": "Podniesienie to jedyny sposób przyjęcia dodatkowego uczestnika."
     }
   },
   "clients": {

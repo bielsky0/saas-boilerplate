@@ -179,7 +179,10 @@
     "roles": {
       "owner": "Owner",
       "admin": "Admin",
-      "member": "Member"
+      "member": "Member",
+      "trainer": "Trainer",
+      "reception": "Reception",
+      "secretariat": "Secretariat"
     },
     "fields": {
       "orgName": "Organization name",
@@ -282,6 +285,21 @@
       },
       "retention": {
         "purge": "Retention cleanup"
+      },
+      "location": {
+        "create": "Location added",
+        "update": "Location updated"
+      },
+      "group_type": {
+        "create": "Group type created",
+        "update": "Group type updated"
+      },
+      "recurrence": {
+        "create": "Pattern created",
+        "update": "Pattern updated"
+      },
+      "class_session": {
+        "update": "Session adjusted"
       }
     }
   },
@@ -376,7 +394,10 @@
       "settings": "Settings",
       "files": "Files",
       "audit": "Audit trail",
-      "billing": "Billing"
+      "billing": "Billing",
+      "locations": "Locations",
+      "groupTypes": "Group types",
+      "schedule": "Schedule"
     },
     "settings": {
       "heading": "Settings",
@@ -530,6 +551,34 @@
   "locations": {
     "validation": {
       "nameMin": "Location name must be at least 2 characters."
+    },
+    "title": "Locations",
+    "subtitle": "Where your classes take place.",
+    "empty": "No locations yet. Add the first one below.",
+    "created": "Location added.",
+    "updated": "Location updated.",
+    "form": {
+      "title": "Add a location",
+      "name": "Name",
+      "address": "Address",
+      "addressHint": "Optional — shown to parents on booking confirmations.",
+      "submit": "Add location",
+      "submitting": "Adding…"
+    },
+    "table": {
+      "name": "Name",
+      "address": "Address",
+      "actions": "Actions"
+    },
+    "edit": {
+      "open": "Edit",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel"
+    },
+    "errors": {
+      "generic": "Could not save the location.",
+      "notFound": "That location no longer exists."
     }
   },
   "groups": {
@@ -546,6 +595,117 @@
       "capacityInvalid": "Capacity must be a positive number.",
       "startDateFormat": "Use a date in YYYY-MM-DD format.",
       "occurrencesRequired": "A recurring pattern needs a number of occurrences."
+    },
+    "title": "Group types",
+    "subtitle": "The offers your academy sells. Editing one never changes sessions already generated.",
+    "empty": "No group types yet. Create the first one below.",
+    "created": "Group type created.",
+    "updated": "Group type updated.",
+    "manage": "Manage",
+    "backToList": "All group types",
+    "form": {
+      "createTitle": "New group type",
+      "editTitle": "Details",
+      "name": "Name",
+      "slug": "URL slug",
+      "slugHint": "Used in the public signup link. Unique within your academy.",
+      "description": "Description",
+      "descriptionHint": "Optional. Markdown, shown to parents on the offer page.",
+      "engine": "Engine",
+      "paymentPolicy": "Payment methods",
+      "price": "Price",
+      "priceHint": "In minor units — 10000 means 100.00.",
+      "isNewClientOnly": "Prioritise new clients",
+      "defaultLocation": "Default location",
+      "noLocation": "No default",
+      "allowedPurchaseModes": "Purchase modes",
+      "allowedBillingTypes": "Billing types for packages",
+      "submit": "Create group type",
+      "submitting": "Creating…",
+      "save": "Save changes",
+      "saving": "Saving…"
+    },
+    "engine": {
+      "schedule_first": "Schedule-First",
+      "availability_first": "Availability-First",
+      "slot_first": "Slot-First"
+    },
+    "paymentPolicy": {
+      "online": "Online only",
+      "on_site": "On site only",
+      "both": "Online or on site"
+    },
+    "purchaseMode": {
+      "single_class": "Single class",
+      "package": "Package"
+    },
+    "billingType": {
+      "one_time": "One-off",
+      "recurring": "Subscription"
+    },
+    "table": {
+      "name": "Name",
+      "slug": "Slug",
+      "engine": "Engine",
+      "price": "Price",
+      "actions": "Actions"
+    },
+    "errors": {
+      "generic": "Could not save the group type.",
+      "slugTaken": "That slug is already used by another offer in your academy.",
+      "notFound": "That group type no longer exists.",
+      "locationNotFound": "That location does not belong to your academy.",
+      "engineNeedsTrainer": "Schedule-First patterns need a trainer."
+    },
+    "recurrences": {
+      "title": "Patterns",
+      "subtitle": "A group type can run several patterns in parallel — different days, trainers or rooms.",
+      "empty": "No patterns yet. Add one to start generating sessions.",
+      "created": "Pattern saved.",
+      "updated": "Pattern updated.",
+      "form": {
+        "title": "Add a pattern",
+        "editTitle": "Edit pattern",
+        "dayOfWeek": "Day",
+        "startTime": "Start",
+        "durationMinutes": "Duration (minutes)",
+        "trainer": "Trainer",
+        "noTrainer": "No trainer",
+        "capacity": "Capacity",
+        "location": "Location",
+        "inheritLocation": "Inherit from group type",
+        "isRecurring": "Repeats weekly",
+        "occurrencesCount": "Number of sessions",
+        "startDate": "First date",
+        "submit": "Add pattern",
+        "submitting": "Saving…",
+        "save": "Save pattern",
+        "saving": "Saving…"
+      },
+      "table": {
+        "when": "When",
+        "trainer": "Trainer",
+        "capacity": "Capacity",
+        "location": "Location",
+        "occurrences": "Sessions",
+        "actions": "Actions",
+        "oneOff": "One-off"
+      },
+      "generationQueued": "Generating {count} sessions in the background.",
+      "generatedOne": "One session created.",
+      "sessionsUpdated": "{count} future sessions updated.",
+      "skippedManual": "{count} skipped — adjusted by hand earlier.",
+      "skippedTrainerConflict": "{count} skipped — the trainer is already busy then.",
+      "skippedAthleteConflict": "{count} skipped — a participant would clash with another booking."
+    },
+    "days": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
     }
   },
   "schedule": {
@@ -553,6 +713,44 @@
       "capacityInvalid": "Capacity must be a positive number.",
       "endBeforeStart": "The end time must be after the start time.",
       "bothTimesRequired": "Change the start and end time together."
+    },
+    "title": "Schedule",
+    "subtitle": "Generated sessions, soonest first.",
+    "empty": "No sessions in this range.",
+    "updated": "Session updated.",
+    "filter": {
+      "location": "Location",
+      "all": "All locations"
+    },
+    "table": {
+      "when": "When",
+      "groupType": "Group type",
+      "trainer": "Trainer",
+      "location": "Location",
+      "capacity": "Capacity",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "status": {
+      "scheduled": "Scheduled",
+      "cancelled": "Cancelled"
+    },
+    "manuallyAdjusted": "Adjusted by hand",
+    "noTrainer": "—",
+    "noLocation": "—",
+    "errors": {
+      "generic": "Could not update the session.",
+      "notFound": "That session no longer exists.",
+      "trainerConflict": "The trainer already has a session that overlaps this one."
+    },
+    "edit": {
+      "open": "Adjust",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "start": "Start",
+      "end": "End",
+      "capacityHint": "Raising this is the only way to admit an extra participant."
     }
   },
   "clients": {

@@ -9,6 +9,7 @@
 
 export { Button, buttonVariants } from "./button";
 export { Input } from "./input";
+export { Textarea } from "./textarea";
 export { Label, FormField, FormMessage } from "./field";
 export { Badge, badgeVariants } from "./badge";
 export { Alert, AlertTitle, AlertDescription, alertVariants } from "./alert";

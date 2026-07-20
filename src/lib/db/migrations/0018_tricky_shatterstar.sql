@@ -1,0 +1,11 @@
+-- group_type.description (langlion §2.27, US-2.1/AC4) — the offer blurb shown to
+-- parents on the public signup page.
+--
+-- Additive and nullable, so no backfill. Worth stating rather than assuming:
+-- `group_type` carries FORCE ROW LEVEL SECURITY (migration 0015), and a migration
+-- that combined FORCE with a backfill would silently update ZERO rows the day the
+-- migration role stopped having BYPASSRLS — passing green while changing nothing.
+-- No backfill here means the question does not arise.
+--
+-- The column participates in no constraint, no index and no policy predicate.
+ALTER TABLE "group_type" ADD COLUMN "description" text;

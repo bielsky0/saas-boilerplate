@@ -1,6 +1,8 @@
 # Specyfikacja funkcjonalna: Moduł Grup i Rezerwacji
 
-**Wersja dokumentu: 14** — integracja Dodatku v14: **Stripe Connect i konfiguracja płatności per organizacja (EPIK 30)**, budowana na Wersji 13 (limity planu i feature gating — EPIK 29), Wersji 12 (waluta i kwoty pieniężne — EPIK 24, obsługa nieudanej płatności subskrypcyjnej — EPIK 25, Notification Center jako dedykowana encja domenowa — EPIK 26, ręczne fakturowanie bez automatyzacji Stripe Tax — EPIK 27, regulaminy i akceptacje per typ grupy — EPIK 28), oraz jawna integracja z fundamentem Next.js SaaS Boilerplate.
+**Wersja dokumentu: 15** — integracja Dodatku v15: **potwierdzanie obecności (EPIK 31), informacyjne wynagrodzenia trenerów (EPIK 32) oraz indywidualne ceny klienta — `client_price_override` (EPIK 33)**, plus opis oferty `group_type.description` na publicznej stronie rejestracji (§US-2.1/AC4). Budowana na Wersji 14 (**Stripe Connect i konfiguracja płatności per organizacja — EPIK 30**), Wersji 13 (limity planu i feature gating — EPIK 29), Wersji 12 (waluta i kwoty pieniężne — EPIK 24, obsługa nieudanej płatności subskrypcyjnej — EPIK 25, Notification Center jako dedykowana encja domenowa — EPIK 26, ręczne fakturowanie bez automatyzacji Stripe Tax — EPIK 27, regulaminy i akceptacje per typ grupy — EPIK 28), oraz jawna integracja z fundamentem Next.js SaaS Boilerplate.
+
+**Zakres świadomie NIE objęty v15** (potwierdzone jako niepotrzebne na tym etapie): tematy zajęć i kategorie sukcesu, link do spotkania online per sesja, automatyczna integracja z Fakturownia/KSeF (fakturowanie pozostaje ręczne bez zmian — §2.17, EPIK 27), panel klienta z historią płatności oraz raporty i analityka frekwencji/rentowności. Dwa ostatnie punkty to wyłącznie brak UI — dane już istnieją w modelu, a EPIK 31 dostarcza surowe dane frekwencyjne, na których taki raport w przyszłości się oprze.
 
 **Rewizja 14.2 (2026-07-19):** adresowanie dwupoziomowe — `organization.subdomain` (unikalny globalnie, wymóg DNS) dla witryny akademii oraz `group_type.slug` (unikalny per organizacja) dla pojedynczej oferty; patrz §1.2 (`organization`) i §2.27. Dodatkowo §2.28: encja `session` nosi w implementacji nazwę `class_session` z powodu kolizji z tabelą sesji logowania fundamentu.
 
@@ -45,13 +47,17 @@ organization (1) ──< location (N)
                 │   (odrębne od platform_stripe_customer_id — Platform Billing za plan, §EPIK 29, patrz Zasada nadrzędna #7)
                 │
 organization (1) ──< group_type (N) ──< group_type_recurrence (N) ──< session (N) ──< booking (N) >── athlete (1)
-                │                              │        │                    │                          │
-                │                              │        └── location_id ──> location                    │
-                │                              │        (nadpisuje group_type.default_location_id)       │
-                │                              └── target_recurrence_id ── credit_purchase              parent_client_id
-                │                              └── default_location_id ──> location
+                │                              │        │                    │             │            │
+                │                              │        └── location_id ──> location       │            │
+                │                              │        (nadpisuje group_type.default_location_id)      │
+                │                              └── target_recurrence_id ── credit_purchase   │     parent_client_id
+                │                              └── default_location_id ──> location          │
                 │                              └── allowed_purchase_modes / allowed_billing_types
-                │                              └── policy_document_id ──> policy_document
+                │                              └── policy_document_id ──> policy_document     │
+                │                              └── description (v15, markdown na stronie oferty)
+                │                                                                             │
+                │                          attendance_status / attendance_marked_at / _by_user_id (v15)
+                │                          (oś niezależna od payment_status — patrz §2.29)
                 │
                 ├──< client (N, is_verified) ──< athlete (N)
                 │         │
@@ -61,7 +67,13 @@ organization (1) ──< group_type (N) ──< group_type_recurrence (N) ──
                 │         │
                 │         ├──< policy_acceptance (N) ── group_type_id / policy_document_id
                 │         │
+                │         ├──< client_price_override (N, v15) ── group_type_id (nullable)
+                │         │         (rabat per klient; §2.31, EPIK 33)
+                │         │
                 │         └──< notification (N, recipient_type=client)
+                │
+                ├──< trainer_rate (N, v15) ── trainer_id / group_type_id (nullable)
+                │         (stawka informacyjna; §2.30, EPIK 32)
                 │
                 ├──< credit_type (N) ── group_type_id (1:1)
                 ├──< product_template (N) ── credit_type_id
@@ -80,6 +92,8 @@ organization (1) ──< group_type (N) ──< group_type_recurrence (N) ──
 `organization.plan_id` (v13) rozstrzyga efektywne limity/featury organizacji łącznie z ewentualnym `organization_limit_override` — patrz §1.3 i §2.20.
 
 `organization.stripe_connect_account_id`/`stripe_connect_status` (v14) rozstrzygają, czy akademia może przyjmować płatności online od swoich klientów — patrz §1.3, §2.24–§2.26. To pole jest niezależne od billingu platformy (opłaty organizacji za plan, §EPIK 29) — patrz Zasada nadrzędna #7.
+
+`booking.attendance_status` (v15) jest osią całkowicie niezależną od `booking.payment_status` — patrz §2.29. `trainer_rate` (v15) i `client_price_override` (v15) są encjami organizacji, rozstrzyganymi regułami pierwszeństwa z §1.3 (Constraint 8 i 9); żadna z nich nie wpływa na silnik rezerwacji ani na ochronę współbieżności z §5.
 
 ### 1.2 Encje — pełna specyfikacja pól
 
@@ -119,6 +133,7 @@ organization (1) ──< group_type (N) ──< group_type_recurrence (N) ──
 | organization_id | FK, wymagane | izolacja tenant |
 | name | string | |
 | slug | string, unikalny | URL rejestracji, np. `/zapisy/obozy-2026` |
+| description | text/markdown, nullable (v15) | opis oferty prezentowany klientowi na publicznej stronie rejestracji (`{organization.subdomain}.langlion.com/zapisy/{slug}`, §2.27). Czysto prezentacyjny — nie wpływa na żadną logikę rezerwacji, cenową ani na walidację zapisu. Pole opcjonalne: brak opisu = sekcja nie jest renderowana |
 | engine | enum | `schedule_first` \| `availability_first` \| `slot_first` |
 | payment_policy | enum/set | dozwolone metody: online / na miejscu / oba — METODA płatności, niezależna od trybu zakupu poniżej |
 | price | integer (najmniejsza jednostka waluty, np. grosze) | cena pojedynczych zajęć w walucie `organization.currency`; baza dla `booking.price_snapshot`, `credit.source=online_payment/on_site_payment` |
@@ -191,6 +206,9 @@ Personel akademii (Owner/Admin/Recepcja/Trener) pozostaje bez zmian na boilerpla
 | consumed_credit_id | FK, nullable | |
 | session_start_time, session_end_time | timestamptz (zdenormalizowane) | wymagane przez constraint z §5.3 |
 | organization_id | FK (zdenormalizowane) | |
+| attendance_status | enum, default `unmarked` (v15) | `unmarked` \| `present` \| `absent` — potwierdzenie faktycznej obecności na zajęciach. **Oś całkowicie niezależna od `payment_status`** (§2.29): oznaczenie obecności nigdy nie zmienia statusu płatności, a `payment_status=no_show` (§US-16.2) pozostaje bez zmian i nie jest z tym polem synchronizowany w żadną stronę. `unmarked` (nieoznaczone) jest odróżnialne od `absent` (oznaczone jako nieobecny) |
+| attendance_marked_at | timestamp, nullable (v15) | moment ostatniego oznaczenia obecności |
+| attendance_marked_by_user_id | FK → User, nullable (v15) | kto ostatnio oznaczył obecność (personel — boilerplate User, §2.19); wcześniejsze wartości odtwarzalne z audit trail |
 
 #### credit_type
 
@@ -247,6 +265,37 @@ Personel akademii (Owner/Admin/Recepcja/Trener) pozostaje bez zmian na boilerpla
 | invoice_issued_at | timestamp, nullable | moment ręcznego oznaczenia „faktura wystawiona" |
 | invoice_number | string, nullable | numer faktury wpisany ręcznie, wyłącznie referencyjnie |
 | invoice_issued_by_user_id | FK, nullable | kto oznaczył fakturę jako wystawioną |
+
+#### client_price_override (v15)
+
+Indywidualna cena wynegocjowana z konkretnym klientem (rodzicem). Przyznawana **wyłącznie ręcznie przez admina**, z profilu tego klienta — nigdy z poziomu `group_type`, nigdy samoobsługowo. Pełny opis przepływu: §2.31, EPIK 33.
+
+| Pole | Typ | Opis |
+|---|---|---|
+| id | PK | |
+| organization_id | FK, wymagane | izolacja tenant |
+| client_id | FK → `client` | klient (rodzic), którego dotyczy rabat |
+| group_type_id | FK, nullable | ustawione = rabat wyłącznie na tę ofertę; `NULL` = wszystkie oferty akademii. Rozstrzyganie pierwszeństwa: Constraint 9, §1.3 |
+| override_type | enum | `percent_discount` \| `fixed_price` |
+| value | integer | interpretowane wg `override_type`: procent rabatu (`percent_discount`) albo kwota docelowa w najmniejszej jednostce waluty (`fixed_price`, §2.14) |
+| valid_from | date | |
+| valid_until | date, nullable | `NULL` = bezterminowo. Wygasa samoczynnie — pierwszy zakup/odnowienie po tej dacie nalicza cenę katalogową, bez żadnej akcji admina i **bez powiadomienia klienta** (§2.31) |
+| reason | text, **wymagane** | uzasadnienie biznesowe; zapis bez powodu jest odrzucany — ten sam wzorzec co `credits.manual_grant` (§US-7.3) |
+| granted_by_user_id | FK → User | kto przyznał rabat |
+| is_active | boolean | wyłączenie działa identycznie jak `valid_until` w przeszłości — od następnego zakupu, nigdy wstecz |
+
+#### trainer_rate (v15)
+
+Stawka wynagrodzenia trenera — **wyłącznie informacyjna**. Nie tworzy żadnej płatności, wypłaty ani rekordu na którymkolwiek z dwóch kont Stripe (Zasada nadrzędna #7). Pełny opis: §2.30, EPIK 32.
+
+| Pole | Typ | Opis |
+|---|---|---|
+| id | PK | |
+| organization_id | FK, wymagane | izolacja tenant |
+| trainer_id | FK → User (personel, §2.19) | |
+| group_type_id | FK, nullable | `NULL` = stawka bazowa trenera; ustawione = nadpisanie dla tego typu grupy. Rozstrzyganie pierwszeństwa: Constraint 8, §1.3 |
+| amount | integer (najmniejsza jednostka waluty, §2.14) | **ryczałt za poprowadzoną sesję** — niezależny od liczby uczestników i od długości zajęć (Rozstrzygnięcie #18) |
+| effective_from | date | data wejścia stawki w życie. Zmiana stawki tworzy **nowy rekord**, nigdy nie nadpisuje istniejącego — ten sam wzorzec nieretroaktywności co `policy_document.version` (§2.18), dzięki czemu raport za miniony okres nie zmienia się po podwyżce |
 
 #### group_change_request
 
@@ -386,6 +435,10 @@ Indywidualne warunki dla pojedynczej organizacji bez tworzenia dla niej osobnego
 - Zasada (v12): `credit_purchase.invoice_requested_at`/`invoice_issued_at` nigdy nie blokują ścieżki zakupowej ani generowania kredytów — to pola czysto administracyjne, niezależne od stanu `payment_status`/`credit`.
 - **Rozstrzyganie efektywnego limitu/feature'u organizacji (v13):** `organization_limit_override` dla danego `(organization_id, limit_key)`, jeśli istnieje → `plan_limit_definition` przypisana do `organization.plan_id` → brak wpisu w obu = **fail-closed** (operacja blokowana). Ta sama kolejność pierwszeństwa dotyczy `plan_feature_flag` (bez odpowiednika override na poziomie funkcji boolowskich w MVP — patrz §8 otwarte punkty).
 - **Constraint 7 (v14):** przyjmowanie płatności online od klientów akademii (`group_type.payment_policy` z opcją online, tworzenie `product_template` z płatnością online, generowanie Stripe Checkout dla `booking`/`credit_purchase`/`group_change_request`) wymaga `organization.stripe_connect_status = active` (czyli `stripe_connect_charges_enabled = true`). Sprawdzenie wykonywane na backendzie przy każdej próbie, nie tylko przy zapisie konfiguracji — spójnie z pozostałymi bramkami w dokumencie (RBAC §4.2, limity planu §2.20). Płatność na miejscu (`cash`) nigdy nie wymaga Stripe Connect i pozostaje dostępna niezależnie od statusu.
+- **Constraint 8 (v15) — rozstrzyganie stawki trenera dla sesji:** `trainer_rate` dla pary `(trainer_id, group_type_id)` z największym `effective_from <= session.start_time`, jeśli istnieje → `trainer_rate` dla `(trainer_id, NULL)` z tą samą regułą → brak wiersza w obu = sesja **nie wchodzi do sumy** raportu i trafia na wyodrębnioną listę „brak stawki". Świadomie nie jest to zero: brak stawki to luka w konfiguracji, którą admin ma zobaczyć, nie cicha wartość neutralna (§2.30, US-32.3).
+- **Constraint 9 (v15) — rozstrzyganie ceny dla klienta:** aktywny `client_price_override` (`is_active=true` ORAZ `valid_from <= now()` ORAZ `valid_until IS NULL OR valid_until >= now()`) dla pary `(client_id, group_type_id)`, jeśli istnieje → dla `(client_id, NULL)` → cena katalogowa (`group_type.price` albo `product_template.price`). Zachowanie jest **fail-open**: brak override oznacza zwykłą cenę, nigdy blokadę. To świadomie odwrotny domyślny wybór niż przy limitach planu i feature flagach (fail-closed, patrz wyżej) — nierozstrzygnięty rabat nigdy nie może zatrzymać sprzedaży, podczas gdy nierozstrzygnięty limit musi.
+- **Zasada (v15) — zamrożenie ceny po rabacie:** `booking.price_snapshot` oraz `credit_purchase.price_paid` zapisują kwotę **po** zastosowaniu override, zgodnie z Zasadą nadrzędną #1 — późniejsza zmiana, wygaśnięcie lub wyłączenie rabatu nigdy ich nie rusza. **Jedyny wyjątek: subskrypcje** (`billing_type=recurring`), gdzie rabat jest stanem żywym sprawdzanym przy każdym odnowieniu, nie wartością zamrożoną przy pierwszym zakupie — patrz §2.31 i §2.15.
+- **Zasada (v15) — niezależność obecności od płatności:** `booking.attendance_status` i `booking.payment_status` są dwiema rozłącznymi osiami. Żadna zmiana jednej nigdy nie pociąga za sobą zmiany drugiej, w obie strony — w szczególności `payment_status=no_show` (§US-16.2) nie ustawia `attendance_status='absent'`, a oznaczenie `absent` nie zmienia statusu płatności (§2.29).
 
 ---
 
@@ -498,6 +551,10 @@ Zwrot potwierdzony (webhook `charge.refunded` dla online, albo kliknięcie admin
 | `invoices.mark_issued` | Recepcja, Admin, Owner | oznaczenie ręcznie wystawionej faktury jako rozliczonej |
 | `plans.manage` (v13) | Owner platformy, Super Admin (poziom boilerplate, **nie** poziom organizacji klienta) | CRUD na `plan`/`plan_limit_definition`/`plan_feature_flag`/`organization_limit_override`. Żaden Owner/Admin akademii nie ma tego uprawnienia — wyłącznie zakup wyższego planu przez Customer Portal |
 | `billing_connect.manage` (v14) | **wyłącznie Owner** organizacji (nie Admin, nie Sekretariat) | Inicjowanie/odłączanie Stripe Connect (§2.24). Świadomie węższe niż pozostałe uprawnienia finansowe w tabeli (np. `refunds.issue` ma Admin) — podłączenie konta bankowego/Stripe całej akademii jest decyzją właścicielską, nie operacyjną |
+| `bookings.mark_attendance` (v15) | Trener (**wyłącznie własne sesje**), Recepcja, Admin, Owner | Oznaczanie obecności z listy uczestników sesji (§2.29, §16.1). Ograniczenie trenera do własnych sesji jest egzekwowane na backendzie, nie tylko filtrem w UI — spójnie z §4.2 |
+| `trainer_rates.manage` (v15) | Owner, Admin | CRUD na `trainer_rate` (§2.30). Trener nigdy nie edytuje własnej stawki |
+| `trainer_earnings.view` (v15) | Owner, Admin, Trener (**wyłącznie własne dane**) | Podgląd raportu wynagrodzeń (§2.30). Żądanie o cudze dane jest odrzucane na backendzie niezależnie od tego, co pokazuje UI |
+| `client_price_override.manage` (v15) | Owner, Admin | Przyznawanie/wyłączanie indywidualnych cen klienta (§2.31). **Wymaga podania powodu** — ten sam wzorzec co `credits.manual_grant` |
 
 Świadomie nie istnieje żadne uprawnienie typu „przekrocz pojemność sesji" ani „przekrocz limit planu". Wszystkie powyższe uprawnienia definiuje się jako zestawy przypisywane do Membership boilerplate'u, zgodnie z jego mechanizmem ról custom (boilerplate §4.3) — patrz §2.19.
 
@@ -549,6 +606,8 @@ Nieretroaktywność zmiany polityki: zmiana `allowed_purchase_modes`/`allowed_bi
 Dotychczasowy model generuje kredyty wyłącznie na `invoice.paid`. Model nie wymaga żadnej logiki cofania przy nieudanej płatności (`invoice.payment_failed`) — skoro kredyty i tak powstają dopiero po `invoice.paid`, brak tego eventu oznacza po prostu brak nowych kredytów w danym cyklu. Retry płatności pozostaje po stronie Stripe (Smart Retries).
 
 Pole `credit_purchase.subscription_status` jest aktualizowane webhookiem i służy wyłącznie do raportowania stanu subskrypcji lokalnie, bez wpływu na już wygenerowane kredyty ani na `valid_until`. Przy `invoice.payment_failed` generowane jest powiadomienie (§2.16) z linkiem do Stripe Customer Portal.
+
+**Kwota kolejnego cyklu a rabat klienta (v15):** wysokość obciążenia przy każdym odnowieniu zależy od stanu `client_price_override` **w momencie tego odnowienia** — rabat jest stanem żywym, nie wartością zamrożoną przy starcie subskrypcji (§2.31, Constraint 9). Cena może się zatem różnić między cyklami, jeśli admin w międzyczasie zmienił, wyłączył lub pozwolił wygasnąć rabatowi; to zachowanie oczekiwane, nie błąd. Sam mechanizm z tej sekcji pozostaje bez zmian: `subscription_status` nadal jest wyłącznie informacyjny, a kredyty nadal powstają dopiero na `invoice.paid`, niezależnie od tego, jaka kwota została naliczona.
 
 ### 2.16 Notification Center — dedykowana encja domenowa
 
@@ -715,6 +774,64 @@ Encja opisywana w tym dokumencie jako `session` (Realizacja, §1.2) nosi w imple
 
 Kolizja nie jest głośna: `export *` z dwóch modułów eksportujących tę samą nazwę czyni ją niejednoznaczną, a moduły ES rozwiązują to przez ciche pominięcie. W praktyce oznaczało to, że generator migracji pominął tabelę domenową, generując jednocześnie klucz obcy z `booking` wskazujący na tabelę sesji logowania. Zmiana nazwy jest świadomym odejściem od dosłownego brzmienia specyfikacji; **każde odwołanie do `session` w tym dokumencie oznacza `class_session` w kodzie**.
 
+### 2.29 Potwierdzanie obecności (v15)
+
+Obecność jest **osobną osią od płatności**. Dotychczasowy `booking.payment_status` odpowiada na pytanie „czy i jak zapłacono"; nowe `attendance_status` odpowiada na pytanie „czy uczestnik faktycznie przyszedł". Te dwie odpowiedzi bywają dowolną kombinacją: klient opłacony może nie przyjść, klient z `booked_offline` może przyjść i zapłacić dopiero po zajęciach.
+
+Wartość `no_show` na `payment_status` (§US-16.2) **zostaje bez zmian i nie jest z tym mechanizmem synchronizowana** w żadną stronę. Świadomie nie łączymy tych pól ani nie migrujemy jednego w drugie: `payment_status=no_show` niesie skutek rozliczeniowy (rezerwacja się nie odbyła, a kredyt został skonsumowany), natomiast `attendance_status` jest czystym faktem frekwencyjnym bez żadnych konsekwencji.
+
+Stan domyślny to `unmarked`, celowo odróżnialny od `absent`: „nikt nie sprawdził listy" to inna informacja niż „sprawdzono i uczestnika nie było". Raport wynagrodzeń (§2.30) opiera się dokładnie na tym rozróżnieniu, a przyszłe raporty frekwencji straciłyby sens, gdyby brak oznaczenia był nie do odróżnienia od nieobecności.
+
+Oznaczanie odbywa się z listy uczestników sesji (§16.1), wymaga uprawnienia `bookings.mark_attendance` i jest logowane w audit trail (boilerplate §6.4) — łącznie z nadpisaniem wcześniejszego oznaczenia, tak aby dało się odtworzyć, kto i kiedy zmienił zdanie. Oznaczenie obecności **nie wywołuje żadnej automatycznej konsekwencji**: nie zwraca kredytu, nie zmienia statusu płatności, nie generuje powiadomienia. Jest to spójne z obecnym traktowaniem `no_show` (§US-16.2).
+
+UI raportów i analityki frekwencji pozostaje poza zakresem v15 — ta sekcja dostarcza wyłącznie surowe dane, na których taki raport w przyszłości się oprze.
+
+### 2.30 Wynagrodzenia trenerów — wyłącznie informacyjne (v15)
+
+Moduł **nie jest systemem payrollowym**. Nie tworzy żadnej płatności, przelewu ani wypłaty; nie dotyka żadnego z dwóch kont Stripe (Zasada nadrzędna #7) — ani Platform Billing, ani Connected Account akademii. Jest to kalkulator raportowy: liczy, ile akademia jest winna trenerowi, a rozliczenie odbywa się poza systemem.
+
+`trainer_rate.amount` to **ryczałt za poprowadzoną sesję**, niezależny od liczby uczestników i długości zajęć (Rozstrzygnięcie #18). Stawka może być bazowa (`group_type_id = NULL`) albo nadpisana per typ grupy — nadpisanie wygrywa, wg Constraint 8.
+
+Zmiana stawki **nigdy nie działa wstecz**: tworzy nowy rekord z własnym `effective_from`, a raport za miniony okres liczy stawkę obowiązującą w dniu sesji. To ten sam wzorzec nieretroaktywności, który dokument stosuje dla ceny (Zasada nadrzędna #1) i wersji regulaminu (§2.18) — podwyżka od nowego sezonu nie przepisuje rozliczenia poprzedniego.
+
+Kwalifikacja sesji do raportu wymaga **dwóch warunków naraz**:
+1. trener prowadził tę sesję (`session.trainer_id`), oraz
+2. przynajmniej jedna powiązana `booking` ma `attendance_status != 'unmarked'`.
+
+Drugi warunek jest celowym proxy dla „zajęcia faktycznie się odbyły i prowadzący je rozliczył". Sesja wygenerowana z wzorca, na której nikt nigdy nie sprawdził listy, nie wchodzi do sumy — brak oznaczeń jest sygnałem, że nie ma czego rozliczać, a nie zaproszeniem do zgadywania. Wartość `absent` liczy się na równi z `present`: prowadzący pojawił się i sprawdził listę, więc należy mu się stawka niezależnie od tego, ilu uczestników dotarło.
+
+Sesje kwalifikujące się z punktu 1 i 2, dla których Constraint 8 nie rozstrzyga żadnej stawki, trafiają na **wyodrębnioną listę „brak stawki"** — nie są liczone jako zero i nie znikają cicho z raportu. To luka w konfiguracji, którą admin ma zobaczyć i uzupełnić.
+
+Trener widzi wyłącznie własne dane (`trainer_earnings.view`), co jest egzekwowane na backendzie niezależnie od UI.
+
+### 2.31 Indywidualne ceny klienta (v15)
+
+`client_price_override` obsługuje sytuację, która dziś dzieje się poza systemem: rodzic dzwoni lub pisze, negocjuje zniżkę (rodzeństwo, trudna sytuacja, klient długoletni), a akademia się zgadza. Przepływ jest **w pełni ręczny i inicjowany wyłącznie przez admina** po kontakcie odbytym poza systemem.
+
+Czego świadomie **nie ma**:
+- **żadnego samoobsługowego formularza zgłoszenia rabatu** po stronie klienta — klient nie ma ścieżki UI ani API, żeby o rabat poprosić lub go zastosować;
+- **żadnego kodu promocyjnego** — nie ma czego wpisać przy zakupie;
+- **żadnej widoczności dla innych klientów** tej samej grupy — rabat przyznaje się z profilu konkretnego klienta, nigdy z poziomu `group_type`, więc nie jest ofertą, tylko ustaleniem indywidualnym.
+
+Rabat stosuje się **automatycznie** do każdego pasującego zakupu tego klienta, bez żadnej akcji z jego strony. Zasięg rozstrzyga `group_type_id`: ustawione = wyłącznie ta oferta, puste = wszystkie oferty akademii (Constraint 9).
+
+**Rabat nie jest powiązany z „pierwszym zapisem" klienta.** `client_id` powstaje raz, przy pierwszej próbie zapisu (upsert, §US-4.1), ale admin przyznaje rabat w dowolnym momencie po weryfikacji klienta — nie tylko wokół tego pierwszego zdarzenia. Od chwili przyznania rabat obowiązuje na **wszystkie kolejne rozpoznania** tego klienta: kolejny zapis, dopisanie następnego dziecka, nowy sezon — aż do wygaśnięcia (`valid_until`) albo wyłączenia (`is_active=false`).
+
+**Zasięg cenowy:** rabat obejmuje zarówno `group_type.price` (pojedyncze zajęcia → `booking.price_snapshot`), jak i `product_template.price` (pakiety → `credit_purchase.price_paid`), w tym pakiety z `billing_type=recurring`. Formuła zwrotu (§2.9) liczy się wtedy od kwoty **faktycznie zapłaconej**, nie katalogowej — `price_paid` już zawiera rabat, więc formuła nie wymaga żadnej korekty.
+
+**Widoczność ceny przy zapisie:** cena po rabacie jest pokazywana rozpoznanemu, zweryfikowanemu klientowi już na formularzu rejestracji — zarówno dla pojedynczych zajęć, jak i na liście pakietów — zanim wybierze metodę płatności (§US-4.2/AC4–AC6). Rabat naliczany bez uprzedzenia, widoczny dopiero po zapłacie, byłby gorszym doświadczeniem niż jego brak.
+
+**Zachowanie przy subskrypcjach — rabat jako stan żywy (Rozstrzygnięcie #17):** każde odnowienie (webhook `invoice.paid`, §2.15) sprawdza aktywny override **w momencie odnowienia**; rabat nie jest zamrażany przy starcie subskrypcji. Konsekwencje, wszystkie zamierzone:
+- cena subskrypcji **może się zmieniać między cyklami rozliczeniowymi**, jeśli admin zmieni lub wyłączy override w międzyczasie — to zachowanie oczekiwane, nie błąd;
+- rabat z ustawionym `valid_until` **wygasa automatycznie**: pierwsze odnowienie po tej dacie nalicza już pełną cenę katalogową, bez żadnej dodatkowej akcji admina;
+- **klient nie otrzymuje powiadomienia** o wygaśnięciu rabatu — świadomie pominięte na tym etapie (patrz §6).
+
+To ten sam wzorzec „sprawdzane na żywo, nie cache'owane", który dokument stosuje już dla `plan_limit_definition` (§EPIK 29, §2.23), i świadomie inny niż zamrażanie z Zasady nadrzędnej #1 — bo rabat jest bieżącym stanem uprawnienia klienta, a nie zamkniętą transakcją. Zamrożenie nadal obowiązuje dla zakupów jednorazowych: `price_snapshot` i `price_paid` raz zapisane nie zmieniają się nigdy (§1.3).
+
+Przyznanie rabatu wymaga uprawnienia `client_price_override.manage` **oraz podania powodu** (pole `reason`, zapis bez niego jest odrzucany) i jest logowane w audit trail — ten sam wzorzec kontroli co przy ręcznym nadaniu kredytów (§US-7.3).
+
+---
+
 Konwencja: Jako `<rola>`, chcę `<cel>`, aby `<korzyść>`. AC w formacie Given/When/Then. Numeracja `US-<EPIK>.<nr>` odpowiada sekcjom specyfikacji technicznej.
 
 ### EPIK 1 — Multi-tenancy i strefa czasowa
@@ -734,6 +851,7 @@ Konwencja: Jako `<rola>`, chcę `<cel>`, aby `<korzyść>`. AC w formacie Given/
 - AC1: Given tworzę `group_type`, When nie podam `price`, Then system odrzuca zapis (pole wymagane).
 - AC2: Given zapisuję `group_type` z `engine=schedule_first`, When definiuję `group_type_recurrence`, Then muszę wskazać `trainer_id` (walidacja wymagana dla tego silnika).
 - AC3: Given `engine=slot_first`, When definiuję `group_type`, Then nie jestem zmuszony wskazać trenera — system obliczy dostępność dynamicznie.
+- AC4 (v15): Given tworzę/edytuję `group_type`, When wypełniam (lub pomijam) pole `description`, Then jest ono opcjonalne, przyjmuje treść w markdown i jest renderowane na publicznej stronie oferty (`{organization.subdomain}.langlion.com/zapisy/{slug}`, §2.27); brak opisu nie blokuje zapisu ani nie wpływa na żadną logikę rezerwacji ani cenową.
 
 **US-2.2** Jako administrator, chcę edytować Definicję typu zajęć bez wpływu na już wygenerowane sesje z rezerwacjami.
 - AC1: Given `group_type` ma wygenerowane sesje z aktywnymi rezerwacjami, When admin zmienia `price` lub `payment_policy` na Definicji, Then istniejące `booking.price_snapshot` pozostają niezmienione.
@@ -776,6 +894,9 @@ Konwencja: Jako `<rola>`, chcę `<cel>`, aby `<korzyść>`. AC w formacie Given/
 - AC1: Given wpisuję e-mail pasujący do istniejącego `client` TEJ SAMEJ organizacji z `is_verified=true`, When system sprawdza w tle, Then pola formularza są automatycznie wypełnione danymi profilu, a krok OTP jest pomijany. Rekord `client` z innej organizacji nigdy nie jest dopasowywany (rewizja 14.1).
 - AC2: Given jestem rozpoznanym klientem, When wybieram sesję z wolnym miejscem, Then rezerwacja jest finalizowana od razu, minimalną liczbą kroków.
 - AC3: Given e-mail nie pasuje do żadnego zweryfikowanego `client` w tej organizacji, When kontynuuję zapis, Then przechodzę standardową ścieżkę z pełnym formularzem i weryfikacją OTP.
+- AC4 (v15): Given jestem rozpoznany jako zweryfikowany klient (`is_verified=true` — ten sam moment, w którym pomijany jest OTP i uzupełniane są dane w AC1) ORAZ mam aktywny `client_price_override` (`is_active=true`, w oknie `valid_from`/`valid_until`) pasujący do wybranej oferty, When formularz renderuje cenę — zarówno dla pojedynczych zajęć (`group_type.price`), jak i dla listy pakietów (`product_template.price`) — Then wyświetlana jest cena PO zastosowaniu override (Constraint 9), zanim wybiorę metodę płatności i sfinalizuję zapis.
+- AC5 (v15): Given jestem rozpoznany, ale nie mam aktywnego override pasującego do tej oferty, When formularz renderuje cenę, Then wyświetlana jest cena katalogowa — bez zmian względem stanu sprzed v15.
+- AC6 (v15): Given jestem nowym lub niezweryfikowanym klientem, When wypełniam formularz, Then zawsze widzę cenę katalogową. Rabat nie jest prezentowany przed weryfikacją, nawet jeśli admin już go przyznał: `client_price_override` wskazuje na `client_id`, który istnieje od upsertu przy pierwszej próbie zapisu (§US-4.1), ale **wyświetlanie rabatu jest bramkowane tym samym progiem zaufania co reszta rozpoznania w AC1**, nie samym istnieniem rekordu.
 
 **US-4.3** Jako administrator, chcę ograniczyć widoczność wybranej oferty do nowych klientów.
 - AC1: Given `group_type.is_new_client_only=true`, When rozpoznany istniejący klient (§US-4.2) korzysta z tego samego linku, Then NIE zostaje odrzucony komunikatem „tylko dla nowych" — flaga działa jako priorytetowe kierowanie nowych klientów, nie twarda bramka.
@@ -1232,6 +1353,100 @@ Konwencja: Jako `<rola>`, chcę `<cel>`, aby `<korzyść>`. AC w formacie Given/
 - AC1: Given jestem Adminem (nie Ownerem), When próbuję wejść w opcję połączenia/odłączenia Stripe, Then nie mam do tego dostępu — wymagane jest uprawnienie `billing_connect.manage`, przypisane wyłącznie do roli Owner.
 - AC2: Given próba dostępu następuje bezpośrednio przez API z konta bez uprawnienia, When żądanie dociera do backendu, Then jest odrzucane niezależnie od UI.
 
+### EPIK 31 — Potwierdzanie obecności (v15)
+
+**US-31.1** Jako trener, chcę oznaczyć obecność uczestników z listy sesji, aby akademia miała ślad, kto faktycznie przyszedł.
+- AC1: Given otwieram listę uczestników prowadzonej przeze mnie sesji, When oznaczam uczestnika jako `present` lub `absent`, Then `booking.attendance_status` jest zapisywany wraz z `attendance_marked_at` i `attendance_marked_by_user_id`.
+- AC2: Given nie mam uprawnienia `bookings.mark_attendance`, When wysyłam żądanie bezpośrednio przez API, Then jest ono odrzucane niezależnie od tego, co pokazuje UI.
+- AC3: Given jestem trenerem i próbuję oznaczyć obecność na sesji, której NIE prowadzę, When żądanie dociera do backendu, Then jest odrzucane — ograniczenie „wyłącznie własne sesje" jest egzekwowane na backendzie, nie tylko filtrem listy w UI.
+- AC4: Given oznaczenie zostało zapisane, When sprawdzam audit trail (boilerplate §6.4), Then widoczne jest kto, kiedy, która rezerwacja i jaka wartość.
+
+**US-31.2** Jako system, chcę, aby obecność była całkowicie niezależna od statusu płatności.
+- AC1: Given oznaczam uczestnika jako `present` lub `absent`, When zapis następuje, Then `booking.payment_status` pozostaje niezmieniony.
+- AC2: Given rezerwacja ma `payment_status = no_show` (§US-16.2), When sprawdzam jej `attendance_status`, Then pozostaje on `unmarked` — oznaczenie `no_show` nie ustawia statusu obecności ani odwrotnie.
+- AC3: Given rezerwacja ma `payment_status = booked_offline` (nieopłacona), When trener oznacza uczestnika jako `present`, Then operacja się powodzi — brak płatności nie blokuje potwierdzenia obecności.
+- AC4: Given oznaczam obecność, When operacja się kończy, Then NIE następuje żadna automatyczna konsekwencja: nie powstaje ani nie jest zwracany kredyt, nie zmienia się status rezerwacji, nie jest wysyłane powiadomienie.
+
+**US-31.3** Jako recepcja, chcę poprawić błędnie oznaczoną obecność.
+- AC1: Given uczestnik został wcześniej oznaczony jako `absent`, When zmieniam oznaczenie na `present`, Then wartość jest nadpisywana, a `attendance_marked_at`/`attendance_marked_by_user_id` aktualizowane na moment i autora korekty.
+- AC2: Given korekta nastąpiła, When sprawdzam audit trail, Then poprzednia wartość jest z niego odtwarzalna — historia zmian nie jest tracona przez nadpisanie.
+
+**US-31.4** Jako administrator, chcę odróżnić „nikt nie sprawdził listy" od „uczestnika nie było".
+- AC1: Given sesja się odbyła, ale nikt nie oznaczył obecności, When przeglądam listę uczestników, Then wszystkie rezerwacje mają `unmarked`, wizualnie odróżnialne od `absent`.
+- AC2: Given sesja ma wyłącznie oznaczenia `unmarked`, When jest przetwarzana przez raport wynagrodzeń (§2.30), Then nie kwalifikuje się do sumy — zgodnie z US-32.3/AC2.
+
+### EPIK 32 — Wynagrodzenia trenerów, wyłącznie informacyjne (v15)
+
+**US-32.1** Jako administrator, chcę zdefiniować stawkę trenera, aby móc raportować należne wynagrodzenie.
+- AC1: Given mam uprawnienie `trainer_rates.manage`, When tworzę `trainer_rate` dla trenera bez wskazania `group_type_id`, Then powstaje jego stawka bazowa obowiązująca we wszystkich typach grup.
+- AC2: Given trener ma stawkę bazową, When tworzę dodatkowy `trainer_rate` dla konkretnego `group_type_id`, Then dla sesji tego typu obowiązuje stawka nadpisująca, a dla pozostałych — bazowa (Constraint 8).
+- AC3: Given jestem trenerem, When próbuję utworzyć lub zmienić jakąkolwiek stawkę, Then operacja jest odrzucana — `trainer_rates.manage` mają wyłącznie Owner i Admin.
+- AC4: Given `amount` jest zapisywane, When sprawdzam jego interpretację, Then jest to ryczałt za poprowadzoną sesję w najmniejszej jednostce waluty (§2.14), niezależny od liczby uczestników i długości zajęć.
+
+**US-32.2** Jako administrator, chcę podnieść stawkę trenera bez zmiany rozliczenia minionych miesięcy.
+- AC1: Given trener ma stawkę 100 zł z `effective_from = 2026-01-01`, When ustalam nową stawkę 120 zł od `2026-09-01`, Then powstaje nowy rekord `trainer_rate`, a poprzedni pozostaje nietknięty.
+- AC2: Given powyższe, When generuję raport za sierpień 2026, Then sesje są liczone po 100 zł; raport za wrzesień liczy je po 120 zł.
+- AC3: Given raport za miniony okres został już wygenerowany i podniesiono stawkę, When generuję go ponownie, Then wynik jest identyczny jak poprzednio — zmiana stawki nie działa wstecz.
+
+**US-32.3** Jako administrator, chcę zobaczyć zestawienie należnych wynagrodzeń za wybrany okres.
+- AC1: Given wybieram trenera i zakres dat, When generuję raport, Then suma obejmuje wyłącznie sesje, w których ten trener był prowadzącym ORAZ co najmniej jedna powiązana `booking` ma `attendance_status != 'unmarked'`.
+- AC2: Given sesja odbyła się w okresie, ale nikt nie oznaczył na niej obecności, When raport jest generowany, Then ta sesja NIE jest liczona.
+- AC3: Given na sesji wszyscy uczestnicy zostali oznaczeni jako `absent`, When raport jest generowany, Then sesja JEST liczona — prowadzący pojawił się i sprawdził listę, więc stawka mu przysługuje.
+- AC4: Given sesja kwalifikuje się wg AC1, ale Constraint 8 nie rozstrzyga dla niej żadnej stawki, When raport jest generowany, Then sesja trafia na **wyodrębnioną listę „brak stawki"** widoczną dla admina i NIE jest liczona jako zero ani pomijana bez śladu.
+
+**US-32.4** Jako trener, chcę widzieć własne zestawienie, ale nie cudze.
+- AC1: Given mam uprawnienie `trainer_earnings.view` jako trener, When otwieram raport, Then widzę wyłącznie własne sesje i własne kwoty.
+- AC2: Given próbuję pobrać dane innego trenera bezpośrednio przez API, When żądanie dociera do backendu, Then jest odrzucane niezależnie od UI.
+- AC3: Given jestem Ownerem lub Adminem, When otwieram raport, Then widzę dane wszystkich trenerów organizacji.
+
+**US-32.5** Jako właściciel platformy, chcę mieć pewność, że moduł wynagrodzeń nie wywołuje żadnych skutków finansowych.
+- AC1: Given raport został wygenerowany dla dowolnego okresu i kwoty, When sprawdzam skutki, Then nie powstaje żadna płatność, wypłata ani transfer.
+- AC2: Given powyższe, When sprawdzam oba konta Stripe (Platform Billing oraz Connected Account akademii, Zasada nadrzędna #7), Then żadne z nich nie odnotowuje jakiejkolwiek operacji wywołanej tym raportem.
+- AC3: Given trener ma wyliczone wynagrodzenie, When szukam ścieżki jego wypłaty w systemie, Then taka ścieżka nie istnieje — rozliczenie odbywa się poza systemem.
+
+### EPIK 33 — Indywidualne ceny klienta (v15)
+
+**US-33.1** Jako administrator, chcę przyznać wynegocjowany rabat konkretnemu klientowi.
+- AC1: Given rozmawiałem z klientem poza systemem i mam uprawnienie `client_price_override.manage`, When przyznaję rabat z profilu tego klienta, Then powstaje `client_price_override` z `granted_by_user_id` i datami obowiązywania.
+- AC2: Given wypełniam formularz rabatu bez podania `reason`, When zapisuję, Then system odrzuca zapis — powód jest wymagany, analogicznie do `credits.manual_grant` (§US-7.3).
+- AC3: Given rabat został przyznany, When sprawdzam audit trail, Then widoczne jest kto, komu, jaki typ i wartość, jaki zasięg, na jaki okres i z jakim powodem.
+- AC4: Given nie mam uprawnienia `client_price_override.manage`, When wysyłam żądanie bezpośrednio przez API, Then jest odrzucane niezależnie od UI.
+
+**US-33.2** Jako administrator, chcę zdecydować, czy rabat dotyczy jednej oferty, czy całej akademii.
+- AC1: Given tworzę override ze wskazanym `group_type_id`, When klient kupuje inną ofertę, Then płaci cenę katalogową.
+- AC2: Given tworzę override bez `group_type_id` (NULL), When klient kupuje dowolną ofertę akademii, Then rabat obowiązuje wszędzie.
+- AC3: Given klient A ma rabat na daną ofertę, When klient B zapisuje się na tę samą ofertę, Then widzi i płaci cenę katalogową — rabat nie jest ofertą grupy, tylko ustaleniem indywidualnym.
+- AC4: Given istnieje zarówno override dla `(client_id, group_type_id)`, jak i dla `(client_id, NULL)`, When wyliczana jest cena tej konkretnej oferty, Then wygrywa override wskazujący `group_type_id` (Constraint 9).
+
+**US-33.3** Jako klient z przyznanym rabatem, chcę zapłacić obniżoną cenę za pojedyncze zajęcia.
+- AC1: Given mam aktywny override `percent_discount` = 20, a `group_type.price` = 100 zł, When rezerwuję zajęcia, Then płacę 80 zł.
+- AC2: Given mam aktywny override `fixed_price` = 60 zł, When rezerwuję zajęcia z ceną katalogową 100 zł, Then płacę 60 zł niezależnie od ceny katalogowej.
+- AC3: Given nie mam żadnego pasującego, aktywnego override, When rezerwuję zajęcia, Then płacę cenę katalogową — brak rabatu nigdy nie blokuje zakupu (fail-open, Constraint 9).
+- AC4: Given rezerwacja została utworzona z rabatem, When sprawdzam `booking.price_snapshot`, Then zamrożona jest cena PO rabacie wraz z walutą (§2.14).
+- AC5: Given moja rezerwacja ma zamrożony `price_snapshot`, When admin później zmienia lub wyłącza mój rabat, Then ta rezerwacja pozostaje nietknięta (Zasada nadrzędna #1).
+
+**US-33.4** Jako klient z przyznanym rabatem, chcę kupić pakiet w obniżonej cenie.
+- AC1: Given mam aktywny override pasujący do typu grupy powiązanego z pakietem, When kupuję `product_template` jednorazowo, Then `credit_purchase.price_paid` zapisuje kwotę po rabacie.
+- AC2: Given kupiłem pakiet z rabatem i wnioskuję o zwrot, When wyliczana jest kwota zwrotu (§2.9), Then formuła `(niewykorzystane / zakupione) × price_paid` operuje na kwocie faktycznie zapłaconej, nie katalogowej.
+- AC3: Given liczba wygenerowanych kredytów zależy od `credit_quantity`, When kupuję pakiet z rabatem, Then otrzymuję tę samą liczbę kredytów co bez rabatu — rabat zmienia wyłącznie cenę, nigdy zawartość pakietu.
+
+**US-33.5** Jako klient z subskrypcją i rabatem, chcę, aby rabat obowiązywał w kolejnych cyklach, dopóki jest ważny.
+- AC1: Given mam aktywną subskrypcję i aktywny override, When następuje odnowienie (`invoice.paid`, §2.15), Then naliczana kwota uwzględnia stan override'a **w momencie tego odnowienia**, nie w momencie założenia subskrypcji.
+- AC2: Given admin zmienia wartość mojego rabatu między cyklami, When następuje kolejne odnowienie, Then nowa kwota jest naliczana zgodnie ze zmienioną wartością — zmienna cena między cyklami jest zachowaniem oczekiwanym, nie błędem.
+- AC3: Given mój override ma `valid_until` w przeszłości względem momentu odnowienia, When następuje odnowienie, Then naliczana jest pełna cena katalogowa, bez żadnej akcji admina.
+- AC4: Given rabat wygasł i naliczono pełną cenę, When sprawdzam swoją skrzynkę i Notification Center, Then NIE otrzymuję powiadomienia o wygaśnięciu rabatu — świadomie pominięte na tym etapie (§6).
+- AC5: Given rabat wygasł lub został wyłączony, When sprawdzam już wygenerowane kredyty z poprzednich cykli, Then pozostają nietknięte i ważne do swojego `valid_until`.
+
+**US-33.6** Jako administrator, chcę wycofać rabat bez naruszania historii.
+- AC1: Given ustawiam `is_active=false` na istniejącym override, When klient dokonuje kolejnego zakupu, Then płaci cenę katalogową.
+- AC2: Given override ma `valid_until` w przeszłości, When klient dokonuje zakupu, Then efekt jest identyczny jak przy `is_active=false` — oba mechanizmy działają tak samo, od następnego zakupu.
+- AC3: Given wyłączam rabat, When sprawdzam wcześniejsze `booking.price_snapshot` i `credit_purchase.price_paid` tego klienta, Then pozostają niezmienione.
+
+**US-33.7** Jako właściciel platformy, chcę mieć pewność, że rabat nigdy nie jest samoobsługowy.
+- AC1: Given jestem klientem, When przeglądam panel i formularz rejestracji, Then nie istnieje żadna ścieżka UI ani API pozwalająca mi zgłosić wniosek o rabat, wpisać kod promocyjny ani samodzielnie zastosować zniżkę.
+- AC2: Given mam przyznany rabat, When dokonuję zakupu, Then stosuje się on automatycznie do każdego pasującego zakupu, bez żadnej akcji z mojej strony.
+- AC3: Given admin przyznał mi rabat, When sprawdzam, od kiedy obowiązuje, Then obowiązuje na wszystkie kolejne rozpoznania mojego konta (kolejny zapis, dopisanie następnego dziecka, nowy sezon), a nie wyłącznie na najbliższy zakup — aż do wygaśnięcia lub wyłączenia (§2.31).
+
 ---
 
 ## 4. Tabela porównawcza: płatność online vs na miejscu
@@ -1253,15 +1468,17 @@ Obie ścieżki są symetryczne pod względem roli kredytu — różnią się wy�
 
 1. Rozstrzygnięcie mapowania tożsamości boilerplate (§2.19) — decyzja architektoniczna, musi zapaść przed pisaniem RBAC. **Rozstrzygnięte (rewizja 14.1):** personel = boilerplate User+Membership; klient = domenowa encja `client` z OTP per organizacja.
 2. Model danych fundamentalny: `organization` (z `currency`), `location`, `group_type`, `group_type_recurrence`, `session` + wszystkie 3 ochrony race condition (§5.1–§5.3) — kwoty od razu jako liczby całkowite, taniej teraz niż po migracji danych produkcyjnych.
-3. Silnik Schedule-First + generowanie sesji jako efekt zapisu wzorca, z dziedziczeniem lokalizacji.
+3. Silnik Schedule-First + generowanie sesji jako efekt zapisu wzorca, z dziedziczeniem lokalizacji. Razem z tym punktem wchodzi `group_type.description` (v15) — prosta kolumna prezentacyjna, tania teraz, bo formularz CRUD typu grupy i tak powstaje.
 4. Ścieżka klienta: formularz + upsert + OTP (domenowy, encja `client` — rewizja 14.1), start z płatnością na miejscu (bez integracji bramki).
 5. System kredytowy: `credit_type`, `credit`, FIFO + atomowa konsumpcja — równolegle z punktem 4.
-6. Panel trenera/recepcji: widoczność statusów + zatwierdzanie płatności na miejscu.
+6. Panel trenera/recepcji: widoczność statusów + zatwierdzanie płatności na miejscu. Razem z tym punktem wchodzi **potwierdzanie obecności (EPIK 31, v15)** — ta sama lista uczestników sesji jest nośnikiem obu funkcji.
+   **6a. Raport wynagrodzeń trenerów (EPIK 32, v15)** — zależny od punktu 6, ponieważ kwalifikacja sesji do raportu opiera się na danych frekwencyjnych (§2.30). Bez oznaczeń obecności raport nie ma na czym pracować.
 7. Soft delete dla `group_type`, trenera, `credit_type`, `location` — tanio teraz, drogo później.
 8. Płatność online (Stripe) jako rozszerzenie, przez adapter billingowy boilerplate'u — nie osobna integracja.
    **8a. Model planów i limitów (EPIK 29, v13)** — musi istnieć przed publicznym uruchomieniem, ponieważ bez niego brak mechanizmu ograniczającego użycie darmowego/niższego planu. Wymaga gotowego adaptera billingowego z punktu 8.
    **8b. Stripe Connect per organizacja (EPIK 30, v14)** — musi istnieć przed dopuszczeniem jakiejkolwiek akademii do przyjmowania płatności online od swoich klientów (punkt 9 poniżej blokuje się na tym warunku per organizacja, nie globalnie). Rozszerza ten sam adapter billingowy z punktu 8, ale operuje na odrębnej tożsamości Stripe (Connected Account) niż Platform Billing z punktu 8a — patrz Zasada nadrzędna #7.
 9. Zakupy: `product_template` + pakiety jednorazowe → subskrypcje → auto-wypełnienie terminów (§7.5a); `allowed_purchase_modes`/`allowed_billing_types` wdrażane razem z tym punktem, przed publicznym uruchomieniem rejestracji z zakupem pakietów; obsługa `invoice.payment_failed` i `subscription_status` razem z tym punktem, przed publicznym uruchomieniem subskrypcji.
+    **9a. Indywidualne ceny klienta (EPIK 33, v15)** — po punkcie 9, ponieważ rabat obejmuje nie tylko `group_type.price`, ale też `product_template.price`, w tym subskrypcje. Przed startem tego punktu musi zapaść decyzja o mechanice Stripe dla rabatu na subskrypcji (§8, otwarty punkt).
 10. Anulowanie + odrabianie (Proces A), w tym anulowanie administracyjne zwalniające miejsce.
 11. Widoczność portfela kredytów w UI.
 12. Notification Center jako dedykowana encja (§2.16) — zamiast generycznego mechanizmu z boilerplate §23, rozszerzone o zdarzenie zmiany lokalizacji, nieudanej płatności **i limitów planu (v13)**.
@@ -1283,6 +1500,9 @@ Obie ścieżki są symetryczne pod względem roli kredytu — różnią się wy�
 - **Utrzymywany licznik zużycia (zamiast liczenia na żywo) dla limitów planu (v13)** — optymalizacja wydajności, odłożona do momentu, gdy realna skala organizacji (liczba uczniów/grup) uzasadni koszt dodatkowej infrastruktury.
 - **Automatyczne wymuszanie zgodności z limitem przy downgrade (v13)** — np. blokada samego downgrade'u zamiast tylko nowych operacji — świadomie uproszczone na MVP do modelu „miękkiej" blokady.
 - **Express Connect jako alternatywa dla Standard (v14)** — szybszy, bardziej prowadzony onboarding dla mniejszych/mniej technicznych akademii, kosztem większej odpowiedzialności platformy (obsługa części sporów, wsparcia). Odłożone — Standard wystarcza na start, patrz §7 decyzja.
+- **Powiadomienie o wygasającym rabacie klienta (v15)** — nowe zdarzenie w Notification Center (np. `client_discount_expiring`), informujące klienta, że jego indywidualna cena zaraz przestanie obowiązywać. Świadomie pominięte: rabat wygasa cicho, a pierwsze odnowienie po `valid_until` nalicza cenę katalogową bez uprzedzenia (§2.31, US-33.5/AC4). Odnotowane jako możliwe rozszerzenie — **nie projektowane teraz**.
+- **UI raportów i analityki frekwencji oraz rentowności (v15)** — EPIK 31 dostarcza surowe dane frekwencyjne, ale ich zagregowana prezentacja (trendy obecności, rentowność grupy) pozostaje poza zakresem. To brak UI, nie brak danych.
+- **Panel klienta z historią płatności (v15)** — dane (`credit_purchase`, `booking.price_snapshot`) już istnieją w modelu; brakuje wyłącznie widoku. Do zrobienia później.
 - **Automatyczna opłata platformowa (`application_fee`) potrącana z każdej transakcji Connect (v14)** — model prowizji platformy od sprzedaży akademii. Świadomie poza MVP — na start langlion rozliczany jest wyłącznie przez opłatę za plan (§EPIK 29), nie prowizję transakcyjną; patrz §8 otwarte punkty.
 
 ---
@@ -1308,6 +1528,10 @@ Poniższe punkty były otwarte we wcześniejszych wersjach — rozstrzygnięte, 
 | 13 (v14) | Standard vs Express vs Custom Connect dla kont akademii | **Standard** — akademia w pełni zarządza własnym kontem Stripe (KYC, spory, wypłaty, podatki), platforma nie przejmuje żadnej z tych odpowiedzialności. Mniej płynny onboarding niż Express, ale minimalny zakres regulacyjny/wsparcia po stronie langlion — właściwy kompromis dla platformy B2B sprzedającej realnym firmom, nie freelancerom. |
 | 14 (v14) | Czy `billing_connect.manage` jest dostępne dla roli Admin, tak jak inne uprawnienia finansowe (np. `refunds.issue`) | **Nie** — wyłącznie Owner. Podłączenie/odłączenie konta Stripe całej akademii to decyzja właścicielska (kto odbiera pieniądze), nie operacyjna, więc świadomie węższa niż pozostałe uprawnienia finansowe w §2.10. |
 | 15 (14.1) | Czy klient (rodzic) reużywa boilerplate'owego User/magic link (§2.19) | **Nie** — odrębna, domenowa encja `client` z unikalnością `(organization_id, email)` i domenowym OTP per organizacja; osobna sesja od personelu. Pełna izolacja ekosystemów akademii z perspektywy klienta jest twardym wymogiem biznesowym. Czwarty świadomy wyjątek od reużycia boilerplate'u. |
+| 16 (v15) | Czy `client_price_override` obejmuje wyłącznie cenę pojedynczych zajęć, czy także pakiety | **Także pakiety** — rabat działa na `group_type.price` ORAZ `product_template.price`, w tym `billing_type=recurring`. Konsekwencja: `credit_purchase.price_paid` zapisuje kwotę po rabacie, a formuła zwrotu (§2.9) liczy się od kwoty faktycznie zapłaconej. Patrz §2.31 i otwarty punkt o mechanice Stripe (§8). |
+| 17 (v15) | Czy rabat na subskrypcji jest zamrażany przy jej starcie, czy sprawdzany przy każdym odnowieniu | **Sprawdzany przy każdym odnowieniu** (stan żywy, nie zamrożony). Ten sam wzorzec „na żywo, nie cache'owane", co przy limitach planu (§2.23). Cena może się różnić między cyklami, a `valid_until` wygasa samoczynnie bez akcji admina i bez powiadomienia klienta. Świadome odstępstwo od zamrażania z Zasady nadrzędnej #1 — rabat to bieżący stan uprawnienia, nie zamknięta transakcja. |
+| 18 (v15) | Jak interpretować `trainer_rate.amount` — ryczałt za sesję, stawka godzinowa czy stawka za uczestnika | **Ryczałt za poprowadzoną sesję** — niezależny od liczby uczestników i długości zajęć. Najprostszy model, zgodny ze sposobem, w jaki akademie faktycznie umawiają się z trenerami; brak zaokrągleń przy sesjach niepełnogodzinnych i brak wiązania wynagrodzenia z frekwencją. |
+| 19 (v15) | Czy potwierdzanie obecności rozszerza `payment_status` (np. o nową wartość), czy jest osobnym polem | **Osobne pole** `attendance_status`, całkowicie niezależne od `payment_status`; `no_show` zostaje bez zmian (§US-16.2) i nie jest z nim synchronizowany w żadną stronę. Te dwie osie odpowiadają na różne pytania („czy zapłacono" vs „czy przyszedł") i bywają dowolną kombinacją. |
 
 ---
 
@@ -1318,7 +1542,8 @@ Poniższe punkty były otwarte we wcześniejszych wersjach — rozstrzygnięte, 
 | # | Punkt | Status |
 |---|---|---|
 | 1 | Formuła zwrotu proporcjonalnego przy przyszłych promocjach/cenach warstwowych w pakiecie | Poprawna tylko dla obecnego, płaskiego modelu cenowego — do rewizji, gdy pojawią się promocje. |
-| 7 (v13) | Czy próg ostrzegawczy (90%) dla `plan_limit_approaching` jest globalny, czy konfigurowalny per `limit_key` | Do rozstrzygnięcia przed implementacją US-29.3 — nie blokuje startu reszty EPIK 29.
+| 7 (v13) | Czy próg ostrzegawczy (90%) dla `plan_limit_approaching` jest globalny, czy konfigurowalny per `limit_key` | Do rozstrzygnięcia przed implementacją US-29.3 — nie blokuje startu reszty EPIK 29. |
+| 8 (v15) | **Mechanika Stripe dla rabatu klienta na subskrypcji** | `product_template.stripe_price_id` wskazuje stałą cenę na Connected Account, więc nie da się nim wyrazić rabatu per klient, w dodatku zmiennego między cyklami (Rozstrzygnięcie #17). Do rozstrzygnięcia przed implementacją EPIK 33: `coupon`/`promotion_code` przypięty do Subscription, cena ad-hoc tworzona per klient, czy aktualizacja `subscription_item` przed odnowieniem. Ta sama kwestia w łatwiejszym wariancie dotyczy jednorazowego Checkoutu (cena ad-hoc zamiast gotowego `stripe_price_id`). **Blokuje EPIK 33**, nie blokuje pozostałego zakresu. |
 
 ---
 

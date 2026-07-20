@@ -38,11 +38,21 @@ export function FormField({
   label,
   htmlFor,
   error,
+  hint,
   children,
 }: {
   label: string;
   htmlFor: string;
   error?: string[];
+  /**
+   * Standing guidance about the field — a unit, a format, a scope. Rendered
+   * BELOW the control with a predictable id, so a caller can point the control's
+   * `aria-describedby` at `{htmlFor}-hint` and have screen readers announce it.
+   *
+   * Distinct from `error`, which is a verdict on what was just entered: a hint is
+   * true before anyone types, and stays true afterwards.
+   */
+  hint?: string;
   children: ReactNode;
 }) {
   return (
@@ -51,6 +61,11 @@ export function FormField({
         {label}
       </Label>
       {children}
+      {hint ? (
+        <p id={`${htmlFor}-hint`} className="text-muted-foreground text-xs">
+          {hint}
+        </p>
+      ) : null}
       {error?.length ? (
         <div id={`${htmlFor}-error`}>
           {error.map((message) => (

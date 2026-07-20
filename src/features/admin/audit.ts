@@ -144,12 +144,39 @@ export const AUDIT_ACTIONS = [
   "payment.record",
   // §6.4 — system retention (§11.3 / §21.4).
   "retention.purge",
+  // langlion §2.12 / EPIK 2, 3, 22 — the academy's Definitions and Realisations.
+  //
+  // Note what is and is not logged. Creating or editing a DEFINITION is logged:
+  // it is a deliberate act by a named person that changes what the academy sells
+  // or when it teaches. Generating the season that follows is NOT logged per
+  // session — a pattern saved with 40 occurrences would otherwise bury the rest
+  // of the trail under 40 rows describing one decision the admin already made
+  // once. The same reasoning as `retention.purge` writing one row with a count
+  // rather than one per file. The season's outcome is in the application log and
+  // in the sessions themselves.
+  "location.create",
+  "location.update",
+  "group_type.create",
+  "group_type.update",
+  "recurrence.create",
+  "recurrence.update",
+  "class_session.update",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 export type AuditTargetType =
-  "user" | "organization" | "membership" | "invitation" | "subscription" | "payment";
+  | "user"
+  | "organization"
+  | "membership"
+  | "invitation"
+  | "subscription"
+  | "payment"
+  // langlion domain entities (§1.2).
+  | "location"
+  | "group_type"
+  | "recurrence"
+  | "class_session";
 
 /**
  * WHO acted, as a kind — §6.4's actor model. A different question from WHICH
