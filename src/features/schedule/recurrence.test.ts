@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { generateOccurrences, zonedWallClockToUtc } from "./recurrence";
+import { generateOccurrences } from "./recurrence";
 
 /**
  * Timezone correctness for session generation (US-1.2/AC1, spec §2.2).
@@ -160,39 +160,5 @@ describe("generateOccurrences — pattern semantics", () => {
         timeZone: WARSAW,
       }),
     ).toThrow(/dayOfWeek/);
-  });
-});
-
-describe("zonedWallClockToUtc", () => {
-  it("handles zones with a half-hour offset", () => {
-    // Kolkata is +05:30 year-round; catches any rounding of the offset to whole hours.
-    expect(zonedWallClockToUtc(2026, 6, 1, 17, 0, "Asia/Kolkata").toISOString()).toBe(
-      "2026-06-01T11:30:00.000Z",
-    );
-  });
-
-  it("resolves a nonexistent local time forward past the gap", () => {
-    // 02:30 on 2026-03-29 does not exist in Warsaw; the clock goes 01:59 -> 03:00 local.
-    // Resolving forward yields 03:30 local (01:30Z), which is what a scheduler should do.
-    const resolved = zonedWallClockToUtc(2026, 3, 29, 2, 30, WARSAW);
-    expect(resolved.toISOString()).toBe("2026-03-29T01:30:00.000Z");
-  });
-
-  it("resolves an ambiguous local time to the second, post-transition occurrence", () => {
-    // 02:30 on 2026-10-25 happens twice in Warsaw: once at +02 (00:30Z), once at +01
-    // (01:30Z). The two-pass probe lands on the later one. Pinned here so the choice
-    // is a documented property rather than an accident — see the note on
-    // zonedWallClockToUtc for why it is not worth forcing to the earlier instant.
-    const resolved = zonedWallClockToUtc(2026, 10, 25, 2, 30, WARSAW);
-    expect(resolved.toISOString()).toBe("2026-10-25T01:30:00.000Z");
-  });
-
-  it("round-trips a plain summer and winter time", () => {
-    expect(zonedWallClockToUtc(2026, 7, 15, 17, 0, WARSAW).toISOString()).toBe(
-      "2026-07-15T15:00:00.000Z",
-    );
-    expect(zonedWallClockToUtc(2026, 1, 15, 17, 0, WARSAW).toISOString()).toBe(
-      "2026-01-15T16:00:00.000Z",
-    );
   });
 });

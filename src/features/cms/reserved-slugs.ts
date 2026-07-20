@@ -48,10 +48,21 @@ import { LOCALES } from "@/lib/i18n/config";
  * the obvious guess overstates it.
  *
  * The apex branch in src/proxy.ts returns `forward()` EARLY for "tenant"-stage
- * prefixes, which SKIPS `isPublicBarePage` and default-deny below it. That is
- * harmless while the only such prefix is `zapisy`, whose route does not exist —
- * the early return happens to 404. `/dashboard` HAS a route, so the same path
- * forwards an anonymous request into the page.
+ * prefixes, which SKIPS `isPublicBarePage` and default-deny below it.
+ *
+ * ⚠️ UPDATED IN F5 — WHAT MAKES THAT SAFE HAS CHANGED. It used to be safe by
+ * accident: the only "tenant" prefix was `zapisy`, which had NO ROUTE, so the
+ * early return happened to 404. F5 built `/zapisy/[groupTypeSlug]`, so the accident
+ * is gone. It is now safe on purpose, and by exactly one thing: that page calls
+ * `requireServedOrganization()` as its FIRST statement, which `notFound()`s when
+ * no academy is served — the apex, a foreign host, or an unknown subdomain alike.
+ *
+ * That call is load-bearing, not defensive. Removing it, or moving it below a
+ * `params` read or a query, serves one academy's enrollment page on the apex with
+ * no tenant resolved. Pinned by e2e/langlion-subdomain-routing.spec.ts.
+ *
+ * `/dashboard` HAS a route and no such guard at the edge, so the same path would
+ * forward an anonymous request into the page — which is why it is "both".
  *
  * MEASURED CONSEQUENCE (mutation-tested, F4.6): the panel is NOT exposed, because
  * every page under it calls `requireSession`/`requireOrgAccess` itself — §4.2's

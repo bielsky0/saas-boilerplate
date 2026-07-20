@@ -311,6 +311,9 @@
       },
       "credit": {
         "grant": "Credits granted"
+      },
+      "booking": {
+        "create": "Booking created"
       }
     }
   },
@@ -456,7 +459,8 @@
         "User": "User",
         "System": "System",
         "AIAgent": "AI agent",
-        "Admin": "Admin"
+        "Admin": "Admin",
+        "Client": "Client"
       },
       "onBehalfOf": "on behalf of {email}",
       "page": "Page {page}",
@@ -775,7 +779,80 @@
   },
   "bookings": {
     "validation": {
-      "athleteRequired": "Choose a participant."
+      "athleteRequired": "Choose a participant.",
+      "athleteNameMin": "Participant name must be at least 2 characters."
+    }
+  },
+  "enrollment": {
+    "title": "Enrol — {name}",
+    "offer": {
+      "price": "Price per class: {price}",
+      "newClientOnly": "This offer is aimed primarily at new clients.",
+      "chooseDate": "Choose a date"
+    },
+    "calendar": {
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month",
+      "noSessions": "No classes this month.",
+      "full": "Full",
+      "weekdays": "Mo Tu We Th Fr Sa Su"
+    },
+    "slot": {
+      "free": "{free} of {capacity} free",
+      "full": "Full",
+      "choose": "Choose this time"
+    },
+    "contact": {
+      "heading": "Your details",
+      "email": "Email address",
+      "name": "Full name",
+      "phone": "Phone (optional)",
+      "submit": "Send code",
+      "sending": "Sending…"
+    },
+    "otp": {
+      "heading": "Enter the code",
+      "prompt": "We sent a six-digit code to {email}.",
+      "code": "Code",
+      "submit": "Confirm",
+      "verifying": "Checking…",
+      "resend": "Resend code",
+      "invalid": "Invalid or expired code.",
+      "rateLimited": "Too many attempts. Try again shortly."
+    },
+    "participant": {
+      "heading": "Participant",
+      "existing": "Choose a child",
+      "addNew": "Add a new child",
+      "name": "Participant name",
+      "age": "Age (optional)"
+    },
+    "payment": {
+      "heading": "Payment method",
+      "onSite": "Pay on site",
+      "online": "Pay online",
+      "onlineUnavailable": "Online payments are temporarily unavailable.",
+      "packagesOnly": "No packages available — please contact the academy.",
+      "noneAvailable": "Online enrolment is temporarily unavailable — please contact the academy."
+    },
+    "confirm": {
+      "heading": "Summary",
+      "submit": "Enrol",
+      "booking": "Enrolling…"
+    },
+    "done": {
+      "booked": "Booking created.",
+      "bookedOffline": "Pay on site before the class."
+    },
+    "errors": {
+      "verifyFirst": "Confirm your email address with a code first.",
+      "sessionFull": "That slot just filled up — choose another.",
+      "sessionCancelled": "That slot was cancelled — choose another.",
+      "sessionPast": "That slot has already started.",
+      "paymentMethodUnavailable": "That payment method is not available for this offer.",
+      "foreignAthlete": "That child does not belong to your account.",
+      "unknownSession": "That offer or slot could not be found.",
+      "generic": "Something went wrong. Please try again."
     }
   },
   "credits": {

@@ -9,11 +9,21 @@
  * 15:00Z in summer for `Europe/Warsaw`. Classes must not drift by an hour twice
  * a year (US-1.2/AC1).
  *
- * This module deliberately has NO imports — not even `@/lib/env/server`, which
+ * The wall-clock ↔ instant conversion itself lives in `@/lib/datetime`, not
+ * here: F5's enrollment calendar needs the same rule in the opposite direction
+ * (instant → local day, to group sessions into calendar days), and one rule with
+ * two callers beats two copies that drift by an hour. This module keeps the
+ * pattern EXPANSION — weekday stepping and occurrence counting — which is the
+ * part only recurrence has.
+ *
+ * That import is the only one, and it stays that way deliberately: `datetime.ts`
+ * is itself import-free, so neither module reaches `@/lib/env/server` (which
  * validates the entire server env at import time and would make these functions
- * untestable outside a configured environment. Everything here is pure, so
+ * untestable outside a configured environment). Everything here is pure, so
  * `recurrence.test.ts` runs under Vitest without a database or a build.
  */
+
+import { zonedWallClockToUtc } from "@/lib/datetime";
 
 /** One generated occurrence, as UTC instants ready for `session.startTime/endTime`. */
 export type Occurrence = { startsAt: Date; endsAt: Date };
@@ -36,75 +46,6 @@ type LocalDate = { year: number; month: number; day: number };
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
-
-/**
- * The UTC offset (in ms) that `timeZone` was observing at `instant`.
- *
- * Formats the instant into that zone's wall-clock parts, reads them back as if
- * they were UTC, and takes the difference. Node ships full ICU, so every IANA
- * zone resolves without a date library.
- */
-function offsetAt(instant: number, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(new Date(instant));
-
-  const read = (type: Intl.DateTimeFormatPartTypes): number =>
-    Number(parts.find((part) => part.type === type)?.value ?? "0");
-
-  const asUtc = Date.UTC(
-    read("year"),
-    read("month") - 1,
-    read("day"),
-    read("hour"),
-    read("minute"),
-    read("second"),
-  );
-
-  return asUtc - instant;
-}
-
-/**
- * Resolve a local wall-clock time in `timeZone` to the UTC instant it names.
- *
- * Two passes, and the second one is load-bearing. The first pass has to guess an
- * offset by probing a point in time that is itself wrong (the wall-clock reading
- * interpreted as UTC), which lands on the wrong side of a DST transition for
- * times within an offset's distance of the boundary. Re-probing at the corrected
- * instant fixes it. A single pass silently produces off-by-one-hour sessions for
- * the days around the March and October switches — the exact bug US-1.2/AC1
- * exists to prevent.
- *
- * Behaviour at the two pathological wall-clock times, both pinned by tests
- * rather than left to chance: a nonexistent time (the hour skipped in spring)
- * resolves forward past the gap, and an ambiguous one (the hour repeated in
- * autumn) resolves to the *second*, post-transition occurrence. The latter falls
- * out of the two-pass probe rather than being chosen — most date libraries pick
- * the first instead. It is left as-is because the case cannot arise in this
- * domain (it needs a class starting inside the 02:00-03:00 local window on one
- * night a year) and because being deterministic and documented matters more here
- * than matching a convention. If a caller ever does need the earlier instant,
- * that is a deliberate change with a test to update, not a silent surprise.
- */
-export function zonedWallClockToUtc(
-  year: number,
-  month: number,
-  day: number,
-  hour: number,
-  minute: number,
-  timeZone: string,
-): Date {
-  const naive = Date.UTC(year, month - 1, day, hour, minute);
-  const firstPass = naive - offsetAt(naive, timeZone);
-  return new Date(naive - offsetAt(firstPass, timeZone));
-}
 
 /** Parse `YYYY-MM-DD` into a local calendar date. Throws on malformed input. */
 function parseLocalDate(value: string): LocalDate {

@@ -1,7 +1,7 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, count, eq, gte, lt, ne, sql } from "drizzle-orm";
 
 import type { TenantDb } from "@/lib/db/tenant";
-import { booking } from "@/lib/db/schema";
+import { booking, classSession, location } from "@/lib/db/schema";
 
 /**
  * Booking data access (langlion §1.2, §2.3, §5.2).
@@ -9,11 +9,13 @@ import { booking } from "@/lib/db/schema";
  * Same two conventions as `features/locations/data.ts`: a `TenantDb` handle, and
  * an explicit `organizationId` filter that RLS backs up rather than replaces.
  *
- * WHAT IS NOT HERE YET. The seat-taking transaction of §5.2 — `SELECT … FOR
- * UPDATE` on the session, count active bookings against capacity, consume a
- * credit, insert — belongs to F5, when there is a booking path to run it. Faza 0
- * only establishes the table and the two database-level guards that make that
- * transaction safe to write:
+ * THE SEAT-TAKING TRANSACTION OF §5.2 LIVES IN `create.ts` (F5), not here — one
+ * writer, so that the row lock is taken the same way by every path that consumes
+ * a seat. This module supplies its input (`countActiveBookingsForSession`) and
+ * the read the public calendar displays (`listSessionAvailability`), which are
+ * deliberately NOT the same query: see the note on the latter.
+ *
+ * The two database-level guards that make that transaction safe to write:
  *   - `booking_athlete_no_overlap_excl` (§5.3): the same athlete can never hold
  *     two overlapping active bookings, whatever the engine, trainer or role.
  *   - `booking_class_session_fk` ON UPDATE CASCADE (decyzja D4): the denormalised
@@ -49,6 +51,108 @@ export async function listActiveBookingsForSession(
         ACTIVE_BOOKING_FILTER,
       ),
     );
+}
+
+/**
+ * How many seats a session has taken — the authoritative capacity input (§5.2).
+ *
+ * A scalar rather than `listActiveBookingsForSession(...).length`, because the
+ * caller runs inside the hot transaction while holding a row lock on the session:
+ * every row it does not fetch is time no other parent can book that session. The
+ * participant list is a different need (F6's roster) with a different shape.
+ *
+ * MUST be called while holding `FOR UPDATE` on the session row, or the number is
+ * a guess. See `create.ts` for why the lock, not the transaction, is what makes
+ * this correct under READ COMMITTED.
+ */
+export async function countActiveBookingsForSession(
+  tx: TenantDb,
+  organizationId: string,
+  sessionId: string,
+): Promise<number> {
+  const [row] = await tx
+    .select({ value: count() })
+    .from(booking)
+    .where(
+      and(
+        eq(booking.organizationId, organizationId),
+        eq(booking.sessionId, sessionId),
+        ACTIVE_BOOKING_FILTER,
+      ),
+    );
+  return row?.value ?? 0;
+}
+
+/** One bookable slot as the public enrollment calendar sees it. */
+export interface SessionAvailability {
+  sessionId: string;
+  startTime: Date;
+  endTime: Date;
+  capacity: number;
+  activeCount: number;
+  locationName: string | null;
+}
+
+/**
+ * Sessions of one offer in a date range, with how full each one is (F5, EPIK 4).
+ *
+ * ⚠️ THIS COUNT IS ADVISORY, AND THAT IS BY DESIGN. It is what a parent SEES; it
+ * is not what decides a booking. The authoritative count runs in `create.ts`
+ * under `FOR UPDATE`, and the gap between the two is the entire user-visible
+ * behaviour of EPIK 15: a slot can fill between the page render and the confirm
+ * click, and the honest answer then is a message, not a waiting list. Code that
+ * treats this number as a guarantee has reintroduced the check-then-act race that
+ * Zasada nadrzędna #3 exists to remove.
+ *
+ * NO `FOR UPDATE` HERE, deliberately. This read serves anonymous page views; a
+ * lock would serialise every visitor browsing a popular offer behind whichever
+ * one of them is currently in a booking transaction.
+ *
+ * One statement, not one-plus-N. `ACTIVE_BOOKING_FILTER` sits in the JOIN
+ * predicate rather than a WHERE, so a session with zero bookings still returns a
+ * row (with `activeCount = 0`) instead of vanishing from the calendar — moving it
+ * to WHERE would hide exactly the emptiest, most bookable sessions.
+ */
+export async function listSessionAvailability(
+  tx: TenantDb,
+  organizationId: string,
+  params: { groupTypeId: string; from: Date; to: Date; now?: Date },
+): Promise<SessionAvailability[]> {
+  const now = params.now ?? new Date();
+
+  return tx
+    .select({
+      sessionId: classSession.id,
+      startTime: classSession.startTime,
+      endTime: classSession.endTime,
+      capacity: classSession.capacity,
+      activeCount: sql<number>`count(${booking.id})::int`,
+      locationName: location.name,
+    })
+    .from(classSession)
+    .leftJoin(location, eq(location.id, classSession.locationId))
+    .leftJoin(booking, and(eq(booking.sessionId, classSession.id), ACTIVE_BOOKING_FILTER))
+    .where(
+      and(
+        eq(classSession.organizationId, organizationId),
+        eq(classSession.groupTypeId, params.groupTypeId),
+        eq(classSession.status, "scheduled"),
+        gte(classSession.startTime, params.from),
+        lt(classSession.startTime, params.to),
+        // A session that already started is not an offer. Filtered in SQL rather
+        // than in the calendar layer so "bookable" means the same thing to the
+        // page and to anything else that reads this.
+        gte(classSession.startTime, now),
+      ),
+    )
+    .groupBy(
+      classSession.id,
+      classSession.startTime,
+      classSession.endTime,
+      classSession.capacity,
+      location.name,
+    )
+    .orderBy(classSession.startTime);
 }
 
 /** Every booking (any status) for one athlete. */

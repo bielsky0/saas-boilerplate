@@ -4,7 +4,7 @@ import { expect, test } from "./rate-limit-fixtures";
 import { clientSessionOf, issueAndReadCode, verifyCode } from "./client-auth-fixtures";
 import { APEX_ORIGIN, tenantUrl, uniqueSubdomain } from "./host-fixtures";
 import { ORG_SUBDOMAIN_HEADER } from "../src/lib/tenant-host";
-import { registerViaApi, seedOrgFull, uniqueEmail } from "./helpers";
+import { registerViaApi, seedLanglion, seedOrgFull, uniqueEmail } from "./helpers";
 import { uniqueId } from "./billing-fixtures";
 
 /**
@@ -163,8 +163,67 @@ test("an apex-only route on an academy host hops to the apex, not into a login l
 });
 
 test("a tenant-stage prefix is not served on the apex", async ({ request }) => {
+  /*
+   * ⚠️ WHY THIS PASSES CHANGED IN F5, and it is worth knowing which mechanism is
+   * under test now. Before F5 `/zapisy/*` had no route at all, so the apex branch's
+   * early `forward()` fell into the app router and 404'd by default. F5 built the
+   * page, so the 404 now comes from `requireServedOrganization()` inside it —
+   * the page's first statement, before params or any query.
+   *
+   * Mutation-checked: dropping that call from the enrollment page turns this into
+   * a 200 serving an academy-less enrollment form on the platform's own domain.
+   */
   const res = await request.get(`${APEX_ORIGIN}/en/zapisy/anything`, { maxRedirects: 0 });
   expect(res.status()).toBe(404);
+});
+
+test("an enrollment page renders on its academy host instead of the staff login", async ({
+  request,
+}) => {
+  /*
+   * THE REGRESSION GUARD FOR THE `PUBLIC_PAGE_ROUTES` ENTRY (F5).
+   *
+   * `zapisy` is `stage: "tenant"`, so on an academy host the proxy falls THROUGH
+   * the reserved-prefix branch into `isPublicBarePage` and then default-deny. A
+   * parent carries no Better Auth cookie, so without `/zapisy` in
+   * PUBLIC_PAGE_ROUTES this answers 307 to the STAFF login page — the worst
+   * possible answer to "sign my child up", and one that looks like a broken link
+   * rather than a misconfigured route table.
+   *
+   * Mutation-checked: removing the `/zapisy` entry from src/lib/public-routes.ts
+   * fails this test on the status line. This is the twin of the `/dashboard` test
+   * below — and unlike the pre-F5 `/zapisy` probe, this one HAS a route behind it,
+   * so it actually bites.
+   */
+  const ownerEmail = uniqueEmail("zapisy-owner");
+  await registerViaApi(request, ownerEmail);
+  const { subdomain, orgId } = await seedOrgFull(request, {
+    ownerEmail,
+    name: "Zapisy Academy",
+    slug: uniqueId("zapisy"),
+    subdomain: uniqueSubdomain("zapisy"),
+  });
+
+  const slug = uniqueId("oferta").replace(/_/g, "-");
+  await seedLanglion(request, {
+    organizationId: orgId,
+    groupType: { slug, name: "Publiczna oferta", price: 10_000 },
+  });
+
+  const res = await request.get(tenantUrl(subdomain, `/en/zapisy/${slug}`), { maxRedirects: 0 });
+
+  expect(res.status(), "a parent must reach the offer, not an auth redirect").toBe(200);
+  expect(res.headers()["location"], "no redirect of any kind").toBeUndefined();
+});
+
+test("an enrollment page 404s on an unknown academy", async ({ request }) => {
+  // Same answer as every other path on a non-existent subdomain (D57): a wildcard
+  // DNS record must not turn a stale flyer's URL into anything but "no".
+  const res = await request.get(tenantUrl("no-such-academy-here", "/en/zapisy/cokolwiek"), {
+    maxRedirects: 0,
+  });
+  expect(res.status()).toBe(404);
+  expect(res.headers()["location"]).toBeUndefined();
 });
 
 test("a guarded staff route on the apex still meets default-deny", async ({ request }) => {
@@ -174,12 +233,13 @@ test("a guarded staff route on the apex still meets default-deny", async ({ requ
    *
    * The apex branch in src/proxy.ts returns `forward()` EARLY for a "tenant"-stage
    * prefix, which skips `isPublicBarePage` AND default-deny below it. That early
-   * return is harmless while the only page-routing "tenant" prefix is `zapisy`,
-   * because no such route exists and the app router answers 404 (the test above).
+   * return is safe for `zapisy` because the enrollment page refuses an apex request
+   * itself, with `requireServedOrganization()` (see the test above — before F5 it
+   * was safe only because no such route existed at all).
    *
    * Marking `dashboard` as "tenant" — literally what the old comments in
    * reserved-slugs.ts and proxy.ts proposed for this phase — changes that: the
-   * route DOES exist, so the request is forwarded into the page.
+   * route DOES exist and has no such guard, so the request is forwarded into the page.
    *
    * MEASURED, so the assertion below is the sharp one rather than the dramatic
    * one: the page's own `requireSession` still refuses (§4.2 holds), but it

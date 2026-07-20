@@ -1,4 +1,4 @@
-import { zonedWallClockToUtc } from "@/features/schedule/recurrence";
+import { zonedWallClockToUtc } from "@/lib/datetime";
 
 /**
  * Credit validity windows (langlion §1.2, US-1.2/AC3).

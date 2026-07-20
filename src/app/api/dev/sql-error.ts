@@ -11,4 +11,4 @@
  * to walk the `cause` chain would make the tests and the code they guard disagree
  * about what a constraint violation even looks like.
  */
-export { sqlStateOf } from "@/lib/db/sql-error";
+export { sqlStateOf, constraintOf } from "@/lib/db/sql-error";

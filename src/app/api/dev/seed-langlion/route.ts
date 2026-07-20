@@ -1,3 +1,4 @@
+import { and, eq } from "drizzle-orm";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { withTenant } from "@/lib/db/tenant";
@@ -45,7 +46,23 @@ type Body = {
    */
   groupTypeId?: string;
   recurrenceId?: string;
-  groupType?: { slug: string; name?: string; price?: number };
+  /**
+   * The offer. `paymentPolicy`/`allowedPurchaseModes` are inputs (F5) so a spec
+   * can seed each cell of the payment matrix — the defaults reproduce the
+   * pre-F5 behaviour (`both` / `single_class`).
+   */
+  groupType?: {
+    slug: string;
+    name?: string;
+    price?: number;
+    description?: string;
+    paymentPolicy?: "online" | "on_site" | "both";
+    allowedPurchaseModes?: ("single_class" | "package")[];
+    allowedBillingTypes?: ("one_time" | "recurring")[];
+    isNewClientOnly?: boolean;
+  };
+  /** Set the price on an EXISTING offer, to prove `price_snapshot` is frozen (US-4.6). */
+  setGroupTypePrice?: { groupTypeId: string; price: number };
   recurrence?: {
     dayOfWeek: number;
     startTime: string;
@@ -57,10 +74,12 @@ type Body = {
   };
   /** Explicit ISO instants — the point is to be able to make them overlap. */
   sessions?: { startsAt: string; endsAt: string; capacity?: number; status?: string }[];
-  client?: { email: string; name?: string };
+  client?: { email: string; name?: string; isVerified?: boolean };
   athletes?: { name: string; age?: number }[];
   bookings?: { sessionIndex: number; athleteIndex: number; paymentStatus?: string }[];
 };
+
+type PaymentStatus = "payment_pending" | "booked_offline" | "confirmed" | "cancelled" | "no_show";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   if (env.NODE_ENV === "production") {
@@ -93,14 +112,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             organizationId: orgId,
             name: body.groupType.name ?? "E2E Group",
             slug: body.groupType.slug,
+            description: body.groupType.description ?? null,
             engine: "schedule_first",
-            paymentPolicy: "both",
+            paymentPolicy: body.groupType.paymentPolicy ?? "both",
             price: body.groupType.price ?? 10_000,
-            allowedPurchaseModes: ["single_class"],
+            allowedPurchaseModes: body.groupType.allowedPurchaseModes ?? ["single_class"],
+            allowedBillingTypes: body.groupType.allowedBillingTypes ?? null,
+            isNewClientOnly: body.groupType.isNewClientOnly ?? false,
             defaultLocationId: locationId,
           })
           .returning({ id: groupType.id });
         groupTypeId = row!.id;
+      }
+
+      if (body.setGroupTypePrice) {
+        await tx
+          .update(groupType)
+          .set({ price: body.setGroupTypePrice.price })
+          .where(
+            and(
+              eq(groupType.id, body.setGroupTypePrice.groupTypeId),
+              eq(groupType.organizationId, orgId),
+            ),
+          );
       }
 
       let recurrenceId: string | null = body.recurrenceId ?? null;
@@ -152,6 +186,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             organizationId: orgId,
             email: body.client.email,
             name: body.client.name ?? null,
+            isVerified: body.client.isVerified ?? false,
           })
           .returning({ id: client.id });
         clientId = row!.id;
@@ -184,8 +219,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             organizationId: orgId,
             sessionId,
             athleteId,
-            paymentStatus:
-              (b.paymentStatus as "confirmed" | "cancelled" | undefined) ?? "confirmed",
+            paymentStatus: (b.paymentStatus as PaymentStatus | undefined) ?? "confirmed",
             priceSnapshot: { amount: 10_000, currency: "PLN" },
             // Copied from the session, exactly as the real booking path must —
             // after which ON UPDATE CASCADE keeps them in step (decyzja D4).

@@ -311,6 +311,9 @@
       },
       "credit": {
         "grant": "Kredyty przyznane"
+      },
+      "booking": {
+        "create": "Rezerwacja utworzona"
       }
     }
   },
@@ -456,7 +459,8 @@
         "User": "Użytkownik",
         "System": "System",
         "AIAgent": "Agent AI",
-        "Admin": "Administrator"
+        "Admin": "Administrator",
+        "Client": "Klient"
       },
       "onBehalfOf": "w imieniu {email}",
       "page": "Strona {page}",
@@ -775,7 +779,80 @@
   },
   "bookings": {
     "validation": {
-      "athleteRequired": "Wybierz uczestnika."
+      "athleteRequired": "Wybierz uczestnika.",
+      "athleteNameMin": "Imię uczestnika musi mieć co najmniej 2 znaki."
+    }
+  },
+  "enrollment": {
+    "title": "Zapisy — {name}",
+    "offer": {
+      "price": "Cena za zajęcia: {price}",
+      "newClientOnly": "Oferta kierowana przede wszystkim do nowych klientów.",
+      "chooseDate": "Wybierz termin"
+    },
+    "calendar": {
+      "prevMonth": "Poprzedni miesiąc",
+      "nextMonth": "Następny miesiąc",
+      "noSessions": "Brak zajęć w tym miesiącu.",
+      "full": "Brak miejsc",
+      "weekdays": "Pn Wt Śr Cz Pt So Nd"
+    },
+    "slot": {
+      "free": "{free} z {capacity} wolnych",
+      "full": "Brak miejsc",
+      "choose": "Wybierz tę godzinę"
+    },
+    "contact": {
+      "heading": "Twoje dane",
+      "email": "Adres e-mail",
+      "name": "Imię i nazwisko",
+      "phone": "Telefon (opcjonalnie)",
+      "submit": "Wyślij kod",
+      "sending": "Wysyłanie…"
+    },
+    "otp": {
+      "heading": "Wpisz kod",
+      "prompt": "Wysłaliśmy sześciocyfrowy kod na {email}.",
+      "code": "Kod",
+      "submit": "Potwierdź",
+      "verifying": "Sprawdzanie…",
+      "resend": "Wyślij kod ponownie",
+      "invalid": "Nieprawidłowy lub wygasły kod.",
+      "rateLimited": "Zbyt wiele prób. Spróbuj ponownie za chwilę."
+    },
+    "participant": {
+      "heading": "Uczestnik",
+      "existing": "Wybierz dziecko",
+      "addNew": "Dodaj nowe dziecko",
+      "name": "Imię uczestnika",
+      "age": "Wiek (opcjonalnie)"
+    },
+    "payment": {
+      "heading": "Metoda płatności",
+      "onSite": "Płacę na miejscu",
+      "online": "Płacę online",
+      "onlineUnavailable": "Płatności online chwilowo niedostępne.",
+      "packagesOnly": "Brak dostępnych pakietów — skontaktuj się z akademią.",
+      "noneAvailable": "Zapisy online chwilowo niedostępne — skontaktuj się z akademią."
+    },
+    "confirm": {
+      "heading": "Podsumowanie",
+      "submit": "Zapisz",
+      "booking": "Zapisywanie…"
+    },
+    "done": {
+      "booked": "Rezerwacja utworzona.",
+      "bookedOffline": "Zapłać na miejscu przed zajęciami."
+    },
+    "errors": {
+      "verifyFirst": "Najpierw potwierdź swój adres e-mail kodem.",
+      "sessionFull": "Ten termin właśnie się zapełnił — wybierz inny.",
+      "sessionCancelled": "Ten termin został odwołany — wybierz inny.",
+      "sessionPast": "Ten termin już się rozpoczął.",
+      "paymentMethodUnavailable": "Ta metoda płatności jest niedostępna dla tej oferty.",
+      "foreignAthlete": "To dziecko nie należy do Twojego konta.",
+      "unknownSession": "Nie znaleziono tej oferty lub terminu.",
+      "generic": "Coś poszło nie tak. Spróbuj ponownie."
     }
   },
   "credits": {

@@ -436,6 +436,32 @@ export function uniqueFutureSlot(durationMinutes = 60): { startsAt: string; ends
   };
 }
 
+/**
+ * A unique slot a few days out — for the enrollment CALENDAR, which `uniqueFutureSlot`
+ * cannot feed.
+ *
+ * The year-2400 trick keeps schedule fixtures out of "upcoming sessions" queries,
+ * but the F5 calendar is a real month grid a browser navigates by clicking, and
+ * nobody clicks 374 years forward. This lands the slot `daysAhead` from now, at a
+ * randomised minute so parallel workers do not collide on a trainer's time even
+ * when they pick the same day. Still unambiguously in the future, so it renders as
+ * bookable rather than past.
+ *
+ * Uses UTC minutes-from-now, NOT a wall-clock hour: the exact local time does not
+ * matter to these specs, only that the slot is future, unique, and this month or
+ * next so a single `?m=` navigation reaches it.
+ */
+export function uniqueNearFutureSlot(
+  daysAhead = 7,
+  durationMinutes = 60,
+): { startsAt: string; endsAt: string } {
+  const base = Date.now() + daysAhead * 86_400_000 + Math.floor(Math.random() * 600) * 60_000;
+  return {
+    startsAt: new Date(base).toISOString(),
+    endsAt: new Date(base + durationMinutes * 60_000).toISOString(),
+  };
+}
+
 /** Shift an existing window by minutes — for building deliberate overlaps. */
 export function shiftSlot(
   slot: { startsAt: string; endsAt: string },

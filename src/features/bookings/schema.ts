@@ -41,11 +41,28 @@ export const priceSnapshot = z.object({
   currency: z.string().length(3),
 });
 
+/**
+ * The public enrollment submission (F5, US-4.1/US-4.4).
+ *
+ * `participant` is a discriminated union rather than a bare `athleteId`, because a
+ * parent enrolling their first child has no athlete to reference yet — the child
+ * is created inside the booking transaction (decision E). A recognised parent
+ * picks an existing one. The `new` branch borrows `createAthleteSchema`'s rules by
+ * composition rather than restating the min/max.
+ */
 export function createBookingSchema(t: ValidationTranslator) {
   return z.object({
+    groupTypeSlug: z.string().min(1),
     sessionId: z.string().min(1),
-    athleteId: z.string().min(1, t("athleteRequired")),
     paymentMethod,
+    participant: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("existing"), athleteId: z.string().min(1, t("athleteRequired")) }),
+      z.object({
+        kind: z.literal("new"),
+        name: z.string().trim().min(2, t("athleteNameMin")).max(160),
+        age: z.coerce.number().int().min(1).max(120).optional(),
+      }),
+    ]),
   });
 }
 

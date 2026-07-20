@@ -80,6 +80,23 @@ export const PUBLIC_PAGE_ROUTES = {
   "/forgot-password": { prefix: false, indexable: false },
   "/reset-password": { prefix: false, indexable: false },
   "/unsubscribe": { prefix: false, indexable: false },
+
+  /*
+   * Public enrollment (langlion EPIK 4, §2.27). A parent following a link from a
+   * flyer has no account and never will — the whole point of the flow is that a
+   * booking needs no staff login (US-4.1). Without this entry the tenant branch
+   * of proxy.ts falls through to default-deny and 307s them to the STAFF login
+   * page, which is the single most confusing possible answer to "sign my child up".
+   *
+   * `indexable: false` is MECHANICAL, not a preference about SEO. Both consumers
+   * of this field build absolute URLs with `absoluteUrl()`, i.e. the APEX origin —
+   * and on the apex `/zapisy/*` calls `requireServedOrganization()`, which 404s.
+   * Marking it indexable would emit a guaranteed-404 URL into the sitemap, once
+   * per locale. The path is also slug-parameterised and per-tenant, so this static
+   * table could not name a real URL even if it wanted to. Per-tenant indexing
+   * belongs to the CMS module's own robots/sitemap handlers, which resolve a host.
+   */
+  "/zapisy": { prefix: true, indexable: false },
 } satisfies Record<string, PublicPageRoute>;
 
 export type PublicPagePath = keyof typeof PUBLIC_PAGE_ROUTES;

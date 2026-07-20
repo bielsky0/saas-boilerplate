@@ -9,8 +9,8 @@ import { requireOrgPermission } from "@/features/organizations/context";
 import { classSession, location } from "@/lib/db/schema";
 import { withTenant } from "@/lib/db/tenant";
 import { SQLSTATE_EXCLUSION_VIOLATION, sqlStateOf } from "@/lib/db/sql-error";
+import { wallClockToInstant } from "@/lib/datetime";
 import type { FormState } from "@/lib/validation";
-import { zonedWallClockToUtc } from "./recurrence";
 import { updateSessionSchema } from "./schema";
 
 /**
@@ -39,29 +39,6 @@ import { updateSessionSchema } from "./schema";
 
 function str(value: FormDataEntryValue | null): string {
   return typeof value === "string" ? value : "";
-}
-
-/**
- * Resolve a `datetime-local` value (`YYYY-MM-DDTHH:mm`) to the instant it names
- * in `timeZone`.
- *
- * Delegates to `recurrence.ts` rather than reimplementing the conversion: its
- * two-pass offset probe is what makes wall-clock times correct on both sides of a
- * DST boundary, and a second implementation here would be the one that drifts.
- * Returns the raw string unchanged when it does not match, letting zod produce
- * the field error instead of this function inventing one.
- */
-function wallClockToInstant(value: string, timeZone: string): Date | string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value);
-  if (!match) return value;
-  return zonedWallClockToUtc(
-    Number(match[1]),
-    Number(match[2]),
-    Number(match[3]),
-    Number(match[4]),
-    Number(match[5]),
-    timeZone,
-  );
 }
 
 export async function updateSessionAction(

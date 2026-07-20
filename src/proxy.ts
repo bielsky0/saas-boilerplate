@@ -496,10 +496,17 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
      * that do need a tenant already answer `unknown_organization` themselves.
      *
      * ⚠️ THIS EARLY RETURN SKIPS `isPublicBarePage` AND DEFAULT-DENY BELOW, and
-     * that is the whole reason `PathStage` gained "both" in F4.6. It is safe only
-     * for prefixes with no apex route to render — `zapisy` 404s from the app
-     * router. A guarded prefix that DOES have a route (`/dashboard`) must never
-     * be "tenant": the request reaches the page, and although §4.2's own guards
+     * that is the whole reason `PathStage` gained "both" in F4.6.
+     *
+     * A "tenant" prefix is therefore only safe if the thing it forwards to refuses
+     * an apex request BY ITSELF. Until F5 that held vacuously — `zapisy` had no
+     * route and 404'd from the app router. It now has one, and holds because
+     * `/zapisy/[groupTypeSlug]` opens with `requireServedOrganization()`, which
+     * `notFound()`s with no academy served. Any future "tenant" prefix must carry
+     * the same guarantee, in the page, not here.
+     *
+     * A guarded prefix that has a route but NO such guard (`/dashboard`) must never
+     * be "tenant": the request reaches the page, and although §4.2's own checks
      * still refuse it, the refusal comes from the page and therefore loses the
      * locale (`/login`, not `/en/login`). Measured, not assumed — see the note in
      * features/cms/reserved-slugs.ts. "both" falls through instead, which is why

@@ -171,6 +171,17 @@ export const AUDIT_ACTIONS = [
   // logging them here would restate that record while burying this one. Expiry
   // is not logged either: a deadline passing is not an act by anybody.
   "credit.grant",
+  // langlion §2.3 / EPIK 4 — the seat itself (F5).
+  //
+  // Logged even though the module above declines to log consequences of events
+  // that already carry their own record, because a booking is not a consequence:
+  // it is the money-bearing act, and it is the row F6's cash confirmation and
+  // F7's cancellation both point BACK at. An auditor asked "who took this seat,
+  // when, at what price" has nowhere else to look — the booking row itself shows
+  // the current state, not who created it or what it cost at the time.
+  //
+  // The ACTOR here is usually a parent, not staff — see `clientActor` below.
+  "booking.create",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -192,7 +203,9 @@ export type AuditTargetType =
    * ten credits is one decision about one family, and an auditor asks "what did
    * we give this client", never "what happened to credit #7 of 10".
    */
-  | "client";
+  | "client"
+  /** The seat, target of `booking.create` (F5). */
+  | "booking";
 
 /**
  * WHO acted, as a kind — §6.4's actor model. A different question from WHICH
@@ -202,11 +215,16 @@ export type AuditTargetType =
  * "a super admin". A super admin using the panel normally is also `Admin`; the
  * distinction that matters is authority, not surface.
  */
-export type ActorType = "User" | "System" | "AIAgent" | "Admin";
+export type ActorType = "User" | "System" | "AIAgent" | "Admin" | "Client";
 
 export type AuditActor = {
   actorType: ActorType;
-  /** Null only for `System` — there is no user row behind a cron job. */
+  /**
+   * Null for `System` (no user row behind a cron job) and for `Client` (a parent
+   * is NOT a boilerplate `user`). The two nulls have different reasons and must
+   * not be collapsed: see `clientActor` for why a client id cannot go here even
+   * though one exists. The forensic id for a client lives in `metadata.clientId`.
+   */
   actorId: string | null;
   actorEmail: string;
 };
@@ -236,6 +254,27 @@ export const SYSTEM_ACTOR: AuditActor = {
  */
 export function mcpActor(userId: string, email: string): AuditActor {
   return { actorType: "AIAgent", actorId: userId, actorEmail: email };
+}
+
+/**
+ * The actor for a write performed by a parent (langlion §2.19, F5).
+ *
+ * `actorId` is NULL, and this is forced by the schema, not a shortcut. Rewizja
+ * 14.1 makes the parent a domain `client`, deliberately NOT a boilerplate `user`
+ * — and `recordAudit` maps `actorId → auditLog.actorUserId`, which has a foreign
+ * key to `user(id)`. A `client.id` there is a constraint violation. So the id
+ * that identifies the parent travels in `metadata.clientId` instead, and
+ * `actorEmail` — a NOT NULL snapshot — is what keeps the row's actor readable,
+ * the same property `SYSTEM_ACTOR_EMAIL` protects for `System`.
+ *
+ * DO NOT "fix" this by putting `clientId` back into `actorId`: it fails the FK,
+ * and the reason is above. A real `actorClientId` column is the right home for it
+ * IF a "everything this parent did" view is ever built; nothing needs it yet, and
+ * adding it now would put a migration on a phase that has none. Until then the
+ * caller carries `clientId` into `metadata` itself (it already holds it).
+ */
+export function clientActor(email: string): AuditActor {
+  return { actorType: "Client", actorId: null, actorEmail: email };
 }
 
 /**
