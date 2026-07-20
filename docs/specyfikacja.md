@@ -4,6 +4,8 @@
 
 **Zakres świadomie NIE objęty v15** (potwierdzone jako niepotrzebne na tym etapie): tematy zajęć i kategorie sukcesu, link do spotkania online per sesja, automatyczna integracja z Fakturownia/KSeF (fakturowanie pozostaje ręczne bez zmian — §2.17, EPIK 27), panel klienta z historią płatności oraz raporty i analityka frekwencji/rentowności. Dwa ostatnie punkty to wyłącznie brak UI — dane już istnieją w modelu, a EPIK 31 dostarcza surowe dane frekwencyjne, na których taki raport w przyszłości się oprze.
 
+**Rewizja 15.1 (2026-07-20):** (a) Rozstrzygnięcie #20 — mechanika Stripe dla rabatu klienta na subskrypcji: ad-hoc `price_data` na `subscription_item`, `proration_behavior: none`, wraz z Constraint 10 (determinizm synchronizacji); patrz §2.31, §1.3, §7 i US-33.5/AC6–AC7. (b) Rewizja adresowania — dashboard personelu, panel CMS i publiczna strona akademii żyją razem pod `{organization.subdomain}.langlion.pl`; `organization.slug` wycofany z roli trasy panelu; patrz §2.27 i §1.2 (`organization`). (c) Piąty świadomy wyjątek od reużycia boilerplate'u: brak przełącznika organizacji — każda organizacja wymaga osobnej autentykacji; patrz Zasada nadrzędna #5 i §2.19. (d) Nowy dokument siostrzany `docs/specyfikacja-cms.md` (moduł Website Builder / Payload CMS).
+
 **Rewizja 14.2 (2026-07-19):** adresowanie dwupoziomowe — `organization.subdomain` (unikalny globalnie, wymóg DNS) dla witryny akademii oraz `group_type.slug` (unikalny per organizacja) dla pojedynczej oferty; patrz §1.2 (`organization`) i §2.27. Dodatkowo §2.28: encja `session` nosi w implementacji nazwę `class_session` z powodu kolizji z tabelą sesji logowania fundamentu.
 
 **Rewizja 14.1 (2026-07-19):** tożsamość klienta (rodzica) jako odrębna encja domenowa `client` — czwarty świadomy wyjątek od reguły reużycia boilerplate'u. Klient NIE korzysta z boilerplate'owego User/Membership; unikalność e-maila per `(organization_id, email)`, logowanie przez domenowy OTP scoped per organizacja. Patrz §1.2 (`client`), §2.8, §2.19. Odwołania „boilerplate §X" wskazują na `docs/boilerplate-spec.md`.
@@ -25,7 +27,13 @@ Moduł zarządzania grupami zajęciowymi dla wielodzierżawnego (multi-tenant) S
 
 **Zasada nadrzędna #4 — Blokada zamiast wymuszonego kreatora:** Żadna operacja usunięcia/dezaktywacji encji, od której zależą aktywne dane (przyszłe sesje, aktywne wzorce, rezerwacje), nie jest wykonywana automatycznie ani nie wymusza wieloetapowego kreatora w locie. Zamiast tego system blokuje operację i pokazuje komunikat (toast) z listą konkretnych, zależnych elementów, które trzeba najpierw rozwiązać innymi, już istniejącymi narzędziami (substytucja, masowa zmiana trenera, ręczne odwołanie sesji). To dotyczy zarówno offboardingu trenera, jak i dezaktywacji `group_type`, jak i dezaktywacji lokalizacji, jak i **downgrade'u planu ponad nowe limity (§EPIK 29)** — jeden spójny wzorzec zamiast wielu różnych.
 
-**Zasada nadrzędna #5 — Fundament boilerplate'owy, nie duplikacja:** Wszędzie, gdzie Next.js SaaS Boilerplate dostarcza gotowy, ogólny mechanizm (autentykacja, RBAC, billing/Stripe adapter, storage, audit trail), moduł langlion go wykorzystuje, nie buduje równoległego odpowiednika — z dwoma jawnymi wyjątkami: Notification Center jest dedykowaną encją domenową langlion (patrz §2.16), ponieważ odbiorcy i katalog zdarzeń są specyficzne dla domeny rezerwacji, nie dla generycznego kontekstu B2B boilerplate'u; oraz definicje planów/limitów/funkcji, które żyją w bazie danych zamiast w konfiguracji aplikacji sugerowanej przez boilerplate §5.2 (patrz §EPIK 29), ponieważ mają bezpośredni wpływ na przychód i muszą się zmieniać bez deploya.
+**Zasada nadrzędna #5 — Fundament boilerplate'owy, nie duplikacja:** Wszędzie, gdzie Next.js SaaS Boilerplate dostarcza gotowy, ogólny mechanizm (autentykacja, RBAC, billing/Stripe adapter, storage, audit trail), moduł langlion go wykorzystuje, nie buduje równoległego odpowiednika — z **pięcioma jawnymi wyjątkami** (pełny opis każdego: §2.19):
+
+1. **Notification Center** jest dedykowaną encją domenową langlion (§2.16), ponieważ odbiorcy i katalog zdarzeń są specyficzne dla domeny rezerwacji, nie dla generycznego kontekstu B2B boilerplate'u.
+2. **Definicje planów/limitów/funkcji** żyją w bazie danych zamiast w konfiguracji aplikacji sugerowanej przez boilerplate §5.2 (§EPIK 29, v13), ponieważ mają bezpośredni wpływ na przychód i muszą się zmieniać bez deploya.
+3. **Stripe Connect** rozszerza adapter billingowy boilerplate'u o Connected Accounts (§EPIK 30, v14) — ta sama warstwa, ale druga, całkowicie odrębna tożsamość Stripe (Zasada nadrzędna #7).
+4. **Tożsamość klienta** jako domenowa encja `client` z własnym OTP per organizacja (rewizja 14.1) zamiast boilerplate'owego User/Membership — pełna izolacja ekosystemów akademii z perspektywy klienta jest twardym wymogiem biznesowym.
+5. **Brak przełącznika organizacji** (rewizja 15.1): przełącznik kontekstu z boilerplate §3.5 świadomie NIE jest wykorzystywany. Organizacja w langlion nie jest przełączalnym kontekstem w ramach jednego konta, tylko niezależną instalacją pod własną subdomeną (§2.27) — model analogiczny do Shopify. Jeden User może mieć Membership w wielu organizacjach, ale każda wymaga osobnej autentykacji.
 
 **Zasada nadrzędna #6 — Limity i featury jako dane, nie kod:** Definicje planów, limitów liczbowych i dostępnych funkcji żyją w bazie danych i są edytowalne przez uprawniony personel (Super Admin) z poziomu panelu, bez udziału deweloperów i bez deploya. Kod aplikacji odpytuje te dane w czasie rzeczywistym; nigdzie w kodzie nie ma zahardkodowanego progu liczbowego przypisanego do konkretnego planu. Ten sam wzorzec „słownika edytowalnego bez deploya", jaki dokument stosuje dla `notification_event_type` (§2.16).
 
@@ -103,8 +111,8 @@ organization (1) ──< group_type (N) ──< group_type_recurrence (N) ──
 |---|---|---|
 | id | PK | |
 | name | string | |
-| slug | string, unikalny globalnie | identyfikator panelu personelu: `/orgs/{slug}`. Odrębny od `subdomain` poniżej — patrz §2.27 |
-| subdomain | string, unikalny **globalnie** (rewizja 14.2) | etykieta DNS publicznej witryny akademii: `{subdomain}.langlion.com`. Wymóg globalnej unikalności pochodzi od DNS, nie od nas. Pole wymagane, **bez wartości domyślnej** i **nigdy nieautogenerowane z `name`** (kolizje nazw akademii są realne) — ta sama zasada co `currency`. Walidacja: etykieta DNS wg RFC 1035, 3–63 znaki, plus lista nazw zarezerwowanych (`www`, `api`, `admin`, `cdn`…). Patrz §2.27 |
+| slug | string, unikalny globalnie | **wycofany z roli identyfikatora panelu personelu** (dawniej `/orgs/{slug}`) — panel akademii żyje pod `{subdomain}.langlion.pl/dashboard`. Może zostać zachowany wyłącznie jako wewnętrzny identyfikator URL-i panelu Super Admina (cross-tenant, gdzie subdomena nie ma zastosowania) — do potwierdzenia przy implementacji. Patrz §2.27 |
+| subdomain | string, unikalny **globalnie** (rewizja 14.2) | etykieta DNS publicznej witryny akademii: `{subdomain}.langlion.pl`. Wymóg globalnej unikalności pochodzi od DNS, nie od nas. Pole wymagane, **bez wartości domyślnej** i **nigdy nieautogenerowane z `name`** (kolizje nazw akademii są realne) — ta sama zasada co `currency`. Walidacja: etykieta DNS wg RFC 1035, 3–63 znaki, plus lista nazw zarezerwowanych (`www`, `api`, `admin`, `cdn`…). Patrz §2.27 |
 | timezone | string (IANA) | np. `Europe/Warsaw` — jedna akademia = jedna strefa czasowa, niezależnie od liczby lokalizacji fizycznych |
 | currency | string (ISO 4217) | np. PLN, EUR — jedna akademia = jedna waluta. Multi-currency w ramach jednej organizacji świadomie poza zakresem. Pole wymagane, bez wartości domyślnej |
 | plan_id | FK → `plan`, wymagane (v13) | plan przypisany organizacji; każda organizacja ma zawsze jakiś plan, w tym darmowy/trial jako wartość domyślna przy tworzeniu organizacji |
@@ -133,7 +141,7 @@ organization (1) ──< group_type (N) ──< group_type_recurrence (N) ──
 | organization_id | FK, wymagane | izolacja tenant |
 | name | string | |
 | slug | string, unikalny | URL rejestracji, np. `/zapisy/obozy-2026` |
-| description | text/markdown, nullable (v15) | opis oferty prezentowany klientowi na publicznej stronie rejestracji (`{organization.subdomain}.langlion.com/zapisy/{slug}`, §2.27). Czysto prezentacyjny — nie wpływa na żadną logikę rezerwacji, cenową ani na walidację zapisu. Pole opcjonalne: brak opisu = sekcja nie jest renderowana |
+| description | text/markdown, nullable (v15) | opis oferty prezentowany klientowi na publicznej stronie rejestracji (`{organization.subdomain}.langlion.pl/zapisy/{slug}`, §2.27). Czysto prezentacyjny — nie wpływa na żadną logikę rezerwacji, cenową ani na walidację zapisu. Pole opcjonalne: brak opisu = sekcja nie jest renderowana |
 | engine | enum | `schedule_first` \| `availability_first` \| `slot_first` |
 | payment_policy | enum/set | dozwolone metody: online / na miejscu / oba — METODA płatności, niezależna od trybu zakupu poniżej |
 | price | integer (najmniejsza jednostka waluty, np. grosze) | cena pojedynczych zajęć w walucie `organization.currency`; baza dla `booking.price_snapshot`, `credit.source=online_payment/on_site_payment` |
@@ -437,6 +445,7 @@ Indywidualne warunki dla pojedynczej organizacji bez tworzenia dla niej osobnego
 - **Constraint 7 (v14):** przyjmowanie płatności online od klientów akademii (`group_type.payment_policy` z opcją online, tworzenie `product_template` z płatnością online, generowanie Stripe Checkout dla `booking`/`credit_purchase`/`group_change_request`) wymaga `organization.stripe_connect_status = active` (czyli `stripe_connect_charges_enabled = true`). Sprawdzenie wykonywane na backendzie przy każdej próbie, nie tylko przy zapisie konfiguracji — spójnie z pozostałymi bramkami w dokumencie (RBAC §4.2, limity planu §2.20). Płatność na miejscu (`cash`) nigdy nie wymaga Stripe Connect i pozostaje dostępna niezależnie od statusu.
 - **Constraint 8 (v15) — rozstrzyganie stawki trenera dla sesji:** `trainer_rate` dla pary `(trainer_id, group_type_id)` z największym `effective_from <= session.start_time`, jeśli istnieje → `trainer_rate` dla `(trainer_id, NULL)` z tą samą regułą → brak wiersza w obu = sesja **nie wchodzi do sumy** raportu i trafia na wyodrębnioną listę „brak stawki". Świadomie nie jest to zero: brak stawki to luka w konfiguracji, którą admin ma zobaczyć, nie cicha wartość neutralna (§2.30, US-32.3).
 - **Constraint 9 (v15) — rozstrzyganie ceny dla klienta:** aktywny `client_price_override` (`is_active=true` ORAZ `valid_from <= now()` ORAZ `valid_until IS NULL OR valid_until >= now()`) dla pary `(client_id, group_type_id)`, jeśli istnieje → dla `(client_id, NULL)` → cena katalogowa (`group_type.price` albo `product_template.price`). Zachowanie jest **fail-open**: brak override oznacza zwykłą cenę, nigdy blokadę. To świadomie odwrotny domyślny wybór niż przy limitach planu i feature flagach (fail-closed, patrz wyżej) — nierozstrzygnięty rabat nigdy nie może zatrzymać sprzedaży, podczas gdy nierozstrzygnięty limit musi.
+- **Constraint 10 (v15) — determinizm synchronizacji ceny na subskrypcji:** dwie niemal równoczesne zmiany wpływające na tę samą parę `(client_id, credit_purchase_id)` muszą się serializować, nie race'ować o to, która przeliczona cena trafi ostatecznie do Stripe. Realizacja: `SELECT ... FOR UPDATE` na `client_price_override` w transakcji budującej payload synchronizacji + kolejkowanie zadań sync per `(client_id, credit_purchase_id)`. Pełny opis mechanizmu i obu triggerów synchronizacji: §2.31 (Rozstrzygnięcie #20).
 - **Zasada (v15) — zamrożenie ceny po rabacie:** `booking.price_snapshot` oraz `credit_purchase.price_paid` zapisują kwotę **po** zastosowaniu override, zgodnie z Zasadą nadrzędną #1 — późniejsza zmiana, wygaśnięcie lub wyłączenie rabatu nigdy ich nie rusza. **Jedyny wyjątek: subskrypcje** (`billing_type=recurring`), gdzie rabat jest stanem żywym sprawdzanym przy każdym odnowieniu, nie wartością zamrożoną przy pierwszym zakupie — patrz §2.31 i §2.15.
 - **Zasada (v15) — niezależność obecności od płatności:** `booking.attendance_status` i `booking.payment_status` są dwiema rozłącznymi osiami. Żadna zmiana jednej nigdy nie pociąga za sobą zmiany drugiej, w obie strony — w szczególności `payment_status=no_show` (§US-16.2) nie ustawia `attendance_status='absent'`, a oznaczenie `absent` nie zmienia statusu płatności (§2.29).
 
@@ -649,11 +658,11 @@ Edycja treści regulaminu (nowy plik) tworzy nowy rekord/wersję `policy_documen
 
 `group_type` bez przypisanego `policy_document_id` pomija krok akceptacji przy formularzu rejestracji — pole jest opcjonalne na poziomie typu grupy.
 
-### 2.19 Integracja z SaaS Boilerplate — model tożsamości (rewizja 14.1)
+### 2.19 Integracja z SaaS Boilerplate — model tożsamości (rewizja 14.1, rozszerzona 15.1)
 
 Boilerplate'owe User/Membership/Organization (boilerplate sekcje 1, 3, 4) są modelem dla personelu akademii — Owner, Admin, Recepcja, Trener z RBAC opisanym w §2.10. Organization boilerplate'u = organization langlion (jedna akademia = jeden tenant).
 
-Rodzice/klienci NIE korzystają z boilerplate'owego User/Membership **w żadnej formie** — to odrębna, w pełni domenowa encja `client` (§1.2). Uzasadnienie: pełna izolacja per organizacja jest twardym wymogiem biznesowym — Akademia A i Akademia B to odrębne, niepowiązane ekosystemy z perspektywy klienta; współdzielenie loginu między nimi jest niedopuszczalne, nawet jeśli dane pozostają technicznie odseparowane. To jest CZWARTY świadomy wyjątek od reguły „użyj tego, co jest w boilerplacie" (Zasada nadrzędna #5) — obok Notification Center (§2.16), modelu planów/limitów (v13) i Stripe Connect (v14).
+Rodzice/klienci NIE korzystają z boilerplate'owego User/Membership **w żadnej formie** — to odrębna, w pełni domenowa encja `client` (§1.2). Uzasadnienie: pełna izolacja per organizacja jest twardym wymogiem biznesowym — Akademia A i Akademia B to odrębne, niepowiązane ekosystemy z perspektywy klienta; współdzielenie loginu między nimi jest niedopuszczalne, nawet jeśli dane pozostają technicznie odseparowane. To jest CZWARTY świadomy wyjątek od reguły „użyj tego, co jest w boilerplacie" (Zasada nadrzędna #5) — obok Notification Center (§2.16), modelu planów/limitów (v13) i Stripe Connect (v14); piąty (brak przełącznika organizacji, rewizja 15.1) opisany niżej.
 
 Rekomendacja wdrożeniowa:
 - Personel: boilerplate'owy User (konto, hasło, sesje — boilerplate §2) + Membership + role z §2.10 — bez żadnych modyfikacji fundamentu auth.
@@ -664,7 +673,8 @@ Rekomendacja wdrożeniowa:
 - Storage (boilerplate §21) jest fundamentem pod `policy_document.file_id`.
 - Billing (boilerplate §5, adapter Stripe) obsługuje **Platform Billing** — opłatę organizacji za plan langlion (§EPIK 29) — na koncie Stripe **platformy**, przez `organization.platform_stripe_customer_id`.
 - System kredytowy (`credit_purchase`, `product_template`) oraz Zmiana Grupy (`group_change_request`) działają na osobnym, **Connected Account** akademii (§EPIK 30, v14), przez `organization.stripe_connect_account_id` — ten sam adapter Stripe boilerplate'u jest rozszerzony o obsługę Connect (Standard accounts, OAuth, webhook `account.updated`), ale operuje na całkowicie odrębnej tożsamości Stripe niż Platform Billing. Patrz Zasada nadrzędna #7.
-- Notification Center (§2.16), **model planów/limitów (v13)**, **rozszerzenie adaptera billingowego o Stripe Connect (v14)** oraz **tożsamość klienta jako encja domenowa (rewizja 14.1)** są jedynymi świadomymi wyjątkami/rozszerzeniami reguły „użyj tego, co jest w boilerplacie" — patrz Zasada nadrzędna #5.
+- **Brak przełącznika organizacji (rewizja 15.1, PIĄTY świadomy wyjątek):** przełącznik kontekstu z boilerplate §3.5 (account switcher) NIE jest wykorzystywany dla langlion. Organizacja nie jest przełączalnym kontekstem w ramach jednego konta, tylko niezależną instalacją pod własną subdomeną (§2.27) — model analogiczny do Shopify, gdzie każdy sklep jest odrębną instalacją. **Jeden User może mieć Membership w wielu organizacjach, ale każda wymaga osobnej autentykacji — brak przełącznika, brak współdzielonej sesji między organizacjami.** Konsekwencja praktyczna: personel należący do wielu akademii (np. trener freelancer współpracujący z dwiema niepowiązanymi akademiami) loguje się osobno do każdej subdomeny, z osobną sesją. Cookie sesji scoped per host (bez wildcard) jest w tym modelu poprawne i wystarczające samo z siebie — to docelowy model, nie tymczasowe uproszczenie. Model danych pozostaje nietknięty: Membership w wielu organizacjach jest w pełni dopuszczalne, wyłączona jest wyłącznie ścieżka przełączania między nimi bez ponownego logowania.
+- Notification Center (§2.16), **model planów/limitów (v13)**, **rozszerzenie adaptera billingowego o Stripe Connect (v14)**, **tożsamość klienta jako encja domenowa (rewizja 14.1)** oraz **brak przełącznika organizacji (rewizja 15.1)** są jedynymi świadomymi wyjątkami/rozszerzeniami reguły „użyj tego, co jest w boilerplacie" — patrz Zasada nadrzędna #5.
 
 Tabela mapowania (skrót):
 
@@ -682,6 +692,7 @@ Tabela mapowania (skrót):
 | **Plany/limity/featury (v13)** | boilerplate §5.2, §5.6, §5.7 (konceptualnie) | **dane w bazie zamiast configu — drugi świadomy wyjątek, patrz §EPIK 29** |
 | **Stripe Connect (v14)** | boilerplate §5.1 (rozszerzony) | **adapter billingowy rozszerzony o Connected Accounts — trzeci świadomy wyjątek/rozszerzenie, patrz §EPIK 30** |
 | **Tożsamość klienta (rewizja 14.1)** | boilerplate §2 (świadomie NIE reużyty dla klientów) | **encja `client` + domenowy OTP per organizacja — czwarty świadomy wyjątek** |
+| **Przełącznik organizacji (rewizja 15.1)** | boilerplate §3.5 (świadomie NIE reużyty) | **piąty świadomy wyjątek: jeden User może mieć Membership w wielu organizacjach, ale każda wymaga osobnej autentykacji — brak przełącznika, brak współdzielonej sesji między organizacjami. Cookie scoped per host, bez wildcard** |
 
 ### 2.20 Egzekwowanie limitów liczbowych planu (v13)
 
@@ -751,22 +762,22 @@ Jeśli Stripe później oznaczy konto jako `restricted` (np. Stripe zażądał d
 - Panel Ownera pokazuje stały wskaźnik statusu Connect (aktywne / wymaga uwagi / niepołączone) niezależnie od tego, czy powiadomienie zostało przeczytane — status jest zawsze widoczny, nie tylko zdarzeniowo zgłaszany.
 - Odłączenie Connected Account (Owner odłącza ręcznie, albo Stripe usuwa konto) jest traktowane tak samo jak `restricted` — blokada nowych płatności online, bez wpływu na dane historyczne.
 
-### 2.27 Adresowanie: subdomena akademii i slug oferty (rewizja 14.2)
+### 2.27 Adresowanie: subdomena akademii i slug oferty (rewizja 14.2, zaktualizowana 2026-07-20)
 
-System operuje **dwoma poziomami identyfikatorów** o różnym zasięgu unikalności. Rozróżnienie jest istotne, bo mylenie ich prowadzi albo do kolizji między akademiami, albo do niepotrzebnego wycieku informacji o cudzej ofercie.
+System operuje **dwoma kontekstami domenowymi** o różnym przeznaczeniu:
 
-| Poziom | Pole | Zasięg unikalności | Rola |
-|---|---|---|---|
-| 1 | `organization.subdomain` | **globalny** (wymóg DNS) | identyfikuje akademię: `akademia-a.langlion.com` |
-| 2 | `group_type.slug` | **per `organization_id`** | identyfikuje ofertę w obrębie akademii: `.../zapisy/obozy-2026` |
+| Kontekst | Adres | Co tam żyje |
+|---|---|---|
+| Platforma (operator langlion) | `langlion.pl` | marketing produktu langlion, onboarding nowej akademii (rejestracja + wybór `organization.subdomain`), panel Super Admina (cross-tenant z definicji, nie może żyć pod pojedynczą subdomeną) |
+| Akademia — wszystko | `{organization.subdomain}.langlion.pl` | publiczna strona (Payload, wg `page.slug`), dashboard personelu (`/dashboard`), panel CMS (`/admin`), zapisy klienta (`/zapisy/{group_type.slug}`) |
 
-Pełny URL publicznej rejestracji: `{organization.subdomain}.langlion.com/zapisy/{group_type.slug}`. Prefiks `/zapisy/` jest stały w routingu; `group_type.slug` przechowuje wyłącznie człon oferty (`obozy-2026`).
+`organization.subdomain` pozostaje globalnie unikalny (wymóg DNS), zgodnie z dotychczasową walidacją (RFC 1035, 3–63 znaki, lista zarezerwowanych nazw subdomen: `www`, `api`, `admin`, `cdn`…). `group_type.slug` pozostaje unikalny **per `organization_id`** — jedna akademia prowadzi równolegle wiele aktywnych ofert (§EPIK 2, US-2.3), a dwie różne akademie mogą zasadnie prowadzić ofertę o tej samej nazwie.
 
-Uzasadnienie poziomu 1: cała witryna akademii (docelowo kreator stron per akademia) żyje pod jej subdomeną, a docelowo pod własną domeną klienta przez CNAME. Uzasadnienie poziomu 2: jedna akademia prowadzi równolegle wiele aktywnych ofert i linków rejestracyjnych (§EPIK 2, US-2.3 — kilka `group_type` naraz), a dwie różne akademie mogą zasadnie prowadzić ofertę o tej samej nazwie.
+`organization.slug` w dotychczasowej roli identyfikatora panelu personelu (`/orgs/{slug}`) **jest wycofywany**. Jeśli potrzebny jest wewnętrzny identyfikator do URL-i Super Admina (operujących cross-tenant, gdzie subdomena nie ma zastosowania), `organization.slug` może zostać zachowany wyłącznie w tej roli — do potwierdzenia przy implementacji panelu Super Admina.
 
-`organization.subdomain` jest odrębny od `organization.slug`, który pozostaje identyfikatorem panelu personelu (`/orgs/{slug}`). Oba są globalnie unikalne, ale odpowiadają przed różnymi autorytetami — DNS kontra routing wewnętrzny — więc scalenie ich związałoby przyszłą regułę DNS z adresami panelu.
+**Kolizje ścieżek:** ponieważ dashboard/admin i strony CMS współdzielą tę samą subdomenę, `page.slug` nie może kolidować z zarezerwowanymi ścieżkami aplikacji. Lista zarezerwowanych sluggów żyje w jednym pliku źródłowym (`src/features/cms/reserved-slugs.ts` lub analogiczny), importowanym zarówno przez middleware (rozstrzyganie: trasa aplikacji czy strona CMS), jak i przez walidację formularza tworzenia strony w panelu CMS. Startowa lista: `dashboard`, `admin`, `api`, `zapisy`, `login`, `logout`.
 
-**Middleware rozpoznający organizację z subdomeny nie jest częścią Fazy 0** — Faza 0 dostarcza wyłącznie kolumnę z walidacją i unikalnością. Rozpoznawanie tenanta z nagłówka `Host`, obsługa domen własnych przez CNAME, wildcard DNS/TLS oraz zachowanie na `localhost` w dev i e2e to osobna praca, blokująca przed EPIK 4 (publiczna rejestracja klienta), nie przed Fazą 0. Panel akademii do tego czasu działa wyłącznie na `/orgs/{slug}` i subdomeny nie potrzebuje.
+**Middleware rozpoznający tenanta z subdomeny** obsługuje teraz zarówno żądania do aplikacji (dashboard/admin), jak i żądania do publicznych stron CMS — jeden punkt rozpoznania `Host` → `organization_id`, z rozgałęzieniem po prefiksie ścieżki (zarezerwowana ścieżka → routing aplikacji; wszystko inne → wyszukanie `page` po slugu i renderowanie przez Payload). Nadal nie jest częścią Fazy 0 — blokuje przed EPIK 4 (publiczna rejestracja klienta) i przed modułem CMS (`docs/specyfikacja-cms.md`), nie blokuje wcześniejszych faz.
 
 ### 2.28 Nazewnictwo encji `session` w implementacji (rewizja 14.2)
 
@@ -830,6 +841,18 @@ To ten sam wzorzec „sprawdzane na żywo, nie cache'owane", który dokument sto
 
 Przyznanie rabatu wymaga uprawnienia `client_price_override.manage` **oraz podania powodu** (pole `reason`, zapis bez niego jest odrzucany) i jest logowane w audit trail — ten sam wzorzec kontroli co przy ręcznym nadaniu kredytów (§US-7.3).
 
+**Mechanizm synchronizacji ceny na aktywnych subskrypcjach (v15, Rozstrzygnięcie #20):**
+
+Ponieważ `product_template.stripe_price_id` reprezentuje stałą cenę katalogową na Connected Account, a rabat jest stanem żywym (wyżej, Rozstrzygnięcie #17), naliczanie ceny na subskrypcji nigdy nie odbywa się przez ten zapisany `stripe_price_id`, gdy dotyczy klienta z aktywnym override'em — zamiast tego backend tworzy/aktualizuje pozycję subskrypcji ad-hoc przez `price_data` ze Stripe, z `unit_amount` przeliczonym po stronie langlion.
+
+Dwa niezależne triggery synchronizacji:
+1. **Zmiana `client_price_override`** (utworzenie, zmiana wartości, wyłączenie, wygaśnięcie) — dla klienta z aktywną subskrypcją `recurring` na pasujący `group_type`, job w tle aktualizuje `subscription_item` przez `price_data`, `proration_behavior: none`.
+2. **Zmiana `group_type.price` lub `product_template.price`** — dla WSZYSTKICH klientów z aktywnym override'em typu `percent_discount` na ten `group_type` (typ `fixed_price` jest z definicji odporny na zmianę ceny katalogowej), job przelicza i aktualizuje `unit_amount` analogicznie. Bez tego triggera rabat procentowy „zamrażałby się" po cichu na starej cenie katalogowej przy każdej podwyżce/obniżce.
+
+Oba triggery używają tego samego zadania w tle, kolejkowanego per `(client_id, credit_purchase_id)` — patrz Constraint 10 (§1.3) dla ochrony przed race condition.
+
+**Constraint 10 (v15) — determinizm synchronizacji ceny na subskrypcji:** dwie niemal równoczesne zmiany wpływające na tę samą parę `(client_id, credit_purchase_id)` (np. admin dwukrotnie zapisuje override, albo zmiana override'a zbiega się ze zmianą ceny katalogowej) muszą się serializować, nie race'ować o to, która wersja przeliczonej ceny zostanie ostatecznie wysłana do Stripe. Realizacja: `SELECT ... FOR UPDATE` na `client_price_override` w transakcji budującej payload synchronizacji, oraz kolejkowanie samych zadań sync per `(client_id, credit_purchase_id)` (ten sam wzorzec deduplikacji jak przy idempotencji webhooków, §12.3/§2.7) — kolejna zmiana nie synchronizuje się, dopóki poprzednia synchronizacja tej samej pary się nie zakończy.
+
 ---
 
 Konwencja: Jako `<rola>`, chcę `<cel>`, aby `<korzyść>`. AC w formacie Given/When/Then. Numeracja `US-<EPIK>.<nr>` odpowiada sekcjom specyfikacji technicznej.
@@ -851,7 +874,7 @@ Konwencja: Jako `<rola>`, chcę `<cel>`, aby `<korzyść>`. AC w formacie Given/
 - AC1: Given tworzę `group_type`, When nie podam `price`, Then system odrzuca zapis (pole wymagane).
 - AC2: Given zapisuję `group_type` z `engine=schedule_first`, When definiuję `group_type_recurrence`, Then muszę wskazać `trainer_id` (walidacja wymagana dla tego silnika).
 - AC3: Given `engine=slot_first`, When definiuję `group_type`, Then nie jestem zmuszony wskazać trenera — system obliczy dostępność dynamicznie.
-- AC4 (v15): Given tworzę/edytuję `group_type`, When wypełniam (lub pomijam) pole `description`, Then jest ono opcjonalne, przyjmuje treść w markdown i jest renderowane na publicznej stronie oferty (`{organization.subdomain}.langlion.com/zapisy/{slug}`, §2.27); brak opisu nie blokuje zapisu ani nie wpływa na żadną logikę rezerwacji ani cenową.
+- AC4 (v15): Given tworzę/edytuję `group_type`, When wypełniam (lub pomijam) pole `description`, Then jest ono opcjonalne, przyjmuje treść w markdown i jest renderowane na publicznej stronie oferty (`{organization.subdomain}.langlion.pl/zapisy/{slug}`, §2.27); brak opisu nie blokuje zapisu ani nie wpływa na żadną logikę rezerwacji ani cenową.
 
 **US-2.2** Jako administrator, chcę edytować Definicję typu zajęć bez wpływu na już wygenerowane sesje z rezerwacjami.
 - AC1: Given `group_type` ma wygenerowane sesje z aktywnymi rezerwacjami, When admin zmienia `price` lub `payment_policy` na Definicji, Then istniejące `booking.price_snapshot` pozostają niezmienione.
@@ -894,7 +917,7 @@ Konwencja: Jako `<rola>`, chcę `<cel>`, aby `<korzyść>`. AC w formacie Given/
 - AC1: Given wpisuję e-mail pasujący do istniejącego `client` TEJ SAMEJ organizacji z `is_verified=true`, When system sprawdza w tle, Then pola formularza są automatycznie wypełnione danymi profilu, a krok OTP jest pomijany. Rekord `client` z innej organizacji nigdy nie jest dopasowywany (rewizja 14.1).
 - AC2: Given jestem rozpoznanym klientem, When wybieram sesję z wolnym miejscem, Then rezerwacja jest finalizowana od razu, minimalną liczbą kroków.
 - AC3: Given e-mail nie pasuje do żadnego zweryfikowanego `client` w tej organizacji, When kontynuuję zapis, Then przechodzę standardową ścieżkę z pełnym formularzem i weryfikacją OTP.
-- AC4 (v15): Given jestem rozpoznany jako zweryfikowany klient (`is_verified=true` — ten sam moment, w którym pomijany jest OTP i uzupełniane są dane w AC1) ORAZ mam aktywny `client_price_override` (`is_active=true`, w oknie `valid_from`/`valid_until`) pasujący do wybranej oferty, When formularz renderuje cenę — zarówno dla pojedynczych zajęć (`group_type.price`), jak i dla listy pakietów (`product_template.price`) — Then wyświetlana jest cena PO zastosowaniu override (Constraint 9), zanim wybiorę metodę płatności i sfinalizuję zapis.
+- AC4 (v15): Given jestem rozpoznany jako zweryfikowany klient (`is_verified=true` — ten sam moment, w którym pomijany jest OTP i uzupełniane są dane w AC1) ORAZ mam aktywny `client_price_override` (`is_active=true`, w oknie `valid_from`/`valid_until`) pasujący do wybranej oferty, When formularz renderuje cenę — zarówno dla pojedynczych zajęć (`group_type.price`), jak i dla listy pakietów (`product_template.price`) — Then wyświetlana jest cena PO zastosowaniu override (Constraint 9), zanim wybiorę metodę płatności i sfinalizuję zapis. Cena po rabacie wyświetlana na formularzu jest tą samą wartością, która trafi do Stripe jako ad-hoc `price_data` przy zakładaniu subskrypcji (nie przez `product_template.stripe_price_id`) — patrz Rozstrzygnięcie #20.
 - AC5 (v15): Given jestem rozpoznany, ale nie mam aktywnego override pasującego do tej oferty, When formularz renderuje cenę, Then wyświetlana jest cena katalogowa — bez zmian względem stanu sprzed v15.
 - AC6 (v15): Given jestem nowym lub niezweryfikowanym klientem, When wypełniam formularz, Then zawsze widzę cenę katalogową. Rabat nie jest prezentowany przed weryfikacją, nawet jeśli admin już go przyznał: `client_price_override` wskazuje na `client_id`, który istnieje od upsertu przy pierwszej próbie zapisu (§US-4.1), ale **wyświetlanie rabatu jest bramkowane tym samym progiem zaufania co reszta rozpoznania w AC1**, nie samym istnieniem rekordu.
 
@@ -1436,6 +1459,8 @@ Konwencja: Jako `<rola>`, chcę `<cel>`, aby `<korzyść>`. AC w formacie Given/
 - AC3: Given mój override ma `valid_until` w przeszłości względem momentu odnowienia, When następuje odnowienie, Then naliczana jest pełna cena katalogowa, bez żadnej akcji admina.
 - AC4: Given rabat wygasł i naliczono pełną cenę, When sprawdzam swoją skrzynkę i Notification Center, Then NIE otrzymuję powiadomienia o wygaśnięciu rabatu — świadomie pominięte na tym etapie (§6).
 - AC5: Given rabat wygasł lub został wyłączony, When sprawdzam już wygenerowane kredyty z poprzednich cykli, Then pozostają nietknięte i ważne do swojego `valid_until`.
+- AC6 (v15): Given zmieniam `group_type.price` lub `product_template.price`, When istnieją klienci z aktywnym `client_price_override` typu `percent_discount` na ten `group_type` i aktywną subskrypcją `recurring`, Then system przelicza i synchronizuje `unit_amount` na ich `subscription_item` przez `price_data` (Constraint 10), bez oczekiwania na najbliższe odnowienie.
+- AC7 (v15): Given dwie zmiany dotyczące tej samej pary `(client_id, credit_purchase_id)` docierają niemal jednocześnie, When oba zadania synchronizacji są przetwarzane, Then stosowane są sekwencyjnie (Constraint 10) — nigdy równolegle na tym samym `subscription_item`.
 
 **US-33.6** Jako administrator, chcę wycofać rabat bez naruszania historii.
 - AC1: Given ustawiam `is_active=false` na istniejącym override, When klient dokonuje kolejnego zakupu, Then płaci cenę katalogową.
@@ -1532,6 +1557,7 @@ Poniższe punkty były otwarte we wcześniejszych wersjach — rozstrzygnięte, 
 | 17 (v15) | Czy rabat na subskrypcji jest zamrażany przy jej starcie, czy sprawdzany przy każdym odnowieniu | **Sprawdzany przy każdym odnowieniu** (stan żywy, nie zamrożony). Ten sam wzorzec „na żywo, nie cache'owane", co przy limitach planu (§2.23). Cena może się różnić między cyklami, a `valid_until` wygasa samoczynnie bez akcji admina i bez powiadomienia klienta. Świadome odstępstwo od zamrażania z Zasady nadrzędnej #1 — rabat to bieżący stan uprawnienia, nie zamknięta transakcja. |
 | 18 (v15) | Jak interpretować `trainer_rate.amount` — ryczałt za sesję, stawka godzinowa czy stawka za uczestnika | **Ryczałt za poprowadzoną sesję** — niezależny od liczby uczestników i długości zajęć. Najprostszy model, zgodny ze sposobem, w jaki akademie faktycznie umawiają się z trenerami; brak zaokrągleń przy sesjach niepełnogodzinnych i brak wiązania wynagrodzenia z frekwencją. |
 | 19 (v15) | Czy potwierdzanie obecności rozszerza `payment_status` (np. o nową wartość), czy jest osobnym polem | **Osobne pole** `attendance_status`, całkowicie niezależne od `payment_status`; `no_show` zostaje bez zmian (§US-16.2) i nie jest z nim synchronizowany w żadną stronę. Te dwie osie odpowiadają na różne pytania („czy zapłacono" vs „czy przyszedł") i bywają dowolną kombinacją. |
+| 20 (v15) | Mechanika Stripe dla rabatu klienta na subskrypcji (dawny otwarty punkt #8, §8) | Ad-hoc `price_data` na `subscription_item`, nie `Coupon`/`Promotion Code`. Przy każdej zmianie aktywnego `client_price_override` typu `percent_discount` powiązanego z klientem mającym aktywną subskrypcję `recurring`, system aktualizuje `unit_amount` na `subscription_item` przez `price_data` z `proration_behavior: none` (zmiana obowiązuje od następnego cyklu, nigdy retroaktywnie bieżącego). Typ `fixed_price` nie wymaga synchronizacji przy zmianie override'a (wartość jest już docelowa), ale wymaga jej przy zmianie `group_type.price`/`product_template.price` — patrz §2.31, drugi trigger synchronizacji. Ten sam mechanizm (ad-hoc `price_data`, nie zapisany `stripe_price_id`) obowiązuje też przy pierwszym Checkout dla klienta z aktywnym override'em w momencie zakładania subskrypcji (US-4.2/AC4) — `credit_purchase` z `payment_method=online` i aktywnym override zawsze idzie przez ad-hoc price, nigdy przez `product_template.stripe_price_id`. Widoczność rabatu dla klienta poza formularzem rejestracji (np. na kolejnych fakturach odnowienia) świadomie NIE jest budowana w v15 — to nie problem techniczny, tylko zakresowy, tej samej natury co odłożony „Panel klienta z historią płatności" (§6); dane do takiego widoku (`reason`, `valid_from`/`valid_until`, `override_type`) już istnieją w modelu i widok można dobudować później bez zmian schematu. |
 
 ---
 
@@ -1543,7 +1569,6 @@ Poniższe punkty były otwarte we wcześniejszych wersjach — rozstrzygnięte, 
 |---|---|---|
 | 1 | Formuła zwrotu proporcjonalnego przy przyszłych promocjach/cenach warstwowych w pakiecie | Poprawna tylko dla obecnego, płaskiego modelu cenowego — do rewizji, gdy pojawią się promocje. |
 | 7 (v13) | Czy próg ostrzegawczy (90%) dla `plan_limit_approaching` jest globalny, czy konfigurowalny per `limit_key` | Do rozstrzygnięcia przed implementacją US-29.3 — nie blokuje startu reszty EPIK 29. |
-| 8 (v15) | **Mechanika Stripe dla rabatu klienta na subskrypcji** | `product_template.stripe_price_id` wskazuje stałą cenę na Connected Account, więc nie da się nim wyrazić rabatu per klient, w dodatku zmiennego między cyklami (Rozstrzygnięcie #17). Do rozstrzygnięcia przed implementacją EPIK 33: `coupon`/`promotion_code` przypięty do Subscription, cena ad-hoc tworzona per klient, czy aktualizacja `subscription_item` przed odnowieniem. Ta sama kwestia w łatwiejszym wariancie dotyczy jednorazowego Checkoutu (cena ad-hoc zamiast gotowego `stripe_price_id`). **Blokuje EPIK 33**, nie blokuje pozostałego zakresu. |
 
 ---
 
