@@ -17,6 +17,19 @@ const nextConfig: NextConfig = {
   // Emit a self-contained server bundle so the app runs on Vercel *and* as a
   // standalone Node.js server / Docker container (spec 19.1).
   output: "standalone",
+  /*
+   * Tenant hosts in development (langlion §2.27, F4.5).
+   *
+   * `next dev` binds to localhost and blocks cross-origin requests to dev-only
+   * assets, so `acme.localtest.me:3000` — a different origin as far as the dev
+   * server is concerned — is refused without this. Both forms are needed: the
+   * wildcard for academies, the bare name for the apex.
+   *
+   * ⚠️ THE E2E SUITE CANNOT CATCH A MISTAKE HERE. Playwright runs against
+   * `next build && next start`, where this option does not apply. Getting it
+   * wrong breaks `pnpm dev` for humans while CI stays green.
+   */
+  allowedDevOrigins: ["localtest.me", "*.localtest.me"],
   experimental: {
     // Enable `forbidden()` / `unauthorized()` so RBAC failures render real
     // 403/401 responses from server components, actions, and route handlers

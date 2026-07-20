@@ -1,4 +1,4 @@
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect, type APIRequestContext } from "@playwright/test";
 
 /**
  * Rate-limit E2E env + per-test bucket isolation (spec 2.1 / 22.3).
@@ -57,7 +57,7 @@ export function uniqueBucket(prefix = "bucket"): string {
  * direct API calls. A fixture that set only one would isolate half of a test and
  * leak the other half into the shared bucket.
  */
-export const test = base.extend<{ bucket: string }>({
+export const test = base.extend<{ bucket: string; sharedRequest: APIRequestContext }>({
   bucket: [
     async ({}, use, testInfo) => {
       await use(uniqueBucket(testInfo.title.replace(/\W+/g, "-").slice(0, 40)));
@@ -77,6 +77,31 @@ export const test = base.extend<{ bucket: string }>({
     });
     await use(ctx);
     await ctx.dispose();
+  },
+
+  /**
+   * An API context that SHARES THE BROWSER'S COOKIE JAR (F4.5).
+   *
+   * ⚠️ THIS DISTINCTION DECIDES WHETHER THE ISOLATION TESTS PROVE ANYTHING.
+   * `playwright.request.newContext()` — what the `request` fixture above builds —
+   * gets its OWN jar. A test asserting "the session from academy A does not work
+   * at academy B" would pass trivially against two such contexts, because they
+   * never share cookies with anything, whatever the hosts are. No teeth.
+   *
+   * `context.request` uses the BrowserContext's jar and therefore honours real
+   * per-host cookie scoping. The same assertion then passes for the actual
+   * reason: the cookie was not SENT to the other host. That is the mechanism
+   * §2.19 rests on, so it is the one the suite has to exercise.
+   *
+   * The bucket header comes from `context.setExtraHTTPHeaders` above, which
+   * applies to every origin the context touches — so tenant hosts inherit the
+   * per-test rate-limit bucket without any per-host wiring.
+   *
+   * `request` is left untouched: ~180 green specs use it, and none of them are
+   * about cookie scoping.
+   */
+  sharedRequest: async ({ context }, use) => {
+    await use(context.request);
   },
 });
 

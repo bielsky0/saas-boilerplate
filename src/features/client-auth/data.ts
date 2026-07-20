@@ -202,8 +202,10 @@ export async function insertClientSession(
  * Resolve a cookie token to a live session and its parent, WITHIN one academy.
  *
  * The `organizationId` predicate is what makes a cookie from Academy A find
- * nothing at Academy B — the isolation §2.19 asks for, holding today on a shared
- * host, before the subdomain middleware (F5) can scope the cookie itself.
+ * nothing at Academy B — the isolation §2.19 asks for. Since F4.5 academies sit
+ * on separate hosts, so the browser will not usually SEND a foreign cookie in
+ * the first place. This predicate stays load-bearing regardless: host scoping is
+ * the browser's promise, and this one is ours.
  *
  * Expiry is a predicate here rather than a check on the result, so an expired
  * session is indistinguishable from a missing one at every call site. A caller

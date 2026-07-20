@@ -1156,6 +1156,54 @@ password form, where argon2 still stands behind it, and wrong for six digits wit
 nothing behind them. `client_otp.attempts` is enforced inside the UPDATE, so a
 store outage cannot lift it.
 
+### Host resolution and the tenant header (langlion §2.27, F4.5)
+
+Academies live at `{organization.subdomain}.langlion.pl`; the platform apex
+(`langlion.pl`) carries marketing, org onboarding and the super-admin panel. The
+tenant therefore arrives in the **`Host` header**, and resolving it is split
+across two layers on purpose:
+
+| Layer                                     | Does                                                        | Does NOT           |
+| ----------------------------------------- | ----------------------------------------------------------- | ------------------ |
+| `src/proxy.ts` + `src/lib/tenant-host.ts` | parse `Host` → label; publish it as `x-org-subdomain`       | touch the database |
+| `features/organizations/served-org.ts`    | resolve label → `organization` row (`servedOrganization()`) | decide routing     |
+
+**Why the proxy does not do the lookup.** Its whole design rests on being fast
+and edge-safe with no DB (see the file header), and the matcher covers nearly
+every request — including apex requests, where no academy exists at all. Next's
+own docs say the same: _"Proxy is not intended for slow data fetching."_ The
+consequence is worth stating because it reads as a gap: the proxy **cannot tell a
+real academy from a typo**, and must not try. Both forward; the unknown one 404s
+in the request layer.
+
+**An unknown academy is a 404, never a redirect to the apex.** Wildcard DNS means
+every label answers, so a 30x would turn any `*.langlion.pl` into a link landing
+on our marketing site — a supply of plausible URLs on our own domain — and would
+show a parent following a stale flyer a product pitch instead of an answer.
+
+⚠️ **`x-org-subdomain` is a client-settable header, and `forward()` deletes it
+unconditionally before setting its own value.** It names the tenant for every
+downstream reader, so a conditional delete would let a caller select an academy
+by asking. `LOCALE_HEADER` gets the same treatment for the same reason (it was
+previously set conditionally, which left the client's value intact on `/api/*` —
+cosmetic for locale, an isolation hole for a tenant).
+
+**Reserved path prefixes** live in `src/features/cms/reserved-slugs.ts`, with a
+`stage` marking whether each is served on the tenant host or on the apex today.
+Staff routes are still apex-only (the panel migration is F4.6), so `/dashboard`
+on an academy host redirects to the apex rather than falling through to
+default-deny — which would bounce to `/login` on a host whose Better Auth cookie
+does not exist there, i.e. a silent login loop. That list is **not** the same as
+`RESERVED_SUBDOMAINS` in `src/lib/validation/primitives.ts`; see the header of
+either file for why merging them is a bug that looks like tidying.
+
+**Local dev and E2E** use `APP_ROOT_DOMAIN=localtest.me`, a public DNS name whose
+every label resolves to 127.0.0.1 — so `acme.localtest.me:3000` works with no
+`/etc/hosts` entry, and the browser sees real distinct origins (which is what
+makes cookie-scoping assertions mean anything). `next dev` additionally needs
+those origins in `allowedDevOrigins`; E2E runs `next start` and would not catch a
+mistake there.
+
 ### Canonical URLs are baked at BUILD time (spec 9.1, 19.1)
 
 `NEXT_PUBLIC_APP_URL` feeds `src/lib/site.ts`, which feeds `metadataBase`, every
@@ -1179,6 +1227,20 @@ RUN pnpm build
 
 Build one image per domain. On Vercel this is automatic — the value is set per
 project/environment before the build.
+
+**This collides with multi-host tenancy, and F4.5 deliberately did not resolve
+it.** Since academies live on their own subdomains, a single build-time origin
+cannot be canonical for all of them. It is harmless today because everything that
+consumes `absoluteUrl()` still belongs to the apex: the staff panel lives there,
+mailed links point there, and academy pages are 404s with nothing to canonicalize.
+It stops being harmless in two places, both later: **F4.6** (the panel moves to
+tenant hosts, so invitation and verification links must follow) and the **CMS
+module** (real pages need per-tenant canonical tags and sitemaps). Both will need
+a request-aware variant of `absoluteUrl()`.
+
+Note the asymmetry: redirects built in `src/proxy.ts` use `new URL(…,
+request.url)` and therefore follow the incoming `Host` on their own. This problem
+belongs strictly to URLs built from env.
 
 ### Background jobs in production (spec 12, 19.1)
 

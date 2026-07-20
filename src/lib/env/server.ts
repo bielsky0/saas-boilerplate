@@ -43,6 +43,15 @@ export const env = createEnv({
     BETTER_AUTH_SECRET: z.string().min(1),
     // Base URL Better Auth uses to build verification links and cookies.
     BETTER_AUTH_URL: z.url().default("http://localhost:3000"),
+    // Root domain academies live under (langlion §2.27): `{subdomain}.langlion.pl`.
+    // `langlion.pl` in production, `localtest.me` in dev/E2E (a public name that
+    // resolves to 127.0.0.1, so wildcard subdomains work without /etc/hosts).
+    //
+    // Deliberately a RUNTIME variable, unlike NEXT_PUBLIC_APP_URL, which is
+    // inlined at build time and therefore freezes one image to one domain (see
+    // src/lib/site.ts). Host recognition must not inherit that constraint: it is
+    // read per request by src/proxy.ts via `parseHost`.
+    APP_ROOT_DOMAIN: z.string().min(1).default("localhost"),
     // Selects the email adapter implementation (spec 10.1). "log" prints the
     // message (incl. verification link) to the server console + an in-memory
     // outbox for dev/CI; "resend" sends real mail.

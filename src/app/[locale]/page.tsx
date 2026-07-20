@@ -1,5 +1,6 @@
 import { KeyRound, LayoutDashboard, Palette, ShieldCheck, User, Users, Zap } from "lucide-react";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -9,6 +10,7 @@ import { PLAN_LIST, type Plan } from "@/features/billing";
 import { pageMetadata } from "@/features/content";
 import { JsonLd } from "@/features/content/components/json-ld";
 import { organizationJsonLd, webSiteJsonLd } from "@/features/content/jsonld";
+import { servedSubdomain } from "@/features/organizations/served-org";
 import { Link } from "@/lib/i18n/navigation";
 import { site } from "@/lib/site";
 import { orgsEnabled } from "@/lib/tenancy";
@@ -103,6 +105,28 @@ function planBullets(
 }
 
 export default async function Home() {
+  /*
+   * APEX ONLY (langlion §2.27, F4.5).
+   *
+   * `/` on an academy host is that academy's home page — a `page` row with an
+   * empty slug (CMS spec §4, decision 8) — not langlion's marketing site. The
+   * proxy routes this path to the CMS branch, but a catch-all segment does NOT
+   * match the empty path, so `[locale]/[...cmsSlug]` never sees it and Next
+   * serves this file. That makes the bare subdomain the ONE route the proxy
+   * cannot separate, so the separation happens here.
+   *
+   * ⚠️ THE TEST IS "WAS A TENANT HOST ADDRESSED", NOT "DOES THAT ACADEMY EXIST".
+   * Gating on `servedOrganization()` looks equivalent and is not: it returns null
+   * for an UNKNOWN subdomain too, so every non-existent `*.langlion.pl` would
+   * serve our marketing page at its root — the supply of plausible-looking links
+   * on our own domain that D57 refuses elsewhere. `servedSubdomain()` answers the
+   * question actually being asked, and costs no query either.
+   *
+   * Until the CMS module lands, an academy's front page is a 404 — the same
+   * answer CMS spec US-C1.2/AC7 gives for an academy that has not published one.
+   */
+  if (await servedSubdomain()) notFound();
+
   const [t, nav, format] = await Promise.all([
     getTranslations("landing"),
     getTranslations("nav"),

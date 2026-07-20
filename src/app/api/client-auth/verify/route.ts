@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { createClientSession } from "@/features/client-auth/session";
-import { findOrganizationBySubdomain } from "@/features/client-auth/organization";
+import { servedOrganization } from "@/features/organizations/served-org";
 import { identityFrom } from "@/features/client-auth/rate-limit";
 import { verifyCodeSchema } from "@/features/client-auth/schema";
 import { verifyOtp } from "@/features/client-auth/otp";
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  const organization = await findOrganizationBySubdomain(parsed.data.subdomain);
+  const organization = await servedOrganization();
   if (!organization) {
     return NextResponse.json({ error: "unknown_organization" }, { status: 404 });
   }

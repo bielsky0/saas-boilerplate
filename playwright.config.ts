@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 import { E2E_BILLING_ENV } from "./e2e/billing-fixtures";
+import { APEX_ORIGIN, E2E_HOST_ENV } from "./e2e/host-fixtures";
 import { E2E_RATE_LIMIT_ENV } from "./e2e/rate-limit-fixtures";
 import { E2E_STORAGE_ENV } from "./e2e/storage-fixtures";
 import { E2E_TENANCY_ENV, ORG_DEPENDENT_SPECS, TENANCY_MODE } from "./e2e/tenancy-fixtures";
@@ -17,8 +18,14 @@ import { E2E_TENANCY_ENV, ORG_DEPENDENT_SPECS, TENANCY_MODE } from "./e2e/tenanc
  * step. We build + start a production server so there is no first-request
  * cold-compile in the middle of a test.
  */
-const PORT = 3000;
-const baseURL = process.env.NEXT_PUBLIC_APP_URL ?? `http://localhost:${PORT}`;
+/**
+ * `baseURL` is the platform APEX, not localhost (F4.5). Academies live on
+ * `{subdomain}.localtest.me:3000`, and specs reach those with absolute URLs from
+ * `tenantUrl()` — see e2e/host-fixtures.ts for why real hosts rather than a
+ * spoofed Host header. Every pre-existing spec is unaffected: relative paths
+ * still resolve against the apex, which is where the staff panel still lives.
+ */
+const baseURL = process.env.NEXT_PUBLIC_APP_URL ?? APEX_ORIGIN;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -82,6 +89,9 @@ export default defineConfig({
       ...E2E_RATE_LIMIT_ENV,
       // Which tenancy mode this leg boots in (spec 1.4). Default `required`.
       ...E2E_TENANCY_ENV,
+      // Root domain for tenant hosts (langlion §2.27, F4.5). Also repoints the
+      // absolute-URL vars at the apex so mailed links stay reachable.
+      ...E2E_HOST_ENV,
     },
   },
 });

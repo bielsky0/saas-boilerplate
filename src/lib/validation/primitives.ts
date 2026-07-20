@@ -80,6 +80,14 @@ export const SUBDOMAIN_MAX = 63;
  * `{subdomain}.langlion.com` on a flyer and parents have the link, taking it back
  * is not a migration we can perform. Adding a name here later does not free one
  * already in use, so the list is deliberately broader than what is wired up today.
+ *
+ * ⚠️ NOT the same list as `RESERVED_PATH_PREFIXES` in
+ * `src/features/cms/reserved-slugs.ts`, and the two must not be merged (D58).
+ * These are DNS LABELS owned by platform infrastructure; those are FIRST PATH
+ * SEGMENTS owned by the Next router. They overlap on `api` and `admin` by
+ * coincidence — `smtp` has no reason to be a forbidden page slug, `zapisy` has
+ * no reason to be a forbidden subdomain. Merging them would make every future
+ * edit to one silently restate the other, and this one cannot be walked back.
  */
 export const RESERVED_SUBDOMAINS: readonly string[] = [
   "www",

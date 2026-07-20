@@ -1,8 +1,7 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 import { destroyClientSession } from "@/features/client-auth/session";
-import { findOrganizationBySubdomain } from "@/features/client-auth/organization";
-import { logoutSchema } from "@/features/client-auth/schema";
+import { servedOrganization } from "@/features/organizations/served-org";
 
 /**
  * POST /api/client-auth/logout — end a parent's session (plan F3 / D37).
@@ -17,21 +16,15 @@ import { logoutSchema } from "@/features/client-auth/schema";
  * Always `{ ok: true }` for a resolvable academy, including when there was no
  * session to end. "Log out" is a request about a desired end state, and the end
  * state is reached either way; a 401 here would only complicate every caller.
+ *
+ * TAKES NO BODY (F4.5). The academy comes from the `Host` header and the parent
+ * from the cookie, so there is nothing left for a caller to state. The body is
+ * not parsed at all rather than parsed against an empty schema — validating a
+ * shape nobody reads is a prop, and it would reject a plain `POST` with no body,
+ * which is precisely the natural way to call this.
  */
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
-  }
-
-  const parsed = logoutSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
-  }
-
-  const organization = await findOrganizationBySubdomain(parsed.data.subdomain);
+export async function POST(): Promise<NextResponse> {
+  const organization = await servedOrganization();
   if (!organization) {
     return NextResponse.json({ error: "unknown_organization" }, { status: 404 });
   }

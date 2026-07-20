@@ -158,6 +158,23 @@ jobs:
             mc anonymous set download local/saas-boilerplate/public
           "
 
+      # F4.5: the suite drives real tenant hosts (`{sub}.localtest.me`), which is
+      # a PUBLIC DNS name resolving to 127.0.0.1. A runner without DNS egress
+      # would not fail here — it would hang every tenant navigation until
+      # Playwright's timeout, on every affected test, and report a wall of
+      # unrelated-looking timeouts. Fail loudly and early instead.
+      #
+      # Subdomains are minted per test with uniqueId(), so a static /etc/hosts is
+      # NOT a usable fallback; the fallback would be Chromium --host-resolver-rules.
+      - name: Verify wildcard DNS for tenant hosts
+        run: |
+          if ! getent hosts probe.localtest.me > /dev/null; then
+            echo "::error::*.localtest.me does not resolve on this runner."
+            echo "The E2E suite drives tenant hosts by real DNS (see e2e/host-fixtures.ts)."
+            exit 1
+          fi
+          getent hosts probe.localtest.me
+
       - name: Run E2E tests
         run: pnpm test:e2e
 

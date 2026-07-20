@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { findOrganizationBySubdomain } from "@/features/client-auth/organization";
+import { servedOrganization } from "@/features/organizations/served-org";
 import { identityFrom } from "@/features/client-auth/rate-limit";
 import { issueOtp } from "@/features/client-auth/otp";
 import { requestCodeSchema } from "@/features/client-auth/schema";
@@ -11,10 +11,10 @@ import { DEFAULT_LOCALE } from "@/lib/i18n/config";
  * POST /api/client-auth/request-code — email a parent a one-time code
  * (langlion US-4.1 + US-4.5).
  *
- * A REAL ENDPOINT, not a test seam. F3 ships parent authentication complete; only
- * the screens are deferred to F5, where the subdomain middleware lands and the
- * academy stops being a body field (see `features/client-auth/organization.ts`).
- * Nothing below is a placeholder for that phase to replace.
+ * A REAL ENDPOINT, not a test seam. F3 shipped parent authentication complete;
+ * only the screens are deferred to F5. F4.5 then removed the academy from the
+ * body — it now comes from the `Host` header, via `servedOrganization()`.
+ * Nothing below is a placeholder for a later phase to replace.
  *
  * ─── THE RESPONSE IS THE SAME WHATEVER HAPPENED ─────────────────────────────
  *
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  const organization = await findOrganizationBySubdomain(parsed.data.subdomain);
+  const organization = await servedOrganization();
   if (!organization) {
     return NextResponse.json({ error: "unknown_organization" }, { status: 404 });
   }

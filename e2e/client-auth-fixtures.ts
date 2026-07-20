@@ -1,6 +1,7 @@
 import { expect, type APIRequestContext } from "@playwright/test";
 
 import { waitForEmail } from "./helpers";
+import { tenantUrl } from "./host-fixtures";
 
 /**
  * Fixtures for parent authentication (langlion §2.19, plan F3).
@@ -11,6 +12,17 @@ import { waitForEmail } from "./helpers";
  * one could, every test using it would stop proving that a real parent can
  * actually receive a code. Reading the outbox exercises template rendering, job
  * enqueueing and the drain, which is most of the delivery half of US-4.5.
+ *
+ * ─── The academy is in the URL, not in the body (F4.5, closes D39) ──────────
+ *
+ * These used to post `{ subdomain, … }` to a relative path. The production
+ * routes now take the academy from the `Host` header, so the fixtures address
+ * the academy's host instead. `subdomain` stays a PARAMETER of each helper — it
+ * moved from the payload to the URL, which is exactly the change production
+ * made, so these still mirror the real contract.
+ *
+ * The `/api/dev/client-auth` helpers at the bottom are deliberately NOT changed:
+ * see the note there.
  */
 
 export interface OtpState {
@@ -24,20 +36,23 @@ export interface OtpState {
 /** Ask for a code. Returns the raw response so a spec can assert 429s and 404s. */
 export function requestCode(
   request: APIRequestContext,
-  data: { subdomain: string; email: string; name?: string },
+  subdomain: string,
+  data: { email: string; name?: string },
 ) {
-  return request.post("/api/client-auth/request-code", { data });
+  return request.post(tenantUrl(subdomain, "/api/client-auth/request-code"), { data });
 }
 
 export function verifyCode(
   request: APIRequestContext,
-  data: { subdomain: string; email: string; code: string },
+  subdomain: string,
+  data: { email: string; code: string },
 ) {
-  return request.post("/api/client-auth/verify", { data });
+  return request.post(tenantUrl(subdomain, "/api/client-auth/verify"), { data });
 }
 
+/** No body at all — the academy is the host, the parent is the cookie. */
 export function clientLogout(request: APIRequestContext, subdomain: string) {
-  return request.post("/api/client-auth/logout", { data: { subdomain } });
+  return request.post(tenantUrl(subdomain, "/api/client-auth/logout"));
 }
 
 /** Who this request context is signed in as at `subdomain` — null when nobody. */
@@ -45,9 +60,7 @@ export async function clientSessionOf(
   request: APIRequestContext,
   subdomain: string,
 ): Promise<{ id: string; email: string; isVerified: boolean } | null> {
-  const res = await request.get(
-    `/api/client-auth/session?subdomain=${encodeURIComponent(subdomain)}`,
-  );
+  const res = await request.get(tenantUrl(subdomain, "/api/client-auth/session"));
   expect(res.ok(), `session lookup failed: ${await res.text()}`).toBe(true);
   const body = (await res.json()) as {
     client: { id: string; email: string; isVerified: boolean } | null;
@@ -77,10 +90,21 @@ export async function issueAndReadCode(
   subdomain: string,
   email: string,
 ): Promise<string> {
-  const res = await requestCode(request, { subdomain, email });
+  const res = await requestCode(request, subdomain, { email });
   expect(res.ok(), `request-code failed: ${await res.text()}`).toBe(true);
   return readOtpCode(request, email);
 }
+
+/*
+ * ─── The two helpers below stay on `?subdomain=` DELIBERATELY ───────────────
+ *
+ * `/api/dev/client-auth` is a CROSS-TENANT diagnostic: a fixture standing on any
+ * host must be able to inspect any academy — most of all in the isolation tests,
+ * where the whole question is what academy B looks like from outside. Deriving
+ * its tenant from the Host would force those tests to open a context per academy
+ * just to read counters, and would blind the tool to the thing it exists to
+ * diagnose. An asymmetry on purpose, not an oversight.
+ */
 
 /** Row-level state the production API deliberately does not expose. */
 export async function otpState(

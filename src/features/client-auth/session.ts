@@ -34,16 +34,18 @@ import {
  *
  * ─── ONE COOKIE NAME, NOT ONE PER ORGANIZATION ──────────────────────────────
  *
- * The name is fixed and the organization lives on the row. That keeps the cookie
- * contract identical before and after the subdomain middleware (F5), where
- * per-host scoping arrives on its own and this file does not change.
+ * The name is fixed and the organization lives on the row. The bet was that this
+ * keeps the cookie contract identical before and after the subdomain middleware,
+ * with per-host scoping arriving on its own. F4.5 collected: academies now live
+ * on separate hosts, the browser keeps one cookie per host by default, and THIS
+ * FILE DID NOT CHANGE.
  *
- * The cost, until then: on a shared host, signing in to Academy B overwrites the
- * cookie for Academy A, so one browser holds one academy at a time. That is a dev
- * and E2E wrinkle rather than a production one — under real subdomains the two
- * cookies are separate by host — and it is not an isolation hole either way,
- * because `resolveClientSession` looks the token up inside the served tenant and
- * a foreign cookie finds no row.
+ * The interim cost is also gone. Signing in to Academy B used to overwrite the
+ * cookie for Academy A, because both sat on one host — so a browser held one
+ * academy at a time. It now holds as many as it visits, which is asserted in
+ * `e2e/langlion-subdomain-routing.spec.ts`. It was never an isolation hole
+ * either way: `resolveClientSession` looks the token up inside the served tenant,
+ * so a foreign cookie finds no row.
  */
 
 export interface ClientPrincipal {

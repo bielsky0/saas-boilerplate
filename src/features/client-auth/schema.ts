@@ -12,16 +12,15 @@ import { OTP_LENGTH } from "./config";
  * sentence, one of which nobody renders.
  */
 
-/**
- * The academy being addressed.
+/*
+ * ─── THE ACADEMY IS NO LONGER A FIELD (F4.5, closes D39) ────────────────────
  *
- * A field TODAY, the `Host` header AFTER the subdomain middleware (F5) — see
- * `./organization.ts` for why the public subdomain is the right currency for this
- * either way. Bounds only; the value is looked up, never interpolated anywhere,
- * so a stricter DNS-label regex here would duplicate `subdomainSchema` without
- * changing any outcome.
+ * These schemas used to carry a `subdomain`. The tenant now comes from the
+ * `Host` header — resolved in `src/proxy.ts`, read via `servedOrganization()` —
+ * so a caller cannot name an academy other than the one it addressed. Removing
+ * the field rather than accepting-and-ignoring it is the point: an ignored field
+ * reads like a supported one to anyone writing a client against these routes.
  */
-const subdomain = z.string().trim().toLowerCase().min(1).max(63);
 
 /**
  * Lowercased, exactly as `client.email` is stored — the pair
@@ -31,7 +30,6 @@ const subdomain = z.string().trim().toLowerCase().min(1).max(63);
 const email = z.email().trim().toLowerCase();
 
 export const requestCodeSchema = z.object({
-  subdomain,
   email,
   /**
    * Carried through to the US-4.1 upsert. Optional for the same reason it is
@@ -44,7 +42,6 @@ export const requestCodeSchema = z.object({
 });
 
 export const verifyCodeSchema = z.object({
-  subdomain,
   email,
   /**
    * Digits only, exact length — the shape `generateCode` produces. A malformed
@@ -58,7 +55,12 @@ export const verifyCodeSchema = z.object({
     .regex(new RegExp(`^\\d{${OTP_LENGTH}}$`)),
 });
 
-export const logoutSchema = z.object({ subdomain });
+/*
+ * `logoutSchema` is GONE, not emptied. With the subdomain removed it had no
+ * fields left, and a `z.object({})` on a route that reads nothing from the body
+ * is a prop that looks like validation. Logout now takes no body at all — see
+ * the route.
+ */
 
 export type RequestCodeInput = z.infer<typeof requestCodeSchema>;
 export type VerifyCodeInput = z.infer<typeof verifyCodeSchema>;

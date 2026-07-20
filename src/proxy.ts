@@ -17,6 +17,8 @@ import { createLogger, REQUEST_ID_HEADER, normalizeRequestId } from "@/lib/logge
 import { isMetadataImageRoute, isPublicPage } from "@/lib/public-routes";
 import { buildCsp, CSP_HEADER, NONCE_HEADER } from "@/lib/security/csp";
 import { rateLimitHeaders, rateLimitKey, tierFor, TIERS } from "@/lib/security/rate-limit";
+import { type HostContext, ORG_SUBDOMAIN_HEADER, parseHost } from "@/lib/tenant-host";
+import { reservedPrefixOf } from "@/features/cms/reserved-slugs";
 
 /**
  * Route guard (spec 2.5) + locale routing (spec 16) + request-id minting
@@ -70,6 +72,27 @@ import { rateLimitHeaders, rateLimitKey, tierFor, TIERS } from "@/lib/security/r
  * The four CONSTANT security headers are not here at all; they are in
  * next.config.ts, which also covers the dot-paths this proxy's matcher skips.
  * See src/lib/security/csp.ts for why that split exists.
+ *
+ * ─── Host resolution, the fourth concern (langlion §2.27, F4.5) ──────────────
+ *
+ * Academies live at `{subdomain}.langlion.pl`, so the tenant is in the `Host`
+ * header. This file PARSES that header and publishes the label inward; it does
+ * NOT look the organization up. That split is deliberate (D54): the paragraph at
+ * the top of this file promises a guard that is fast and edge-safe with no DB,
+ * and a lookup here would spend a database round-trip on every request the
+ * matcher touches — including the apex, where no academy exists at all. Next's
+ * own documentation says the same independently ("Proxy is not intended for slow
+ * data fetching"). Whether the academy EXISTS is answered by the request layer,
+ * via `servedOrganization()`.
+ *
+ * Consequence, stated plainly because it reads as a gap until you see it is the
+ * design: this file cannot tell a real academy from a typo. Both forward, and
+ * the unknown one 404s downstream (D57).
+ *
+ * The publication itself is in `forward()` rather than in the flow, for exactly
+ * the reason the CSP is: the metadata-image escape is the FIRST return in this
+ * function, and an academy's OG card is precisely a request that needs the
+ * tenant. A step in the flow would miss it.
  */
 
 /** Only used by RATE_LIMIT_MODE=report-only; the enforce path answers, it does not narrate. */
@@ -177,11 +200,20 @@ function withCsp(response: NextResponse, nonce: string): NextResponse {
  *
  * The response header is not decoration either: it is how a client — including
  * the E2E suite — correlates what it saw with what the server logged.
+ *
+ * ⚠️ `host` IS REQUIRED, NOT OPTIONAL, ON PURPOSE. Every call site must state
+ * it, so adding a new exit from this file cannot silently forward a request with
+ * no tenant. That matters most for the earliest exit: `/api/client-auth/*` leaves
+ * via `isPublicApiPath` before the locale block, and those four routes now derive
+ * their organization from this header alone. Publish it anywhere but here and all
+ * four answer 404 `unknown_organization` — a failure that looks like a database
+ * problem and is really a header problem.
  */
 function forward(
   request: NextRequest,
   requestId: string,
   nonce: string,
+  host: HostContext,
   locale?: Locale,
   rateHeaders?: Record<string, string>,
 ): NextResponse {
@@ -190,6 +222,24 @@ function forward(
   // On the CLONE, per the warning above — a fresh Headers here would strip the
   // cookie and log out every user, which is the exact bug this comment prevents.
   requestHeaders.set(NONCE_HEADER, nonce);
+  /*
+   * ⚠️ DELETE BEFORE SET, AND UNCONDITIONALLY (D56).
+   *
+   * The clone above copies the CLIENT's headers, so a caller can put anything it
+   * likes in these two. `x-org-subdomain` is an authority argument for every
+   * downstream reader — it names the tenant — so a conditional set would let a
+   * request to the apex, or to academy A, be served as academy B by asking. The
+   * delete must sit outside the branch: an `else` would still leave the spoofed
+   * value in place on the branch that matters.
+   *
+   * LOCALE_HEADER has always had this shape and gets the same treatment now. It
+   * was a cosmetic hole rather than an isolation one (worst case: an answer in
+   * the wrong language), but it is the same mistake, and leaving one of the two
+   * conditional is how the next reader concludes the pattern is optional.
+   */
+  requestHeaders.delete(ORG_SUBDOMAIN_HEADER);
+  requestHeaders.delete(LOCALE_HEADER);
+  if (host.kind === "tenant") requestHeaders.set(ORG_SUBDOMAIN_HEADER, host.subdomain);
   if (locale) requestHeaders.set(LOCALE_HEADER, locale);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set(REQUEST_ID_HEADER, requestId);
@@ -250,6 +300,31 @@ function isServerAction(request: NextRequest): boolean {
   return request.method === "POST" && request.headers.has("next-action");
 }
 
+/**
+ * Same path, on the platform apex (D60).
+ *
+ * The ONLY place in this file that deliberately changes the host. Every other
+ * redirect is built against `request.url` and therefore follows the incoming
+ * Host by itself — which is what we want everywhere else, and precisely what we
+ * do not want here.
+ *
+ * Built from `APP_ROOT_DOMAIN` rather than `NEXT_PUBLIC_APP_URL`: the latter is
+ * inlined at build time (see src/lib/site.ts), so one image could only ever redirect
+ * to one domain.
+ *
+ * Protocol AND PORT come from the incoming request. `APP_ROOT_DOMAIN` is a bare
+ * domain, so dropping the port would send dev and E2E from
+ * `acme.localtest.me:3000` to `localtest.me:80` — nothing listening, and a
+ * connection-refused that looks nothing like a routing decision. In production
+ * the port is empty and this contributes nothing, which is why it is easy to
+ * omit and only ever breaks the environment you develop in.
+ */
+function apexUrl(request: NextRequest, pathname: string, search: string): URL {
+  const { protocol, port } = request.nextUrl;
+  const host = port ? `${env.APP_ROOT_DOMAIN}:${port}` : env.APP_ROOT_DOMAIN;
+  return new URL(`${protocol}//${host}${pathname}${search}`);
+}
+
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
   const requestId = normalizeRequestId(request.headers.get(REQUEST_ID_HEADER));
@@ -265,6 +340,13 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
    * preference rather than a constraint; there is no reason to change it.
    */
   const nonce = btoa(crypto.randomUUID());
+  /*
+   * Which academy was addressed (langlion §2.27). Parsed here, next to the other
+   * two per-request values, because `forward()` publishes it and the first
+   * `forward()` is the metadata-image escape immediately below. Decides nothing
+   * on its own — see this file's header for why the lookup is not here.
+   */
+  const host = parseHost(request.headers.get("host"), env.APP_ROOT_DOMAIN);
 
   /*
    * ORDER IS THE DESIGN. Metadata images first, before anything can prefix them.
@@ -277,7 +359,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
    * page. See `isMetadataImageRoute` in public-routes.ts.
    */
   if (isMetadataImageRoute(pathname)) {
-    return forward(request, requestId, nonce);
+    return forward(request, requestId, nonce, host);
   }
 
   /*
@@ -310,8 +392,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   }
 
   // Non-session-authenticated API routes: signature, bearer token or HMAC.
+  // `/api/client-auth/*` leaves HERE and reads the tenant from the header
+  // `forward` publishes — see the warning on that function.
   if (isPublicApiPath(pathname)) {
-    return forward(request, requestId, nonce, undefined, rateHeaders);
+    return forward(request, requestId, nonce, host, undefined, rateHeaders);
   }
 
   const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value ?? null;
@@ -355,8 +439,69 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     bare = stripLocale(pathname);
   }
 
+  /*
+   * Tenant-host routing (langlion §2.27, F4.5). ORDER IS THE DESIGN a fourth
+   * time, and every neighbour is load-bearing:
+   *
+   *   - AFTER the locale block, because it branches on `bare`. Run any earlier
+   *     and `/pl/o-nas` reads as a CMS page called `pl`.
+   *   - AFTER rate limiting, for the reason stated there about `isPublicApiPath`:
+   *     the anonymous surface is the one most in need of counting, and CMS pages
+   *     are the largest anonymous surface this product will have. Branching above
+   *     the limiter would lift every academy's public site out of it.
+   *   - BEFORE `isPublicBarePage`. THIS IS THE ONE THAT DECIDES THE POSITION.
+   *     `/` is in PUBLIC_PAGE_ROUTES as the marketing landing, but on an academy
+   *     host `/` is that academy's home page (a `page` row with an empty slug —
+   *     CMS spec §4, decision 8). The other order serves langlion's marketing
+   *     site from every academy's bare subdomain.
+   *   - BEFORE default-deny, because CMS pages are public by definition. Behind
+   *     the guard, a product whose entire point is that a parent sees it without
+   *     an account would answer 307 /login.
+   */
+  if (host.kind === "tenant") {
+    const reserved = reservedPrefixOf(bare);
+    if (!reserved) {
+      // Not a route the app router owns → this academy's CMS page. Forward and
+      // let the request layer resolve the tenant and the slug; an unknown
+      // academy or an unknown page both 404 there (D57).
+      return forward(request, requestId, nonce, host, locale, rateHeaders);
+    }
+    if (reserved.stage === "apex") {
+      /*
+       * Staff surface, which F4.5 deliberately left on the apex (D60). Without
+       * this hop, `/dashboard` on an academy host would fall through to
+       * default-deny and redirect to `/login` ON THIS HOST — where the Better
+       * Auth cookie is host-scoped and BETTER_AUTH_URL names the apex. That is a
+       * login loop, and nothing in it says why.
+       *
+       * F4.6 turns this off by flipping those prefixes to "tenant".
+       */
+      return redirectTo(apexUrl(request, pathname, search), requestId, nonce);
+    }
+    // stage === "tenant": an app route that belongs on this host. Fall through.
+  } else {
+    /*
+     * The mirror image, on the apex (D60). A "tenant"-stage prefix names a route
+     * that only means something inside an academy: `/zapisy/...` is a signup
+     * page for a specific academy's offer, and there is no academy here.
+     *
+     * Without this branch it falls to default-deny and answers 307 to /login —
+     * telling an anonymous visitor to authenticate into a page that would still
+     * not exist afterwards. 404 is the honest answer, and it is the same one an
+     * unknown academy gets (D57).
+     *
+     * `api` is excluded: /api routes are host-agnostic plumbing, several are
+     * legitimately apex-only (billing webhooks, cron, dev seeding), and the ones
+     * that do need a tenant already answer `unknown_organization` themselves.
+     */
+    const reserved = reservedPrefixOf(bare);
+    if (reserved?.stage === "tenant" && reserved.prefix !== "api") {
+      return forward(request, requestId, nonce, host, locale, rateHeaders);
+    }
+  }
+
   if (isPublicBarePage(bare)) {
-    return forward(request, requestId, nonce, locale, rateHeaders);
+    return forward(request, requestId, nonce, host, locale, rateHeaders);
   }
 
   const hasSession = Boolean(getSessionCookie(request));
@@ -368,7 +513,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return redirectTo(loginUrl, requestId, nonce);
   }
 
-  return forward(request, requestId, nonce, locale, rateHeaders);
+  return forward(request, requestId, nonce, host, locale, rateHeaders);
 }
 
 export const config = {

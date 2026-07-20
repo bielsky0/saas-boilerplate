@@ -6,20 +6,19 @@ import { organization } from "@/lib/db/schema";
 /**
  * Which academy is being served (langlion §2.27, rewizja 15.1).
  *
- * ─── THIS IS THE SEAM THE SUBDOMAIN MIDDLEWARE WILL PLUG INTO ───────────────
+ * ─── THE SUBDOMAIN MIDDLEWARE IS NOW PLUGGED IN (F4.5) ──────────────────────
  *
- * The destination is `{organization.subdomain}.langlion.pl`, where the tenant
- * comes from the `Host` header and no caller states it. That middleware is F5
- * work — it also has to route CMS pages, own the reserved-slug list, and move
- * `/orgs/[slug]/…` to `/dashboard/…` — and it is explicitly NOT a dependency of
- * this phase.
+ * The seam closed as designed. The subdomain used to arrive as a request field
+ * (D39); it now comes from the `Host` header, resolved by `src/proxy.ts` and
+ * read by `features/organizations/served-org.ts`, which is this function's only
+ * caller of consequence. Betting on the PUBLIC subdomain rather than a raw
+ * `organizationId` paid off exactly as intended: the change was deleting a field
+ * from four route contracts. Nothing below this line moved.
  *
- * So the subdomain arrives from the caller for now. The value being the PUBLIC
- * subdomain rather than a raw `organizationId` is the point: it is the same
- * string the Host header will yield, so F5 changes where the string comes from
- * and nothing about what happens after. A route taking an `organizationId` would
- * instead have to be rewritten, and clients would have learned to pass an
- * internal id.
+ * This function is no longer really client-auth's — it is the tenant lookup, and
+ * `features/organizations/` is where it belongs. It stays here through F4.5 so
+ * the routing diff is reviewable; move it in F4.6, when that layer is already
+ * being disturbed.
  *
  * NO RLS BYPASS IS INVOLVED, and that is structural rather than lucky:
  * `organization` is one of the two tables deliberately outside RLS, because a

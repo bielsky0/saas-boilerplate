@@ -13,6 +13,7 @@ import {
 } from "./client-auth-fixtures";
 import { registerViaApi, seedOrgFull, uniqueEmail } from "./helpers";
 import { uniqueId } from "./billing-fixtures";
+import { uniqueSubdomain } from "./host-fixtures";
 
 /**
  * Parent identity: the `client` entity, its OTP, and its session (plan Faza 3).
@@ -35,7 +36,15 @@ import { uniqueId } from "./billing-fixtures";
  * `/api/client-auth/*` routes and not a fixture.
  */
 
-/** An academy with a subdomain no parallel worker can collide with. */
+/**
+ * An academy with a subdomain no parallel worker can collide with.
+ *
+ * ⚠️ `subdomain` is passed EXPLICITLY from `uniqueSubdomain`, not defaulted from
+ * `slug` (F4.5). `uniqueId` joins with underscores, which is not a legal DNS
+ * label — such a host parses as `foreign`, carries no tenant, and 404s
+ * everything. The slug keeps using `uniqueId` because it is a path segment, not
+ * a hostname; the two identifiers answer to different rules (§2.27, D10).
+ */
 async function seedAcademy(
   request: APIRequestContext,
   prefix: string,
@@ -46,6 +55,7 @@ async function seedAcademy(
     ownerEmail,
     name: `${prefix} Academy`,
     slug: uniqueId(prefix),
+    subdomain: uniqueSubdomain(prefix),
   });
   return { subdomain, orgId };
 }
@@ -68,7 +78,7 @@ test("a new address gets a code, and redeeming it creates a verified client with
   expect(issued.isVerified, "unverified until the code is redeemed").toBe(false);
   expect(issued.liveSessions).toBe(0);
 
-  const res = await verifyCode(request, { subdomain, email, code });
+  const res = await verifyCode(request, subdomain, { email, code });
   expect(res.ok(), await res.text()).toBe(true);
 
   // US-4.5/AC1: the flip that US-4.2/AC1 later gates the shortened signup on.
@@ -99,10 +109,10 @@ test("the same address at two academies is two unrelated parents, and neither co
 
   // A code minted at A is not merely wrong at B — the row is invisible to B's
   // tenant-scoped query, which is what `withTenant` + RLS buy here.
-  const crossed = await verifyCode(request, { subdomain: b.subdomain, email, code: codeA });
+  const crossed = await verifyCode(request, b.subdomain, { email, code: codeA });
   expect(crossed.status()).toBe(401);
 
-  const okAtA = await verifyCode(request, { subdomain: a.subdomain, email, code: codeA });
+  const okAtA = await verifyCode(request, a.subdomain, { email, code: codeA });
   expect(okAtA.ok(), "the same code still works where it was issued").toBe(true);
 
   // One browser, one cookie: signed in at A, a stranger at B.
@@ -121,9 +131,9 @@ test("a code is single-use", async ({ request }) => {
 
   const code = await issueAndReadCode(request, subdomain, email);
 
-  expect((await verifyCode(request, { subdomain, email, code })).ok()).toBe(true);
+  expect((await verifyCode(request, subdomain, { email, code })).ok()).toBe(true);
 
-  const second = await verifyCode(request, { subdomain, email, code });
+  const second = await verifyCode(request, subdomain, { email, code });
   expect(second.status(), "a redeemed code is dead").toBe(401);
 
   // The refusal is a refusal, not a second session issued alongside the first.
@@ -150,8 +160,8 @@ test("two simultaneous redemptions of one code produce exactly one session", asy
    * particular one would be asserting on scheduling.
    */
   const [first, second] = await Promise.all([
-    verifyCode(request, { subdomain, email, code }),
-    verifyCode(request, { subdomain, email, code }),
+    verifyCode(request, subdomain, { email, code }),
+    verifyCode(request, subdomain, { email, code }),
   ]);
 
   const statuses = [first.status(), second.status()].sort();
@@ -169,7 +179,7 @@ test("a code expires", async ({ request }) => {
   const code = await issueAndReadCode(request, subdomain, email);
   expect(await expireCodes(request, subdomain, email)).toBe(1);
 
-  const res = await verifyCode(request, { subdomain, email, code });
+  const res = await verifyCode(request, subdomain, { email, code });
   expect(res.status()).toBe(401);
   expect((await otpState(request, subdomain, email)).liveSessions).toBe(0);
 });
@@ -182,7 +192,7 @@ test("requesting a new code kills the previous one", async ({ request }) => {
 
   // A resend must not WIDEN the set of working codes — otherwise every resend
   // makes guessing cheaper, which is backwards.
-  const resend = await requestCode(request, { subdomain, email });
+  const resend = await requestCode(request, subdomain, { email });
   expect(resend.ok()).toBe(true);
   await expect
     .poll(async () => (await otpState(request, subdomain, email)).codes.total)
@@ -192,8 +202,8 @@ test("requesting a new code kills the previous one", async ({ request }) => {
   expect(secondCode).not.toBe(firstCode);
   expect((await otpState(request, subdomain, email)).codes.live, "only the newest is live").toBe(1);
 
-  expect((await verifyCode(request, { subdomain, email, code: firstCode })).status()).toBe(401);
-  expect((await verifyCode(request, { subdomain, email, code: secondCode })).ok()).toBe(true);
+  expect((await verifyCode(request, subdomain, { email, code: firstCode })).status()).toBe(401);
+  expect((await verifyCode(request, subdomain, { email, code: secondCode })).ok()).toBe(true);
 });
 
 test("wrong guesses are counted on the row and burn the code at the cap", async ({ request }) => {
@@ -206,7 +216,7 @@ test("wrong guesses are counted on the row and burn the code at the cap", async 
   // OTP_MAX_ATTEMPTS is 5. This cap lives in the UPDATE rather than in the rate
   // limiter because the limiter fails open — see features/client-auth/config.ts.
   for (let i = 0; i < 5; i++) {
-    expect((await verifyCode(request, { subdomain, email, code: wrong })).status()).toBe(401);
+    expect((await verifyCode(request, subdomain, { email, code: wrong })).status()).toBe(401);
   }
 
   const burned = await otpState(request, subdomain, email);
@@ -214,7 +224,7 @@ test("wrong guesses are counted on the row and burn the code at the cap", async 
 
   // The REAL code is now dead too. That is the intended cost of the cap: a
   // guessed-at code is spent, and the parent asks for a new one.
-  expect((await verifyCode(request, { subdomain, email, code })).status()).toBe(401);
+  expect((await verifyCode(request, subdomain, { email, code })).status()).toBe(401);
 });
 
 test("code requests are rate limited per address", async ({ request }) => {
@@ -225,10 +235,10 @@ test("code requests are rate limited per address", async ({ request }) => {
   // values (see rate-limit-fixtures) — the isolation comes from the per-test
   // bucket, not from a relaxed limit.
   for (let i = 0; i < 5; i++) {
-    expect((await requestCode(request, { subdomain, email })).ok()).toBe(true);
+    expect((await requestCode(request, subdomain, { email })).ok()).toBe(true);
   }
 
-  const blocked = await requestCode(request, { subdomain, email });
+  const blocked = await requestCode(request, subdomain, { email });
   expect(blocked.status()).toBe(429);
   // §22.3: the response must say when to retry, not merely refuse.
   expect(Number(blocked.headers()["retry-after"])).toBeGreaterThan(0);
@@ -239,7 +249,7 @@ test("logging out revokes the session server-side, not just the cookie", async (
   const email = uniqueEmail("parent");
 
   const code = await issueAndReadCode(request, subdomain, email);
-  expect((await verifyCode(request, { subdomain, email, code })).ok()).toBe(true);
+  expect((await verifyCode(request, subdomain, { email, code })).ok()).toBe(true);
   expect((await otpState(request, subdomain, email)).liveSessions).toBe(1);
 
   expect((await clientLogout(request, subdomain)).ok()).toBe(true);
@@ -254,9 +264,9 @@ test("an unknown academy is a 404, and a malformed request a 400", async ({ requ
   const { subdomain } = await seedAcademy(request, "otp-shape");
   const email = uniqueEmail("parent");
 
-  expect((await requestCode(request, { subdomain: "no-such-academy", email })).status()).toBe(404);
-  expect((await verifyCode(request, { subdomain, email, code: "12345" })).status()).toBe(400);
-  expect((await verifyCode(request, { subdomain, email, code: "abcdef" })).status()).toBe(400);
+  expect((await requestCode(request, "no-such-academy", { email })).status()).toBe(404);
+  expect((await verifyCode(request, subdomain, { email, code: "12345" })).status()).toBe(400);
+  expect((await verifyCode(request, subdomain, { email, code: "abcdef" })).status()).toBe(400);
 
   const noBody = await request.post("/api/client-auth/request-code", { data: { subdomain } });
   expect(noBody.status()).toBe(400);
