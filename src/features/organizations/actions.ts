@@ -17,13 +17,14 @@ import { storedLocaleForEmail, toLocale } from "@/lib/i18n/user-locale";
 import type { FormState } from "@/lib/validation";
 import { withTenant } from "@/lib/db/tenant";
 import { apexUrl } from "@/lib/tenant-url";
-import { getInvitationByTokenHash } from "./cross-tenant";
+import { getInvitationByTokenHash, hashHandoffToken } from "./cross-tenant";
 import { requireOrgPermission, requireOrgsEnabled } from "./context";
 import {
   ensurePersonalAccount,
   getOrgById,
   getPersonalAccountByUserId,
   getUserByEmail,
+  insertHandoff,
   isSlugTaken,
   isSubdomainTaken,
 } from "./data";
@@ -61,6 +62,13 @@ import { resolveUniqueSlug } from "./slug";
 export type ActionState = FormState;
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (spec 3.3)
+
+/**
+ * Plan Faza 5.5 / decyzja D74. A bridge between two requests of the SAME
+ * browser session (apex directory click → tenant host), not a "remember me"
+ * mechanism — minutes, not days.
+ */
+const HANDOFF_TTL_MS = 3 * 60 * 1000;
 
 /** Thrown inside a transaction to abort it and surface a form error instead of a 403. */
 class LastOwnerError extends Error {}
@@ -139,6 +147,7 @@ export async function createOrganizationAction(
   // `randomUUID` anyway, so this changes where the value comes from, not what it
   // is — and it removes a round-trip.
   const organizationId = randomUUID();
+  const handoffRawToken = `${randomUUID()}${randomUUID()}`.replace(/-/g, "");
 
   await withTenant(organizationId, async (tx) => {
     await tx.insert(organization).values({
@@ -167,6 +176,13 @@ export async function createOrganizationAction(
       targetLabel: slug,
       metadata: withImpersonation(session, { name: parsed.data.name }),
     });
+    // Plan Faza 5.5 / decyzja D74 — see the redirect comment below.
+    await insertHandoff(tx, {
+      organizationId,
+      userId: session.user.id,
+      tokenHash: hashHandoffToken(handoffRawToken),
+      expiresAt: new Date(Date.now() + HANDOFF_TTL_MS),
+    });
   });
 
   /*
@@ -178,8 +194,14 @@ export async function createOrganizationAction(
    * user on a login screen seconds after signing in, with nothing on the page
    * explaining why. The apex dashboard instead confirms the academy exists by
    * listing it in the directory, and the user enters it by choosing it.
+   *
+   * `handoff` (Faza 5.5 / D74) rides along on this SAME redirect so the
+   * directory can carry it into the ONE link that leads to this academy — see
+   * `AcademyHome`/directory rendering. It is not a second redirect and not a
+   * new mechanism: apex retention (D71) already stops here, this just hands the
+   * page enough to bridge the click that follows.
    */
-  redirect("/dashboard");
+  redirect(`/dashboard?handoff=${handoffRawToken}`);
 }
 
 // --- Invitations ------------------------------------------------------------
@@ -386,6 +408,7 @@ export async function acceptInvitationAction(
   if (!org) return { error: t("invitationInvalid") };
 
   const actor = await resolveActor(session);
+  const handoffRawToken = `${randomUUID()}${randomUUID()}`.replace(/-/g, "");
 
   // Re-enters tenant context with the org the token resolved to, so both writes
   // below are subject to `membership`/`invitation` WITH CHECK. The only bypass in
@@ -423,11 +446,19 @@ export async function acceptInvitationAction(
       targetLabel: session.user.email,
       metadata: withImpersonation(session, { role: invite.role, invitationId: invite.id }),
     });
+    // Plan Faza 5.5 / decyzja D74 — see the redirect comment below.
+    await insertHandoff(tx, {
+      organizationId: invite.organizationId,
+      userId: session.user.id,
+      tokenHash: hashHandoffToken(handoffRawToken),
+      expiresAt: new Date(Date.now() + HANDOFF_TTL_MS),
+    });
   });
 
   // The apex directory, for the same reason as `createOrganizationAction` above:
-  // the invitee's session does not exist on the academy's host yet.
-  redirect("/dashboard");
+  // the invitee's session does not exist on the academy's host yet. `handoff`
+  // rides the same redirect (Faza 5.5 / D74) — see that function's comment.
+  redirect(`/dashboard?handoff=${handoffRawToken}`);
 }
 
 // --- Member management ------------------------------------------------------

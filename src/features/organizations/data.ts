@@ -2,7 +2,14 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db";
 import type { TenantDb } from "@/lib/db/tenant";
-import { invitation, membership, organization, personalAccount, user } from "@/lib/db/schema";
+import {
+  invitation,
+  membership,
+  organization,
+  personalAccount,
+  staffSessionHandoff,
+  user,
+} from "@/lib/db/schema";
 
 /**
  * Organizations data-access layer (spec 1.3 / 11.2 — tenant-scoped queries).
@@ -216,6 +223,25 @@ export async function listPendingInvitations(tx: TenantDb, organizationId: strin
     .from(invitation)
     .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, "pending")))
     .orderBy(desc(invitation.createdAt));
+}
+
+/**
+ * Mint a staff session handoff token (plan Faza 5.5, decyzja D74).
+ *
+ * Called ONLY from inside the `withTenant` transaction that already created the
+ * organization or the membership — the org is known there, so this needs no
+ * bypass. The caller hashes the raw token before it reaches here (same split as
+ * `invitation`/`client_otp`: the raw value is never persisted).
+ */
+export async function insertHandoff(
+  tx: TenantDb,
+  input: { organizationId: string; userId: string; tokenHash: string; expiresAt: Date },
+) {
+  const [row] = await tx
+    .insert(staffSessionHandoff)
+    .values(input)
+    .returning({ id: staffSessionHandoff.id });
+  return row!;
 }
 
 /*

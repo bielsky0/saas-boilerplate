@@ -65,8 +65,9 @@ test("existing user accepts an invitation", async ({ page, request }) => {
 
   // Accepting lands on the APEX dashboard, not inside the academy (F4.6): the
   // new member's session does not exist on that host yet. The directory listing
-  // is the confirmation that they joined.
-  await page.waitForURL("**/dashboard");
+  // is the confirmation that they joined. `**/dashboard**`, not `**/dashboard`:
+  // the redirect now carries `?handoff=` (Faza 5.5 / D74).
+  await page.waitForURL("**/dashboard**");
   await expect(page.getByRole("link", { name: "Invite Co" })).toBeVisible();
 
   // Entering is a separate sign-in, and the role is visible once inside.
@@ -102,7 +103,7 @@ test("new user registers and accepts an invitation", async ({ page, request }) =
   // Back on the invitation page with a session → accept → join as member, and
   // land on the apex directory (see the note in the sibling test).
   await page.getByRole("button", { name: /accept invitation/i }).click();
-  await page.waitForURL("**/dashboard");
+  await page.waitForURL("**/dashboard**");
   await expect(page.getByRole("link", { name: "Invite Co 2" })).toBeVisible();
 
   await loginToAcademy(page, subdomain, invitee, TEST_PASSWORD);

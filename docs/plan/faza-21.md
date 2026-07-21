@@ -1,0 +1,13 @@
+### Faza 21 — Indywidualne ceny klienta (EPIK 33, v15)
+
+**Status:** nierozpoczęta
+**Cel:** admin przyznaje wynegocjowany rabat konkretnemu klientowi; rabat stosuje się automatycznie i jest widoczny przed zapłatą.
+**Pokrywa:** EPIK 33; §2.31; US-4.2/AC4–AC6; §2.10 (uprawnienie `client_price_override.manage`); Constraint 9 (§1.3).
+**Zależności:** **F5** (ścieżka wyliczania `booking.price_snapshot` dla pojedynczych zajęć) oraz **F12** (pakiety i subskrypcje — rabat obejmuje `product_template.price`, w tym `billing_type=recurring`). Pośrednio F3 (encja `client`).
+**Rozstrzygnięte (2026-07-19, Rozstrzygnięcie #20 spec):** ad-hoc `price_data` na `subscription_item`, `proration_behavior: none`. Nie blokuje już startu fazy.
+**Zakres:** tabela `client_price_override` + RLS wg wzorca z `0015` (grep po katalogu schematu przed dodaniem — ryzyko #7); uprawnienie w statycznej mapie RBAC z wymuszonym `reason`; UI przyznawania **z profilu klienta**, nigdy z `group_type`; wpięcie Constraint 9 w ścieżkę wyliczania ceny — jeden wspólny punkt rozstrzygania dla `booking.price_snapshot` i `credit_purchase.price_paid`, nie dwie równoległe implementacje; wyświetlanie ceny po rabacie na formularzu rejestracji dla rozpoznanego, zweryfikowanego klienta (US-4.2/AC4–AC6); sprawdzenie na żywo przy każdym `invoice.paid` dla subskrypcji; `recordAudit` przy przyznaniu i wyłączeniu; **job synchronizacji ceny subskrypcyjnej** (Rozstrzygnięcie #20), dwa triggery: (a) zmiana `client_price_override`, (b) zmiana `group_type.price`/`product_template.price` dla override'ów `percent_discount` — kolejkowanie per `(client_id, credit_purchase_id)` z `SELECT … FOR UPDATE` na `client_price_override` (Constraint 10); ścieżka Checkoutu początkowego (US-4.2/AC4) budowana od razu przez `price_data`, nigdy przez `product_template.stripe_price_id`, gdy klient ma aktywny override w momencie zakładania subskrypcji.
+**Świadomie poza zakresem:** samoobsługowy wniosek o rabat, kod promocyjny, powiadomienie o wygasającym rabacie (§6 spec).
+**DoD:** e2e: admin przyznaje rabat (zapis bez `reason` odrzucony) → rozpoznany klient widzi cenę po rabacie na formularzu, niezweryfikowany widzi katalogową → `price_snapshot`/`price_paid` zamrażają cenę po rabacie → wyłączenie rabatu nie rusza historii → odnowienie subskrypcji po `valid_until` nalicza cenę katalogową; **zmiana ceny katalogowej synchronizuje `unit_amount` u klientów z aktywnym `percent_discount`, a NIE rusza klientów z `fixed_price`**; **dwie równoczesne zmiany tej samej pary `(client, credit_purchase)` serializują się bez utraty żadnej z nich (Constraint 10)**; AC z EPIK 33 pokryte; suita zielona.
+
+---
+

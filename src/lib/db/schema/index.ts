@@ -98,6 +98,7 @@ export * from "./personal-accounts";
 export * from "./organizations";
 export * from "./memberships";
 export * from "./invitations";
+export * from "./staff-session-handoffs";
 export * from "./billing-customers";
 export * from "./subscriptions";
 export * from "./billing-payments";

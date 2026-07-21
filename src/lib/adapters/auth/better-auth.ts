@@ -1,21 +1,32 @@
 import { eq } from "drizzle-orm";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthEndpoint } from "better-auth/api";
+import { setSessionCookie } from "better-auth/cookies";
 import { nextCookies } from "better-auth/next-js";
+import { z } from "zod";
 import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
 import { mcp } from "better-auth/plugins";
 
 import { enqueueEmail } from "@/features/emails/send";
 import { enqueueNotification } from "@/features/notifications/send";
-import { ensurePersonalAccount, getPersonalAccountByUserId } from "@/features/organizations/data";
+import {
+  consumeStaffSessionHandoff,
+  hashHandoffToken,
+} from "@/features/organizations/cross-tenant";
+import {
+  ensurePersonalAccount,
+  getOrgBySubdomain,
+  getPersonalAccountByUserId,
+} from "@/features/organizations/data";
 import { startOnboardingSequence } from "@/features/onboarding/sequence";
 import { db, schema } from "@/lib/db";
 import { env } from "@/lib/env/server";
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
 import { requestLocale } from "@/lib/i18n/request-locale";
 import { storedLocaleForUser } from "@/lib/i18n/user-locale";
+import { ORG_SUBDOMAIN_HEADER, parseHost } from "@/lib/tenant-host";
 import type {
   AdminAuthAdapter,
   AuthAdapter,
@@ -85,6 +96,122 @@ function isSuperAdminRole(role: string | null | undefined): boolean {
  */
 async function recipientLocale(userId: string): Promise<Locale> {
   return (await storedLocaleForUser(userId)) ?? (await requestLocale()) ?? DEFAULT_LOCALE;
+}
+
+/**
+ * Staff session handoff (plan Faza 5.5, decyzja D74).
+ *
+ * Bridges an ALREADY-authenticated staff session across the one host switch
+ * where the cookie (host-scoped by design, D70) cannot follow: creating an
+ * organization or accepting an invitation lands the user on the apex directory
+ * (D71), and clicking into that academy's own host has never seen their
+ * cookie. `createOrganizationAction`/`acceptInvitationAction` mint the token;
+ * this endpoint is the ONLY place that redeems it.
+ *
+ * A CUSTOM ENDPOINT, NOT A HAND-ROLLED ROUTE HANDLER, because
+ * `ctx.context.internalAdapter.createSession` + `setSessionCookie` is the exact
+ * mechanism the built-in `magic-link` plugin uses to turn a redeemed token into
+ * a session — reusing it means the cookie's name, attributes and signature come
+ * from the same code as every other sign-in, so host-scoping (D70) holds
+ * automatically instead of being re-implemented here.
+ *
+ * ⚠️ PREFETCH SAFETY IS THE FIRST CHECK, BEFORE THE TOKEN IS EVEN LOOKED AT. A
+ * browser speculative prefetch (or a mail/Slack link-scanner) can hit this GET
+ * endpoint before the user's real click, consuming the token and leaving the
+ * genuine click with nothing to redeem — which would look like exactly the bug
+ * this phase fixes. If this request already carries a valid Better Auth session
+ * for THIS host, that means a previous hit already succeeded (prefetch or the
+ * user's own reload), so this request just rides that session to `/dashboard`
+ * and never touches `staff_session_handoff` — the token stays available for
+ * whichever request actually needs it. `Sec-Purpose`/`Purpose: prefetch` is a
+ * second, narrower net for the case a session does not exist yet: prefetches
+ * get a `204` and the token is left untouched.
+ *
+ * Any other outcome (missing/expired/already-consumed token, OR a token
+ * redeemed on a host other than the academy it was minted for) is a QUIET
+ * redirect to `/login` on this same host — never an error page. The user can
+ * always fall back to a normal sign-in, so a broken-looking response would be
+ * a strictly worse outcome than silence.
+ */
+const staffSessionHandoffVerifyQuerySchema = z.object({ token: z.string() });
+
+function staffSessionHandoffPlugin() {
+  return {
+    id: "staff-session-handoff",
+    endpoints: {
+      staffSessionHandoffVerify: createAuthEndpoint(
+        "/staff-handoff/verify",
+        { method: "GET", query: staffSessionHandoffVerifyQuerySchema, requireHeaders: true },
+        async (ctx) => {
+          /*
+           * Origin built from THIS request's own `Host`/`x-forwarded-proto`
+           * headers, NOT `ctx.request.url` or `ctx.context.baseURL` — the
+           * latter is the engine's configured `BETTER_AUTH_URL`, which is
+           * pinned to the APEX (see `E2E_HOST_ENV`'s comment on the same
+           * point). Using it here would redirect every outcome back to the
+           * apex regardless of which academy's host actually served the
+           * request — measured, not assumed, after exactly that redirect
+           * landed on `{apex}/login` instead of the tenant host in testing.
+           */
+          const forwardedProto = ctx.headers?.get("x-forwarded-proto")?.split(",")[0]?.trim();
+          const protocol = forwardedProto ?? (env.NODE_ENV === "production" ? "https" : "http");
+          const requestOrigin = `${protocol}://${ctx.headers?.get("host") ?? ""}`;
+          const redirectTo = (path: string) => new URL(path, requestOrigin).toString();
+
+          // Already signed in on this host (most likely: a prefetch of this
+          // very link already redeemed the token). Ride the existing session,
+          // do not touch the token — see the module-level comment above.
+          const existing = await auth.api.getSession({ headers: ctx.headers });
+          if (existing) {
+            throw ctx.redirect(redirectTo("/dashboard"));
+          }
+
+          const prefetchHeader =
+            ctx.headers?.get("sec-purpose") ?? ctx.headers?.get("purpose") ?? "";
+          if (prefetchHeader.includes("prefetch")) {
+            return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+          }
+
+          const redeemed = await consumeStaffSessionHandoff(hashHandoffToken(ctx.query.token));
+          if (!redeemed) {
+            throw ctx.redirect(redirectTo("/login"));
+          }
+
+          /*
+           * THE TOKEN MUST MATCH THE HOST IT IS BEING REDEEMED ON. Without this,
+           * a token minted for academy A would happily mint a session for
+           * whoever holds it on academy B's host too — `createSession` below has
+           * no other opinion about which organization it is being called from.
+           * Header first (the proxy's `x-org-subdomain`, D56), `Host` as the
+           * fallback for the same reason `servedSubdomain()` has one (D73): this
+           * is the SAME `parseHost` on the SAME input, not a second copy of the
+           * rule, so it is exactly as trustworthy as the header.
+           */
+          const subdomainHeader = ctx.headers?.get(ORG_SUBDOMAIN_HEADER);
+          const servedSubdomain =
+            subdomainHeader ??
+            (() => {
+              const host = parseHost(ctx.headers?.get("host") ?? null, env.APP_ROOT_DOMAIN);
+              return host.kind === "tenant" ? host.subdomain : null;
+            })();
+          const servedOrg = servedSubdomain ? await getOrgBySubdomain(servedSubdomain) : null;
+          if (!servedOrg || servedOrg.id !== redeemed.organizationId) {
+            throw ctx.redirect(redirectTo("/login"));
+          }
+
+          const session = await ctx.context.internalAdapter.createSession(redeemed.userId);
+          if (!session) {
+            throw ctx.redirect(redirectTo("/login"));
+          }
+          await setSessionCookie(ctx, {
+            session,
+            user: (await ctx.context.internalAdapter.findUserById(redeemed.userId))!,
+          });
+          throw ctx.redirect(redirectTo("/dashboard"));
+        },
+      ),
+    },
+  };
 }
 
 export const auth = betterAuth({
@@ -344,6 +471,8 @@ export const auth = betterAuth({
         consentPage: "/oauth/consent",
       },
     }),
+    // Plan Faza 5.5 / decyzja D74 — see the plugin's own header above.
+    staffSessionHandoffPlugin(),
     // nextCookies MUST be last: it applies Set-Cookie from server-action calls
     // (signUpEmail/signInEmail/signOut/impersonateUser) to the Next.js response.
     nextCookies(),

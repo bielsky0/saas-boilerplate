@@ -1,8 +1,21 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
+import { createHash } from "node:crypto";
 
 import { withSystemBypass } from "@/lib/db/system";
-import { invitation, membership, organization } from "@/lib/db/schema";
+import { invitation, membership, organization, staffSessionHandoff } from "@/lib/db/schema";
 import type { OrgSummary } from "./data";
+
+/**
+ * SHA-256 of a raw handoff token (plan Faza 5.5, decyzja D74) — kept here,
+ * not in `./actions.ts`, because every exported value in a `"use server"`
+ * module must be an async Server Action, and this needs to be callable from a
+ * plain Server Component (the apex directory) as a synchronous pure function.
+ * `./actions.ts` mints the token and hashes it with this same function before
+ * the insert, so the two sides never disagree on the hash.
+ */
+export function hashHandoffToken(rawToken: string): string {
+  return createHash("sha256").update(rawToken).digest("hex");
+}
 
 /**
  * The organization reads that cannot be scoped to one tenant (spec §1.3, F1a).
@@ -97,4 +110,77 @@ export async function getInvitationWithValidity(tokenHash: string) {
   const valid =
     invite !== null && invite.status === "pending" && invite.expiresAt.getTime() >= Date.now();
   return { invite, valid };
+}
+
+/**
+ * Which organization a handoff token points at, WITHOUT consuming it (plan
+ * Faza 5.5, decyzja D74).
+ *
+ * A read, not the atomic redemption below — used only by the apex directory
+ * page to decide which ONE academy's link gets `?handoff=` appended. It cannot
+ * create a session and cannot be raced into doing so; the actual redemption
+ * happens once, on the tenant host, via `consumeStaffSessionHandoff`.
+ *
+ * BYPASS: same reason as every other function in this file — the organization
+ * is the output of the token, not an input.
+ */
+export async function peekHandoffOrganizationId(tokenHash: string): Promise<string | null> {
+  return withSystemBypass("staff session handoff — directory link targeting", async (tx) => {
+    const [row] = await tx
+      .select({ organizationId: staffSessionHandoff.organizationId })
+      .from(staffSessionHandoff)
+      .where(
+        and(
+          eq(staffSessionHandoff.tokenHash, tokenHash),
+          isNull(staffSessionHandoff.consumedAt),
+          gt(staffSessionHandoff.expiresAt, new Date()),
+        ),
+      )
+      .limit(1);
+    return row?.organizationId ?? null;
+  });
+}
+
+/**
+ * Redeem a staff session handoff token — ATOMICALLY (plan Faza 5.5, decyzja
+ * D74, following decyzja D38's shape for `consumeOtp`).
+ *
+ * BYPASS: which organization/user this token belongs to is the OUTPUT of this
+ * lookup, exactly like `getInvitationByTokenHash` above — nothing can be named
+ * before the hash resolves.
+ *
+ * ⚠️ DO NOT REFACTOR INTO A SELECT AND AN UPDATE. Every condition that makes a
+ * token redeemable — right hash, not already consumed, not expired — is in the
+ * WHERE clause, so Postgres marks the row consumed in one indivisible step.
+ * Exactly one of two concurrent requests carrying the same token (e.g. a
+ * browser prefetch racing the real click) can match an un-consumed row; the
+ * loser gets `null` back and must not create a second session.
+ *
+ * A `null` return does not distinguish "wrong", "expired" and "already
+ * consumed" — the caller's fallback (a plain login screen) is identical for
+ * all three, so there is nothing a distinction would buy.
+ */
+export async function consumeStaffSessionHandoff(
+  tokenHash: string,
+): Promise<{ organizationId: string; userId: string } | null> {
+  return withSystemBypass(
+    "staff session handoff — org/user unknown until the token resolves",
+    async (tx) => {
+      const [row] = await tx
+        .update(staffSessionHandoff)
+        .set({ consumedAt: new Date() })
+        .where(
+          and(
+            eq(staffSessionHandoff.tokenHash, tokenHash),
+            isNull(staffSessionHandoff.consumedAt),
+            gt(staffSessionHandoff.expiresAt, new Date()),
+          ),
+        )
+        .returning({
+          organizationId: staffSessionHandoff.organizationId,
+          userId: staffSessionHandoff.userId,
+        });
+      return row ?? null;
+    },
+  );
 }

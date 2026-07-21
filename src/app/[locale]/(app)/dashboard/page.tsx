@@ -7,7 +7,11 @@ import { Link } from "@/lib/i18n/navigation";
 import { tenantUrl } from "@/lib/tenant-url";
 import { orgsEnabled, orgsExposed } from "@/lib/tenancy";
 import { isRole } from "@/features/rbac";
-import { listUserOrgs } from "@/features/organizations/cross-tenant";
+import {
+  hashHandoffToken,
+  listUserOrgs,
+  peekHandoffOrganizationId,
+} from "@/features/organizations/cross-tenant";
 import { servedSubdomain } from "@/features/organizations/served-org";
 import AcademyHome from "./academy-home";
 
@@ -30,11 +34,16 @@ export async function generateMetadata(): Promise<Metadata> {
  * confusion shipped once in F4.5 and was caught by hand, not by a test.
  * `requireOrgAccess` inside `AcademyHome` then 404s an unknown academy.
  */
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ handoff?: string }>;
+}) {
   if (await servedSubdomain()) {
     return <AcademyHome />;
   }
-  return <PersonalDashboard />;
+  const { handoff } = await searchParams;
+  return <PersonalDashboard handoffRawToken={handoff} />;
 }
 
 /**
@@ -42,12 +51,26 @@ export default async function DashboardPage() {
  * account. The shared `(app)` layout provides the navbar and the authoritative
  * session guard; this re-reads the session for its own content (spec 4.2).
  */
-async function PersonalDashboard() {
+async function PersonalDashboard({ handoffRawToken }: { handoffRawToken?: string }) {
   const session = await requireSession("/dashboard");
   const t = await getTranslations("dashboard.personal");
   // Skipping the query in `disabled` is not just an optimization: it states that
   // the org table is not consulted at all in that mode (§1.4).
   const orgs = orgsEnabled ? await listUserOrgs(session.user.id) : [];
+
+  /*
+   * Plan Faza 5.5 / decyzja D74. `?handoff=` rides the SAME redirect that
+   * `createOrganizationAction`/`acceptInvitationAction` already issue for apex
+   * retention (D71) — no server-side state beyond the token row itself. A
+   * read-only lookup (never a consume — `peekHandoffOrganizationId`, not
+   * `consumeStaffSessionHandoff`) resolves which ONE organization this token
+   * targets, so the parameter is appended to exactly that academy's link and no
+   * other. A stale/foreign/already-consumed token resolves to `null` and every
+   * link renders exactly as before — the directory never errors on it.
+   */
+  const handoffOrgId = handoffRawToken
+    ? await peekHandoffOrganizationId(hashHandoffToken(handoffRawToken))
+    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -79,7 +102,13 @@ async function PersonalDashboard() {
         })}
       </p>
 
-      {orgs.length > 0 ? <AcademyDirectory orgs={orgs} /> : null}
+      {orgs.length > 0 ? (
+        <AcademyDirectory
+          orgs={orgs}
+          handoffOrgId={handoffOrgId}
+          handoffRawToken={handoffRawToken}
+        />
+      ) : null}
     </div>
   );
 }
@@ -94,14 +123,46 @@ async function PersonalDashboard() {
  * is a directory of separate installations (the Shopify model), not a switcher
  * that changes the active tenant inside one session. Following a link here may
  * well land on that academy's login page, and that is correct, not a regression.
+ *
+ * `handoffOrgId`/`handoffRawToken` (Faza 5.5 / D74): when both are present, the
+ * ONE matching academy's link points at that host's handoff-verify endpoint
+ * instead of straight at `/dashboard`, so the click that follows bridges the
+ * staff session across the host switch. Every other academy's link is
+ * unaffected.
  */
-async function AcademyDirectory({ orgs }: { orgs: Awaited<ReturnType<typeof listUserOrgs>> }) {
+async function AcademyDirectory({
+  orgs,
+  handoffOrgId,
+  handoffRawToken,
+}: {
+  orgs: Awaited<ReturnType<typeof listUserOrgs>>;
+  handoffOrgId: string | null;
+  handoffRawToken?: string;
+}) {
   const [t, tr] = await Promise.all([
     getTranslations("dashboard.personal"),
     getTranslations("organizations.roles"),
   ]);
   const entries = await Promise.all(
-    orgs.map(async (org) => ({ ...org, href: await tenantUrl(org.subdomain, "/dashboard") })),
+    orgs.map(async (org) => {
+      /*
+       * The handoff link points at the Better Auth verify endpoint
+       * (`/api/auth/staff-handoff/verify`), NOT at `/dashboard` directly.
+       * `/dashboard` is guarded by the proxy's default-deny (D67's `"both"`
+       * stage) — an unauthenticated request to it on a host with no session
+       * cookie yet would be redirected to that host's `/login` before any page
+       * code ever saw `?handoff=`, silently losing the token and reproducing
+       * the exact bug this phase fixes. `/api/auth/*` is the one path the
+       * proxy leaves open without a session (`isPublicApiPath` in
+       * `src/proxy.ts`), which is why the token is consumed there and only
+       * THEN redirected to a now-authenticated `/dashboard`.
+       */
+      const href =
+        org.id === handoffOrgId && handoffRawToken
+          ? `${await tenantUrl(org.subdomain, "/api/auth/staff-handoff/verify")}?token=${handoffRawToken}`
+          : await tenantUrl(org.subdomain, "/dashboard");
+      return { ...org, href };
+    }),
   );
 
   // `role` is typed `string` (straight from the column) but the catalog only
