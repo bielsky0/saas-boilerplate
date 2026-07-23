@@ -290,7 +290,7 @@
       "user": {
         "suspend": "Zawieszono użytkownika",
         "unsuspend": "Odblokowano użytkownika",
-        "delete": "Usunięto użytkownika"
+        "delete": "Użytkownik usunięty"
       },
       "organization": {
         "create": "Utworzono organizację",
@@ -322,11 +322,13 @@
       },
       "location": {
         "create": "Dodano lokalizację",
-        "update": "Zaktualizowano lokalizację"
+        "update": "Zaktualizowano lokalizację",
+        "deactivate": "Lokalizacja zdezaktywowana"
       },
       "group_type": {
         "create": "Utworzono typ grupy",
-        "update": "Zaktualizowano typ grupy"
+        "update": "Zaktualizowano typ grupy",
+        "deactivate": "Typ grupy zdezaktywowany"
       },
       "recurrence": {
         "create": "Utworzono wzorzec",
@@ -344,7 +346,8 @@
         "confirm_cash": "Potwierdzono płatność gotówką",
         "mark_attendance": "Oznaczono obecność",
         "cancel": "Anulowano rezerwację",
-        "cancel_admin": "Anulowano rezerwację (admin)"
+        "cancel_admin": "Anulowano rezerwację (admin)",
+        "mass_move": "Przeniesiono uczestników"
       },
       "grade_field": {
         "create": "Utworzono pole oceny",
@@ -355,6 +358,16 @@
       },
       "progress_note": {
         "create": "Dodano notatkę o postępach"
+      },
+      "trainer": {
+        "deactivate": "Trener zdezaktywowany"
+      },
+      "credit_type": {
+        "deactivate": "Typ kredytu zdezaktywowany"
+      },
+      "session": {
+        "reassign_trainer": "Zmieniono trenera w sesji",
+        "mass_reassign_trainer": "Masowa zmiana trenera"
       }
     }
   },
@@ -638,7 +651,11 @@
     "errors": {
       "generic": "Nie udało się zapisać lokalizacji.",
       "notFound": "Ta lokalizacja już nie istnieje."
-    }
+    },
+    "deactivate": "Dezaktywuj",
+    "deactivating": "Dezaktywowanie…",
+    "deactivated": "Lokalizacja dezaktywowana.",
+    "deactivateWarning": "Przyszłe sesje w tej lokalizacji: {count, plural, one {#} few {#} many {#} other {#}}."
   },
   "groups": {
     "validation": {
@@ -765,7 +782,15 @@
       "4": "Czwartek",
       "5": "Piątek",
       "6": "Sobota"
-    }
+    },
+    "deactivate": "Dezaktywuj",
+    "deactivating": "Dezaktywowanie…",
+    "deactivated": "Typ grupy dezaktywowany.",
+    "deactivateBlocked": "Nie można dezaktywować — typ grupy jest nadal w użyciu.",
+    "deactivateConfirm": "Czy na pewno chcesz dezaktywować ten typ grupy? Istniejące sesje i rezerwacje pozostaną nietknięte.",
+    "deactivateReason": "(opcjonalnie) Powód dezaktywacji",
+    "hasActiveRecurrences": "Aktywne wzorce cykliczne ({count})",
+    "hasFutureSessions": "Przyszłe nieodbyte sesje ({count})"
   },
   "schedule": {
     "validation": {
@@ -800,7 +825,7 @@
     "errors": {
       "generic": "Nie udało się zaktualizować sesji.",
       "notFound": "Ta sesja już nie istnieje.",
-      "trainerConflict": "Trener ma już sesję nakładającą się na tę."
+      "trainerConflict": "Ten trener ma wtedy kolizję w grafiku."
     },
     "cancelSession": "Odwołaj sesję",
     "cancellingSession": "Odwoływanie…",
@@ -817,7 +842,29 @@
       "end": "Koniec",
       "capacityHint": "Podniesienie to jedyny sposób przyjęcia dodatkowego uczestnika."
     },
-    "roster": "Uczestnicy"
+    "roster": "Uczestnicy",
+    "substituteTrainer": "Zmień trenera",
+    "substituting": "Zmiana trenera…",
+    "trainerSubstituted": "Trener zmieniony.",
+    "substituteConflict": "Ten trener ma wtedy kolizję w grafiku.",
+    "newTrainer": "Nowy trener",
+    "noTrainerOption": "Bez trenera",
+    "massReassign": "Masowa zmiana trenera",
+    "massReassigning": "Zmiana trenera…",
+    "massReassigned": "Masowa zmiana trenera zakończona.",
+    "massReassignReport": "Zaktualizowano {updated}, pominięto {skipped}.",
+    "massReassignConfirm": "Przenieś wszystkie przyszłe sesje bieżącego trenera na nowego.",
+    "fromTrainer": "Z trenera",
+    "targetTrainer": "Na trenera",
+    "massMoveBookings": "Przenieś uczestników",
+    "massMoveBookingsDesc": "Zamiast przyznawać kredyty, przenieś wszystkich uczestników na inną sesję tego samego typu grupy.",
+    "massMoving": "Przenoszenie…",
+    "bookingsMoved": "Uczestnicy przeniesieni.",
+    "massMoveReport": "Przeniesiono {moved}, nie zmieściło się {failed}.",
+    "needsManualIntervention": "Wymaga ręcznej interwencji",
+    "targetSession": "Sesja docelowa",
+    "massMoveNoTargets": "Brak dostępnych sesji docelowych tego samego typu grupy.",
+    "trainerCollision": "Kolizja trenera"
   },
   "clients": {
     "validation": {
@@ -954,7 +1001,8 @@
       "source": "Źródło",
       "validUntil": "Ważny do",
       "reason": "Powód"
-    }
+    },
+    "deactivated": "Typ kredytu dezaktywowany"
   },
   "staffPanel": {
     "title": "Sesje",

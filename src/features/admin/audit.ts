@@ -238,6 +238,7 @@ export type AuditTargetType =
   // langlion domain entities (§1.2).
   | "location"
   | "group_type"
+  | "credit_type"
   | "recurrence"
   | "class_session"
   /**

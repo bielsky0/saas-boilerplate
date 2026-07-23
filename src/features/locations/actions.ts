@@ -10,6 +10,7 @@ import { location } from "@/lib/db/schema";
 import { withTenant } from "@/lib/db/tenant";
 import type { FormState } from "@/lib/validation";
 import { createLocationSchema } from "./schema";
+import { LocationNotFoundError, deactivateLocation } from "./deactivate";
 
 /**
  * Location server actions (langlion §2.12, EPIK 22 — admin half).
@@ -146,4 +147,34 @@ export async function updateLocationAction(
 
   revalidatePath(`/dashboard/locations`);
   return { success: t("updated") };
+}
+
+export async function deactivateLocationAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const locationId = str(formData.get("locationId"));
+  const ctx = await requireOrgPermission("locations.manage");
+  const t = await getTranslations("locations");
+
+  const actor = await resolveActor(ctx.session);
+
+  try {
+    const result = await withTenant(ctx.org.id, (tx) =>
+      deactivateLocation(tx, {
+        organizationId: ctx.org.id,
+        locationId,
+        actor,
+      }),
+    );
+
+    revalidatePath(`/dashboard/locations`);
+    if (result.affectedSessions > 0) {
+      return { success: t("deactivated") + " (" + t("deactivateWarning", { count: result.affectedSessions }) + ")" };
+    }
+    return { success: t("deactivated") };
+  } catch (e) {
+    if (e instanceof LocationNotFoundError) return { error: t("errors.notFound") };
+    throw e;
+  }
 }

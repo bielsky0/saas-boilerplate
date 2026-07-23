@@ -111,6 +111,28 @@ export async function getSession(tx: TenantDb, organizationId: string, id: strin
   return row ?? null;
 }
 
+/** Future, non-cancelled sessions at a given location. Used for location
+ * deactivation warning (F8, decyzja #6 — informational-only, no hard block). */
+export async function listFutureSessionsForLocation(
+  tx: TenantDb,
+  organizationId: string,
+  locationId: string,
+  now?: Date,
+) {
+  return tx
+    .select({ id: classSession.id, startTime: classSession.startTime })
+    .from(classSession)
+    .where(
+      and(
+        eq(classSession.organizationId, organizationId),
+        eq(classSession.locationId, locationId),
+        eq(classSession.status, "scheduled"),
+        gte(classSession.startTime, now ?? new Date()),
+      ),
+    )
+    .orderBy(asc(classSession.startTime));
+}
+
 /**
  * Future, non-cancelled sessions generated from one pattern.
  *

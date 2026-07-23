@@ -18,6 +18,11 @@ import {
 } from "@/lib/db/sql-error";
 import type { FormState } from "@/lib/validation";
 import { createGroupTypeSchema, createRecurrenceSchema } from "./schema";
+import {
+  GroupTypeDeactivationBlockedError,
+  GroupTypeNotFoundError,
+  deactivateGroupType,
+} from "./deactivate";
 
 /**
  * Group type + recurrence server actions (langlion EPIK 2, EPIK 3, §2.2, §2.12).
@@ -722,4 +727,49 @@ function localDateIn(timeZone: string, instant: Date): string {
     month: "2-digit",
     day: "2-digit",
   }).format(instant);
+}
+
+/**
+ * Deactivate a group type (langlion EPIK 20/AC1, US-21.6, Faza 8).
+ *
+ * Hard-blocked when active recurrences or future sessions exist (US-21.6/AC1-AC2).
+ * The form should pre-check blockers via `checkGroupTypeDeactivation` and display
+ * them before the admin attempts deactivation.
+ */
+export async function deactivateGroupTypeAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const groupTypeId = str(formData.get("groupTypeId"));
+  const ctx = await requireOrgPermission("group_types.deactivate");
+  const t = await getTranslations("groups");
+
+  const actor = await resolveActor(ctx.session);
+
+  try {
+    await withTenant(ctx.org.id, (tx) =>
+      deactivateGroupType(tx, {
+        organizationId: ctx.org.id,
+        groupTypeId,
+        actor,
+      }),
+    );
+
+    revalidatePath(`/dashboard/group-types`);
+    revalidatePath(`/dashboard/group-types/${groupTypeId}`);
+    return { success: t("deactivated") };
+  } catch (e) {
+    if (e instanceof GroupTypeNotFoundError) return { error: t("errors.notFound") };
+    if (e instanceof GroupTypeDeactivationBlockedError) {
+      const blocks = e.blocks
+        .map((b) => {
+          if (b.kind === "has-active-recurrences") return t("hasActiveRecurrences", { count: 0 });
+          if (b.kind === "has-future-sessions") return t("hasFutureSessions", { count: b.count });
+          return "";
+        })
+        .filter(Boolean);
+      return { error: t("deactivateBlocked") + " " + blocks.join("; ") };
+    }
+    throw e;
+  }
 }

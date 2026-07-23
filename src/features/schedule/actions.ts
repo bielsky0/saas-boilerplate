@@ -17,6 +17,23 @@ import {
   cancelClassSession,
 } from "./cancel-session";
 import { updateSessionSchema } from "./schema";
+import { massReassignTrainer } from "./mass-reassign-trainer";
+import {
+  MassMoveDifferentGroupTypeError,
+  MassMoveSessionNotFoundError,
+  MassMoveTargetCancelledError,
+  MassMoveTargetPastError,
+  MassMoveTargetSameAsSourceError,
+  massMoveBookings,
+} from "./mass-move-bookings";
+import {
+  NewTrainerSameAsCurrentError,
+  SessionAlreadyCancelledError as SubstituteAlreadyCancelledError,
+  SessionNotFoundError as SubstituteSessionNotFoundError,
+  SessionPastError,
+  TrainerCollisionError,
+  substituteTrainerInSession,
+} from "./substitute-trainer";
 
 /**
  * Per-session edits (langlion §3.4/AC9, US-22.3, US-14.4).
@@ -195,4 +212,116 @@ export async function cancelSessionAction(
   revalidatePath(`/dashboard/schedule`);
   revalidatePath(`/dashboard/sessions/${sessionId}`);
   return { success: t("sessionCancelled") };
+}
+
+export async function substituteTrainerAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const sessionId = str(formData.get("sessionId"));
+  const rawTrainer = str(formData.get("trainerId"));
+  const ctx = await requireOrgPermission("sessions.manage");
+  const t = await getTranslations("schedule");
+
+  const newTrainerId = rawTrainer || null;
+  const actor = await resolveActor(ctx.session);
+
+  try {
+    await withTenant(ctx.org.id, (tx) =>
+      substituteTrainerInSession(tx, {
+        organizationId: ctx.org.id,
+        sessionId,
+        newTrainerId,
+        actor,
+      }),
+    );
+
+    revalidatePath(`/dashboard/schedule`);
+    revalidatePath(`/dashboard/sessions/${sessionId}`);
+    return { success: t("trainerSubstituted") };
+  } catch (e) {
+    if (e instanceof SubstituteSessionNotFoundError) return { error: t("errors.notFound") };
+    if (e instanceof SubstituteAlreadyCancelledError) return { error: t("errors.generic") };
+    if (e instanceof SessionPastError) return { error: t("errors.generic") };
+    if (e instanceof TrainerCollisionError) return { error: t("substituteConflict") };
+    if (e instanceof NewTrainerSameAsCurrentError) return { error: t("errors.generic") };
+    throw e;
+  }
+}
+
+/**
+ * Mass reassign trainer for all future sessions (langlion US-21.3, Faza 8).
+ * Each session in its own savepoint — one collision skips only that session.
+ */
+export async function massReassignTrainerAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const fromTrainerId = str(formData.get("fromTrainerId"));
+  const targetTrainerId = str(formData.get("targetTrainerId"));
+  const ctx = await requireOrgPermission("sessions.mass_reassign_trainer");
+  const t = await getTranslations("schedule");
+
+  if (!fromTrainerId || !targetTrainerId) return { error: t("errors.generic") };
+  const actor = await resolveActor(ctx.session);
+
+  try {
+    const result = await withTenant(ctx.org.id, (tx) =>
+      massReassignTrainer(tx, {
+        organizationId: ctx.org.id,
+        fromTrainerId,
+        targetTrainerId,
+        actor,
+      }),
+    );
+
+    revalidatePath(`/dashboard/schedule`);
+    const msg = result.skippedTrainerConflict > 0
+      ? t("massReassigned") + " " + t("massReassignReport", { updated: result.updated, skipped: result.skippedTrainerConflict })
+      : t("massReassigned");
+    return { success: msg };
+  } catch (e) {
+    if (e instanceof SubstituteSessionNotFoundError) return { error: t("errors.notFound") };
+    throw e;
+  }
+}
+
+/** Cancel a session by moving all bookings to another session (US-21.4). */
+export async function massMoveBookingsAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const sourceSessionId = str(formData.get("sourceSessionId"));
+  const targetSessionId = str(formData.get("targetSessionId"));
+  const ctx = await requireOrgPermission("sessions.mass_move_bookings");
+  const t = await getTranslations("schedule");
+
+  if (!sourceSessionId || !targetSessionId) return { error: t("errors.generic") };
+  const actor = await resolveActor(ctx.session);
+
+  try {
+    const result = await withTenant(ctx.org.id, (tx) =>
+      massMoveBookings(tx, {
+        organizationId: ctx.org.id,
+        sourceSessionId,
+        targetSessionId,
+        actor,
+      }),
+    );
+
+    revalidatePath(`/dashboard/schedule`);
+    revalidatePath(`/dashboard/sessions/${sourceSessionId}`);
+
+    if (result.failed.length > 0) {
+      return { success: t("bookingsMoved") + " " + t("massMoveReport", { moved: result.moved, failed: result.failed.length }) };
+    }
+    return { success: t("bookingsMoved") };
+  } catch (e) {
+    if (e instanceof MassMoveSessionNotFoundError) return { error: t("errors.notFound") };
+    if (e instanceof MassMoveTargetCancelledError) return { error: t("errors.generic") };
+    if (e instanceof MassMoveTargetPastError) return { error: t("errors.generic") };
+    if (e instanceof MassMoveDifferentGroupTypeError) return { error: t("errors.generic") };
+    if (e instanceof MassMoveTargetSameAsSourceError) return { error: t("errors.generic") };
+    throw e;
+  }
 }

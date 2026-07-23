@@ -1,6 +1,7 @@
 "use server";
 
 import { and, eq, isNull } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 
 import { recordAudit, resolveActor } from "@/features/admin/audit";
@@ -10,6 +11,7 @@ import { withTenant, type TenantDb } from "@/lib/db/tenant";
 import type { FormState } from "@/lib/validation";
 import { issueCredits } from "./issue";
 import { grantCreditsSchema } from "./schema";
+import { CreditTypeNotFoundError, deactivateCreditType } from "./deactivate";
 
 /**
  * Credit server actions (langlion §2.4, EPIK 7).
@@ -135,6 +137,44 @@ export async function grantCreditsAction(_prev: FormState, formData: FormData): 
   }
 
   return { success: t("granted") };
+}
+
+/**
+ * Deactivate a credit type (langlion EPIK 20/AC3, Faza 8).
+ *
+ * Existing credits continue to work until natural expiry. New purchases are
+ * blocked by the existing `isNull(deletedAt)` filter in `listCreditTypes()`.
+ *
+ * GATING: celowo używamy `group_types.deactivate` zamiast dedykowanego
+ * permission — relacja 1:1 credit_type ↔ group_type. Nie dodawać osobnego
+ * permission "na wyrost" przy okazji kolejnych faz bez ponownego review
+ * tej decyzji.
+ */
+export async function deactivateCreditTypeAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const creditTypeId = str(formData.get("creditTypeId"));
+  const ctx = await requireOrgPermission("group_types.deactivate");
+  const t = await getTranslations("credits");
+
+  const actor = await resolveActor(ctx.session);
+
+  try {
+    await withTenant(ctx.org.id, (tx) =>
+      deactivateCreditType(tx, {
+        organizationId: ctx.org.id,
+        creditTypeId,
+        actor,
+      }),
+    );
+
+    revalidatePath(`/dashboard/credits`);
+    return { success: t("deactivated") };
+  } catch (e) {
+    if (e instanceof CreditTypeNotFoundError) return { error: t("errors.creditTypeNotFound") };
+    throw e;
+  }
 }
 
 async function findClient(tx: TenantDb, organizationId: string, id: string) {

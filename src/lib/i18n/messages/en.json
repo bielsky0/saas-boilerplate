@@ -322,11 +322,13 @@
       },
       "location": {
         "create": "Location added",
-        "update": "Location updated"
+        "update": "Location updated",
+        "deactivate": "Location deactivated"
       },
       "group_type": {
         "create": "Group type created",
-        "update": "Group type updated"
+        "update": "Group type updated",
+        "deactivate": "Group type deactivated"
       },
       "recurrence": {
         "create": "Pattern created",
@@ -344,7 +346,8 @@
         "confirm_cash": "Cash payment confirmed",
         "mark_attendance": "Attendance marked",
         "cancel": "Booking cancelled",
-        "cancel_admin": "Booking cancelled (admin)"
+        "cancel_admin": "Booking cancelled (admin)",
+        "mass_move": "Attendees moved"
       },
       "grade_field": {
         "create": "Grade field created",
@@ -355,6 +358,16 @@
       },
       "progress_note": {
         "create": "Progress note added"
+      },
+      "trainer": {
+        "deactivate": "Trainer deactivated"
+      },
+      "credit_type": {
+        "deactivate": "Credit type deactivated"
+      },
+      "session": {
+        "reassign_trainer": "Session trainer changed",
+        "mass_reassign_trainer": "Mass trainer reassign"
       }
     }
   },
@@ -638,7 +651,11 @@
     "errors": {
       "generic": "Could not save the location.",
       "notFound": "That location no longer exists."
-    }
+    },
+    "deactivate": "Deactivate",
+    "deactivating": "Deactivating…",
+    "deactivated": "Location deactivated.",
+    "deactivateWarning": "Future sessions at this location: {count}."
   },
   "groups": {
     "validation": {
@@ -765,7 +782,15 @@
       "4": "Thursday",
       "5": "Friday",
       "6": "Saturday"
-    }
+    },
+    "deactivate": "Deactivate",
+    "deactivating": "Deactivating…",
+    "deactivated": "Group type deactivated.",
+    "deactivateBlocked": "Cannot deactivate — the group type is still in use.",
+    "deactivateConfirm": "Are you sure you want to deactivate this group type? Existing sessions and bookings will remain untouched.",
+    "deactivateReason": "(optional) Deactivation reason",
+    "hasActiveRecurrences": "Active recurring patterns ({count})",
+    "hasFutureSessions": "Future unheld sessions ({count})"
   },
   "schedule": {
     "validation": {
@@ -800,7 +825,7 @@
     "errors": {
       "generic": "Could not update the session.",
       "notFound": "That session no longer exists.",
-      "trainerConflict": "The trainer already has a session that overlaps this one."
+      "trainerConflict": "This trainer has a schedule conflict at that time."
     },
     "cancelSession": "Cancel session",
     "cancellingSession": "Cancelling…",
@@ -817,7 +842,29 @@
       "end": "End",
       "capacityHint": "Raising this is the only way to admit an extra participant."
     },
-    "roster": "Roster"
+    "roster": "Roster",
+    "substituteTrainer": "Change trainer",
+    "substituting": "Changing trainer…",
+    "trainerSubstituted": "Trainer changed.",
+    "substituteConflict": "This trainer has a schedule conflict at that time.",
+    "newTrainer": "New trainer",
+    "noTrainerOption": "No trainer",
+    "massReassign": "Mass reassign trainer",
+    "massReassigning": "Reassigning trainer…",
+    "massReassigned": "Mass trainer reassign completed.",
+    "massReassignReport": "Updated {updated}, skipped {skipped}.",
+    "massReassignConfirm": "Move all future sessions of the current trainer to a new one.",
+    "fromTrainer": "From trainer",
+    "targetTrainer": "To trainer",
+    "massMoveBookings": "Move attendees",
+    "massMoveBookingsDesc": "Instead of issuing credits, move all attendees to another session of the same group type.",
+    "massMoving": "Moving…",
+    "bookingsMoved": "Attendees moved.",
+    "massMoveReport": "Moved {moved}, failed {failed}.",
+    "needsManualIntervention": "Needs manual intervention",
+    "targetSession": "Target session",
+    "massMoveNoTargets": "No available target sessions of the same group type.",
+    "trainerCollision": "Trainer collision"
   },
   "clients": {
     "validation": {
@@ -954,7 +1001,8 @@
       "source": "Source",
       "validUntil": "Valid until",
       "reason": "Reason"
-    }
+    },
+    "deactivated": "Credit type deactivated"
   },
   "staffPanel": {
     "title": "Sessions",
