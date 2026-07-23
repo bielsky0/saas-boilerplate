@@ -53,6 +53,12 @@ export const TEMPLATE_CATEGORY: Record<TemplateName, EmailCategory> = {
   welcome: "onboarding",
   "onboarding-tips": "onboarding",
   "onboarding-features": "onboarding",
+  // E-mail-first by decision (Rozstrzygnięcie #3, plan Faza 6): a parent cannot
+  // opt out of being told their child received a grade/note, the same reasoning
+  // as `client-otp` — there is no other channel to fall back to (F13 hasn't
+  // built the client panel view yet).
+  "grade-recorded": "transactional",
+  "progress-note-added": "transactional",
 };
 
 export function categoryFor(template: TemplateName): EmailCategory {

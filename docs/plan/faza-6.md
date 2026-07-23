@@ -1,6 +1,24 @@
 ### Faza 6 — Panel trenera i recepcji
 
-**Status:** nierozpoczęta
+**Status:** ✅ **zakończona** (2026-07-23)
+
+#### Postęp na 2026-07-22
+
+Zrealizowane i zweryfikowane (`pnpm lint` / `pnpm tsc --noEmit` / `pnpm test`: 106/106 zielone, baseline F5 99):
+
+- **Blocker naprawiony przed startem:** `0024_rls_staff_session_handoff.sql` (F5.5) istniał na dysku, ale nie miał wpisu w `meta/_journal.json` i RLS na `staff_session_handoff` nie było włączone na żywej bazie deweloperskiej (`relrowsecurity=f`). Zdiagnozowane empirycznie (zapytanie do `pg_class`/`pg_policy`), naprawione dopisaniem brakującego wpisu journala i zweryfikowane `pnpm db:migrate` + ponowne zapytanie (RLS `t`/`t`, obie polityki obecne).
+- **Migracja `0025`** (generowana): 3 kolumny `attendance*` na `booking` (`text` + `$type<>()`, bez `pgEnum`, konwencja repo) + tabele `grade_field`/`grade`/`progress_note` (kompozytowe FK do `(id, organizationId)`, CHECK XOR `grade_field_owner_ck` przez `check()` w Drizzle — wzorzec z `billing_customer_owner_ck`). Nagłówek migracji potwierdza brak konfliktu z `booking_athlete_no_overlap_excl`. **Migracja `0026`** (ręczna): RLS na 3 nowych tabelach, wzorzec `0015`/`0022`/`0024`. Obie zastosowane i zweryfikowane na żywej bazie.
+- **RBAC:** 4 nowe uprawnienia w `src/features/rbac/index.ts`. Rozstrzygnięcie z użytkownikiem: `credits.confirm_on_site` → trainer **i** reception (nie tylko reception); `bookings.mark_attendance`/`grade_fields.manage`/`grades.enter` → trainer (własne sesje egzekwowane w akcji).
+- **Backend:** `features/bookings/confirm-cash.ts` (issue+spend `on_site_payment` credit + `paymentStatus→confirmed` + audit, jedna transakcja), `features/bookings/attendance.ts` (własna sesja egzekwowana przez `classSession.trainerId`), `features/grades/{manage,enter}.ts` (CRUD pola oceny + wpis oceny/notatki z tą samą kontrolą własności + `enqueueEmail` w tej samej transakcji). Nowe akcje serwerowe w `bookings/staff-actions.ts` i `grades/actions.ts`.
+- **Audyt:** `booking.confirm_cash`, `booking.mark_attendance`, `grade_field.create/update`, `grade.enter`, `progress_note.create` + target types `grade_field`/`grade`/`progress_note` w `features/admin/audit.ts`.
+- **E-mail:** szablony `grade-recorded`/`progress-note-added` (e-mail-first, bez linku do panelu klienta — zgodnie z Rozstrzygnięciem #3 i tym, że F13 jeszcze nie istnieje), zarejestrowane w `contract.ts`/`categories.ts` (transactional)/`templates/index.ts`, i18n PL+EN.
+- **UI:** `dashboard/sessions/[sessionId]` — lista uczestników z kolorami statusów (`Badge` success/warning), akcje `ConfirmCashButton`/`AttendanceControls` (RBAC-gated cosmetically per `hasPermission`), kolumny per `grade_field` z `EnterGradeForm`, `ProgressNoteForm`, `GradeFieldForm` dla `grade_fields.manage`. Link „Roster" dodany do `dashboard/schedule`.
+- **Testy jednostkowe:** `features/grades/schema.test.ts` (XOR scope, min/max ordering) — 7 nowych testów.
+- **E2E (4 nowe bloki w `e2e/langlion-staff-panel.spec.ts`):**
+  - Attendance — present, absent, unmarked rozróżnialne; paymentStatus niezależny
+  - Grade field scoping — group_type-scoped i session-scoped pole na rosterze
+  - Foreign session — odmowa grade entry + progress note na cudzej sesji
+  - Progress note entry + email `progress-note-added` + statusy niezależne
 **Cel:** personel widzi uczestników i rozlicza płatności na miejscu.
 **Pokrywa:** EPIK 6 (US-6.1, US-6.3), EPIK 16, **EPIK 31 (v15)**, **EPIK 35 (v16, strona personelu)**; §2.10 (uprawnienia `credits.confirm_on_site`, **`bookings.mark_attendance`**, **`grade_fields.manage`**, **`grades.enter`**), **§2.29**, **§2.33**, **Constraint 12**.
 **Zależności:** F5.

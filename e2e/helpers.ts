@@ -502,6 +502,7 @@ export async function seedOrgFull(
 export type SeedLanglionResult = {
   ok: boolean;
   sqlState?: string | null;
+  constraint?: string | null;
   message?: string;
   locationId?: string | null;
   groupTypeId?: string | null;
@@ -510,6 +511,8 @@ export type SeedLanglionResult = {
   clientId?: string | null;
   athleteIds?: string[];
   bookingIds?: string[];
+  creditTypeId?: string | null;
+  gradeFieldId?: string | null;
 };
 
 /**

@@ -1,19 +1,16 @@
 {
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|resume",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/bielsky/.local/bin/headroom wrap selfheal --marker headroom-wrap-selfheal",
-            "timeout": 10
-          }
-        ]
-      }
+  "permissions": {
+    "allow": [
+      "Bash(rtk grep *)",
+      "Bash(rtk read *)",
+      "Bash(python3 -c ' *)",
+      "Bash(rtk ls *)",
+      "Bash(rtk find *)",
+      "Bash(rtk wc *)",
+      "Bash(rtk git *)",
+      "Bash(rtk psql *)",
+      "Bash(graphify path *)",
+      "Bash(graphify query *)"
     ]
-  },
-  "env": {
-    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"
   }
 }

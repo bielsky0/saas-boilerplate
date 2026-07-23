@@ -61,7 +61,22 @@ export type Permission =
    * and paired in the action with a REQUIRED reason — the permission answers
    * "who may", the reason answers "why", and the audit trail needs both.
    */
-  | "credits.manual_grant";
+  | "credits.manual_grant"
+  // ── Faza 6 — panel trenera i recepcji (§2.10, §2.29/EPIK 31, §2.33/EPIK 35) ──
+  //
+  /** Confirm a cash payment at the desk (US-6.1). Trainer + reception, on equal
+   * footing — either may take payment on the spot; there is no cash-drawer
+   * distinction between the two roles in this spec. */
+  | "credits.confirm_on_site"
+  /** Mark a booking's attendance (§2.29, EPIK 31). "Own sessions only" for a
+   * trainer cannot be expressed by this map — enforced at the action call site
+   * by comparing `classSession.trainerId` to the caller. */
+  | "bookings.mark_attendance"
+  /** Define grade_field rows, per group_type or ad-hoc per session (§2.33, EPIK 35). */
+  | "grade_fields.manage"
+  /** Enter/overwrite a grade or progress note (§2.33, EPIK 35). Same "own
+   * sessions only" enforcement as `bookings.mark_attendance` for a trainer. */
+  | "grades.enter";
 
 /**
  * role → permissions. Owner is a superset; Admin manages members; Member reads.
@@ -92,6 +107,10 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "sessions.generate_season",
     "sessions.manage",
     "credits.manual_grant",
+    "credits.confirm_on_site",
+    "bookings.mark_attendance",
+    "grade_fields.manage",
+    "grades.enter",
   ],
   // Admin manages people and settings, but NOT money.
   //
@@ -116,28 +135,42 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "sessions.generate_season",
     "sessions.manage",
     "credits.manual_grant",
+    "credits.confirm_on_site",
+    "bookings.mark_attendance",
+    "grade_fields.manage",
+    "grades.enter",
   ],
   /**
-   * The three langlion staff roles (§2.10), all currently carrying only what
-   * every member has.
+   * The three langlion staff roles (§2.10).
    *
-   * They exist NOW, ahead of their permissions, on purpose: `membership.role` is
-   * a text column, so a role that does not exist in this map fails `isRole` and
-   * lands the holder on a 403 for the entire organization (`requireOrgAccess`).
-   * Introducing the names in the phase that invites them, and the grants in the
-   * phase that enforces them, keeps those two failure modes apart — an
-   * unrecognised role is a locked-out human, a missing permission is one refused
-   * button.
+   * They exist ahead of most of their permissions, on purpose: `membership.role`
+   * is a text column, so a role that does not exist in this map fails `isRole`
+   * and lands the holder on a 403 for the entire organization
+   * (`requireOrgAccess`). Introducing the names in the phase that invites them,
+   * and each grant in the phase that enforces it, keeps those two failure modes
+   * apart — an unrecognised role is a locked-out human, a missing permission is
+   * one refused button.
    *
-   * Where the grants land: `credits.confirm_on_site` and
-   * `bookings.mark_attendance` (trainer, own sessions only — enforced in the
-   * action, since this map cannot express "own") in F6; `credits.purchase_cash`
-   * (reception) in F12; `group_swap.approve` and `credits.reassign_athlete`
-   * (secretariat) in F15.
+   * Faza 6 grants (this phase): `credits.confirm_on_site` to trainer + reception
+   * (either may take cash at the desk); `bookings.mark_attendance` and
+   * `grades.enter` to trainer only among these three (own sessions only,
+   * enforced at the action call site — this map cannot express "own");
+   * `grade_fields.manage` to trainer only (defining the e-dziennik's fields is
+   * the same authority as entering values into them).
+   *
+   * Still to land: `credits.purchase_cash` (reception) in F12; `group_swap.approve`
+   * and `credits.reassign_athlete` (secretariat) in F15.
    */
   secretariat: ["organization.leave", "storage.upload"],
-  reception: ["organization.leave", "storage.upload"],
-  trainer: ["organization.leave", "storage.upload"],
+  reception: ["organization.leave", "storage.upload", "credits.confirm_on_site"],
+  trainer: [
+    "organization.leave",
+    "storage.upload",
+    "credits.confirm_on_site",
+    "bookings.mark_attendance",
+    "grade_fields.manage",
+    "grades.enter",
+  ],
   // Members may upload content, but not delete other people's files.
   //
   // NOT granted `audit.read` (§6.4): the trail records who removed whom and whose

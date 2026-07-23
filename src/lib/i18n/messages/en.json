@@ -99,6 +99,18 @@
       "limits": "Higher limits on everything you're already using",
       "support": "Priority support when something breaks",
       "cta": "See what's available"
+    },
+    "grade-recorded": {
+      "subject": "New grade recorded at {orgName}",
+      "preview": "A new grade was recorded for your child at {orgName}.",
+      "heading": "New grade recorded",
+      "body": "A new grade for \"{fieldName}\" was recorded for {athleteName}."
+    },
+    "progress-note-added": {
+      "subject": "New progress note at {orgName}",
+      "preview": "A new progress note was recorded for your child at {orgName}.",
+      "heading": "New progress note",
+      "body": "A new progress note was recorded for {athleteName}."
     }
   },
   "auth": {
@@ -313,7 +325,19 @@
         "grant": "Credits granted"
       },
       "booking": {
-        "create": "Booking created"
+        "create": "Booking created",
+        "confirm_cash": "Cash payment confirmed",
+        "mark_attendance": "Attendance marked"
+      },
+      "grade_field": {
+        "create": "Grade field created",
+        "update": "Grade field updated"
+      },
+      "grade": {
+        "enter": "Grade entered"
+      },
+      "progress_note": {
+        "create": "Progress note added"
       }
     }
   },
@@ -769,7 +793,8 @@
       "start": "Start",
       "end": "End",
       "capacityHint": "Raising this is the only way to admit an extra participant."
-    }
+    },
+    "roster": "Roster"
   },
   "clients": {
     "validation": {
@@ -894,6 +919,85 @@
       "source": "Source",
       "validUntil": "Valid until",
       "reason": "Reason"
+    }
+  },
+  "staffPanel": {
+    "title": "Sessions",
+    "subtitle": "Participants, cash confirmation and attendance.",
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "bookingNotFound": "That booking does not belong to this academy.",
+      "notConfirmable": "This booking cannot be confirmed — it is not awaiting cash payment.",
+      "noCreditType": "This offer has no credit type configured yet — ask an admin to set one up.",
+      "foreignSession": "You may only do this for your own sessions."
+    },
+    "cashConfirmed": "Cash payment confirmed.",
+    "attendanceMarked": "Attendance updated.",
+    "table": {
+      "participant": "Participant",
+      "payment": "Payment",
+      "attendance": "Attendance",
+      "actions": "Actions"
+    },
+    "payment": {
+      "confirmed": "Confirmed",
+      "booked_offline": "Awaiting cash",
+      "payment_pending": "Payment pending",
+      "cancelled": "Cancelled",
+      "no_show": "No-show"
+    },
+    "attendance": {
+      "unmarked": "Unmarked",
+      "present": "Present",
+      "absent": "Absent"
+    },
+    "actions": {
+      "confirmCash": "Confirm cash",
+      "markPresent": "Mark present",
+      "markAbsent": "Mark absent",
+      "markUnmarked": "Clear"
+    },
+    "empty": "No participants for this session yet."
+  },
+  "grades": {
+    "title": "E-dziennik",
+    "subtitle": "Grade fields and progress notes.",
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "foreignSession": "You may only do this for your own sessions.",
+      "fieldNotFound": "That grade field does not belong to this academy.",
+      "bookingNotFound": "That booking does not belong to this academy.",
+      "valueOutOfRange": "That value is outside the allowed range for this field."
+    },
+    "fieldCreated": "Grade field created.",
+    "gradeEntered": "Grade saved.",
+    "noteAdded": "Progress note added.",
+    "fieldType": {
+      "numeric": "Number",
+      "scale": "Scale",
+      "text": "Text"
+    },
+    "form": {
+      "name": "Field name",
+      "fieldType": "Field type",
+      "scope": "Applies to",
+      "scopeGroupType": "Every session of this offer",
+      "scopeSession": "Only this session",
+      "minValue": "Minimum",
+      "maxValue": "Maximum",
+      "submit": "Add field",
+      "value": "Value",
+      "save": "Save",
+      "note": "Note",
+      "addNote": "Add note"
+    },
+    "empty": "No grade fields defined yet.",
+    "validation": {
+      "nameRequired": "Name the grade field.",
+      "scopeTargetRequired": "Choose what this field applies to.",
+      "minMaxOrder": "The maximum must be at least the minimum.",
+      "valueRequired": "Enter a value.",
+      "contentRequired": "Write a note."
     }
   }
 }

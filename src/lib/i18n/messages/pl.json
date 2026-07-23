@@ -99,6 +99,18 @@
       "limits": "Wyższe limity na wszystko, z czego już korzystasz",
       "support": "Priorytetowe wsparcie, gdy coś przestanie działać",
       "cta": "Zobacz, co jest dostępne"
+    },
+    "grade-recorded": {
+      "subject": "Nowa ocena w {orgName}",
+      "preview": "Dla Twojego dziecka w {orgName} zapisano nową ocenę.",
+      "heading": "Nowa ocena",
+      "body": "Zapisano nową ocenę \"{fieldName}\" dla uczestnika {athleteName}."
+    },
+    "progress-note-added": {
+      "subject": "Nowa notatka w {orgName}",
+      "preview": "Dla Twojego dziecka w {orgName} zapisano nową notatkę o postępach.",
+      "heading": "Nowa notatka o postępach",
+      "body": "Zapisano nową notatkę o postępach dla uczestnika {athleteName}."
     }
   },
   "auth": {
@@ -313,7 +325,19 @@
         "grant": "Kredyty przyznane"
       },
       "booking": {
-        "create": "Rezerwacja utworzona"
+        "create": "Rezerwacja utworzona",
+        "confirm_cash": "Potwierdzono płatność gotówką",
+        "mark_attendance": "Oznaczono obecność"
+      },
+      "grade_field": {
+        "create": "Utworzono pole oceny",
+        "update": "Zaktualizowano pole oceny"
+      },
+      "grade": {
+        "enter": "Wpisano ocenę"
+      },
+      "progress_note": {
+        "create": "Dodano notatkę o postępach"
       }
     }
   },
@@ -769,7 +793,8 @@
       "start": "Początek",
       "end": "Koniec",
       "capacityHint": "Podniesienie to jedyny sposób przyjęcia dodatkowego uczestnika."
-    }
+    },
+    "roster": "Uczestnicy"
   },
   "clients": {
     "validation": {
@@ -894,6 +919,85 @@
       "source": "Źródło",
       "validUntil": "Ważny do",
       "reason": "Powód"
+    }
+  },
+  "staffPanel": {
+    "title": "Sesje",
+    "subtitle": "Uczestnicy, potwierdzanie gotówki i obecność.",
+    "errors": {
+      "generic": "Coś poszło nie tak. Spróbuj ponownie.",
+      "bookingNotFound": "Ta rezerwacja nie należy do tej akademii.",
+      "notConfirmable": "Nie można zatwierdzić tej rezerwacji — nie oczekuje na płatność gotówką.",
+      "noCreditType": "Ta oferta nie ma jeszcze skonfigurowanego typu kredytu — poproś administratora o utworzenie go.",
+      "foreignSession": "Możesz to zrobić wyłącznie na własnych sesjach."
+    },
+    "cashConfirmed": "Płatność gotówką potwierdzona.",
+    "attendanceMarked": "Obecność zaktualizowana.",
+    "table": {
+      "participant": "Uczestnik",
+      "payment": "Płatność",
+      "attendance": "Obecność",
+      "actions": "Akcje"
+    },
+    "payment": {
+      "confirmed": "Potwierdzona",
+      "booked_offline": "Oczekuje na gotówkę",
+      "payment_pending": "Płatność w toku",
+      "cancelled": "Anulowana",
+      "no_show": "Nieobecność"
+    },
+    "attendance": {
+      "unmarked": "Nieoznaczona",
+      "present": "Obecny",
+      "absent": "Nieobecny"
+    },
+    "actions": {
+      "confirmCash": "Potwierdź gotówkę",
+      "markPresent": "Oznacz obecność",
+      "markAbsent": "Oznacz nieobecność",
+      "markUnmarked": "Wyczyść"
+    },
+    "empty": "Brak uczestników tej sesji."
+  },
+  "grades": {
+    "title": "E-dziennik",
+    "subtitle": "Pola ocen i notatki o postępach.",
+    "errors": {
+      "generic": "Coś poszło nie tak. Spróbuj ponownie.",
+      "foreignSession": "Możesz to zrobić wyłącznie na własnych sesjach.",
+      "fieldNotFound": "To pole oceny nie należy do tej akademii.",
+      "bookingNotFound": "Ta rezerwacja nie należy do tej akademii.",
+      "valueOutOfRange": "Ta wartość jest poza dozwolonym zakresem dla tego pola."
+    },
+    "fieldCreated": "Pole oceny utworzone.",
+    "gradeEntered": "Ocena zapisana.",
+    "noteAdded": "Notatka dodana.",
+    "fieldType": {
+      "numeric": "Liczba",
+      "scale": "Skala",
+      "text": "Tekst"
+    },
+    "form": {
+      "name": "Nazwa pola",
+      "fieldType": "Typ pola",
+      "scope": "Dotyczy",
+      "scopeGroupType": "Każdej sesji tej oferty",
+      "scopeSession": "Tylko tej sesji",
+      "minValue": "Minimum",
+      "maxValue": "Maksimum",
+      "submit": "Dodaj pole",
+      "value": "Wartość",
+      "save": "Zapisz",
+      "note": "Notatka",
+      "addNote": "Dodaj notatkę"
+    },
+    "empty": "Brak zdefiniowanych pól ocen.",
+    "validation": {
+      "nameRequired": "Nadaj nazwę polu oceny.",
+      "scopeTargetRequired": "Wybierz, czego dotyczy to pole.",
+      "minMaxOrder": "Maksimum musi być nie mniejsze niż minimum.",
+      "valueRequired": "Wpisz wartość.",
+      "contentRequired": "Napisz notatkę."
     }
   }
 }

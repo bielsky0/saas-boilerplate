@@ -1,7 +1,7 @@
 import { and, count, eq, gte, lt, ne, sql } from "drizzle-orm";
 
 import type { TenantDb } from "@/lib/db/tenant";
-import { booking, classSession, location } from "@/lib/db/schema";
+import { athlete, booking, classSession, location } from "@/lib/db/schema";
 
 /**
  * Booking data access (langlion §1.2, §2.3, §5.2).
@@ -176,4 +176,41 @@ export async function getBooking(tx: TenantDb, organizationId: string, id: strin
     .where(and(eq(booking.id, id), eq(booking.organizationId, organizationId)))
     .limit(1);
   return row ?? null;
+}
+
+/** One session's roster with the participant name — F6's staff panel view. */
+export interface RosterRow {
+  bookingId: string;
+  athleteId: string;
+  athleteName: string;
+  paymentStatus: "payment_pending" | "booked_offline" | "confirmed" | "cancelled" | "no_show";
+  attendanceStatus: "unmarked" | "present" | "absent";
+}
+
+export async function listRosterForSession(
+  tx: TenantDb,
+  organizationId: string,
+  sessionId: string,
+): Promise<RosterRow[]> {
+  return tx
+    .select({
+      bookingId: booking.id,
+      athleteId: booking.athleteId,
+      athleteName: athlete.name,
+      paymentStatus: booking.paymentStatus,
+      attendanceStatus: booking.attendanceStatus,
+    })
+    .from(booking)
+    .innerJoin(
+      athlete,
+      and(eq(athlete.id, booking.athleteId), eq(athlete.organizationId, booking.organizationId)),
+    )
+    .where(
+      and(
+        eq(booking.organizationId, organizationId),
+        eq(booking.sessionId, sessionId),
+        ACTIVE_BOOKING_FILTER,
+      ),
+    )
+    .orderBy(athlete.name);
 }

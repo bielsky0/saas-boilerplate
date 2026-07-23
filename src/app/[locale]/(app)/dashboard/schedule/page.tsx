@@ -148,14 +148,19 @@ export default async function SchedulePage({
                   </div>
                 </TableCell>
                 <TableCell className="text-right align-top">
-                  <SessionEditForm
-                    sessionId={row.id}
-                    startLocal={toLocalInput(row.startTime)}
-                    endLocal={toLocalInput(row.endTime)}
-                    locationId={row.locationId}
-                    capacity={row.capacity}
-                    locations={locations}
-                  />
+                  <div className="flex flex-col items-end gap-2">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/dashboard/sessions/${row.id}`}>{t("roster")}</Link>
+                    </Button>
+                    <SessionEditForm
+                      sessionId={row.id}
+                      startLocal={toLocalInput(row.startTime)}
+                      endLocal={toLocalInput(row.endTime)}
+                      locationId={row.locationId}
+                      capacity={row.capacity}
+                      locations={locations}
+                    />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

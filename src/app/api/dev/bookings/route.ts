@@ -80,6 +80,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           athleteId: booking.athleteId,
           paymentStatus: booking.paymentStatus,
           priceSnapshot: booking.priceSnapshot,
+          attendanceStatus: booking.attendanceStatus,
+          consumedCreditId: booking.consumedCreditId,
         })
         .from(booking)
         .where(

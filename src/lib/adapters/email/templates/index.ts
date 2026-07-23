@@ -5,11 +5,13 @@ import { type Locale, getTranslator } from "@/lib/i18n";
 import type { RenderedEmail, TemplateData, TemplateName, TemplateProps } from "../contract";
 import type { EmailTranslator } from "./layout";
 import { ClientOtp, clientOtpSubject } from "./client-otp";
+import { GradeRecorded, gradeRecordedSubject } from "./grade-recorded";
 import { Invitation, invitationSubject } from "./invitation";
 import { OnboardingFeatures, onboardingFeaturesSubject } from "./onboarding-features";
 import { OnboardingTips, onboardingTipsSubject } from "./onboarding-tips";
 import { PasswordReset, passwordResetSubject } from "./password-reset";
 import { PaymentFailed, paymentFailedSubject } from "./payment-failed";
+import { ProgressNoteAdded, progressNoteAddedSubject } from "./progress-note-added";
 import { SubscriptionConfirmed, subscriptionConfirmedSubject } from "./subscription-confirmed";
 import { VerifyEmail, verifyEmailSubject } from "./verify-email";
 import { Welcome, welcomeSubject } from "./welcome";
@@ -56,6 +58,8 @@ const templates: { [N in TemplateName]: TemplateDef<N> } = {
     subject: onboardingFeaturesSubject,
     component: OnboardingFeatures,
   },
+  "grade-recorded": { subject: gradeRecordedSubject, component: GradeRecorded },
+  "progress-note-added": { subject: progressNoteAddedSubject, component: ProgressNoteAdded },
 };
 
 /**

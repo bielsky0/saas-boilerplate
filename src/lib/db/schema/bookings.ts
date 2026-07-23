@@ -3,6 +3,7 @@ import { foreignKey, index, jsonb, pgTable, text, timestamp, unique } from "driz
 import { athlete } from "./athletes";
 import { classSession } from "./class-sessions";
 import { organization } from "./organizations";
+import { user } from "./auth";
 
 /**
  * Booking — one athlete's place in one session (langlion §1.2, §5.2, §5.3).
@@ -36,6 +37,18 @@ import { organization } from "./organizations";
  * Everything except "cancelled" counts as occupying a seat (§2.3) — including
  * "payment_pending", which is what lets an approved group-change request hold a
  * place while the parent pays (US-11.3/AC2).
+ *
+ * `attendanceStatus` (langlion §2.29, EPIK 31, v15, Faza 6) is DELIBERATELY
+ * INDEPENDENT of `paymentStatus`: marking a participant's attendance never
+ * changes whether/how they paid, and `no_show` (a `paymentStatus` value from
+ * F5, meaning the offline payment never materialised) is a different axis from
+ * `attendanceStatus="absent"` (meaning the participant did not show up for a
+ * session that was otherwise paid for/confirmed). `unmarked` is the default and
+ * is distinct from `absent` — silence about attendance is not the same claim as
+ * a recorded absence. Does not participate in `booking_athlete_no_overlap_excl`
+ * (§5.3): that constraint's predicate filters on `paymentStatus`, not this
+ * column (verified against `0014_lively_sumo.sql`), so adding it requires no
+ * index rebuild.
  */
 export const booking = pgTable(
   "booking",
@@ -82,6 +95,15 @@ export const booking = pgTable(
     /** Denormalised from `session` — see header. Maintained by ON UPDATE CASCADE. */
     sessionStartTime: timestamp("sessionStartTime", { withTimezone: true }).notNull(),
     sessionEndTime: timestamp("sessionEndTime", { withTimezone: true }).notNull(),
+    /** See header — independent of `paymentStatus`. */
+    attendanceStatus: text("attendanceStatus")
+      .$type<"unmarked" | "present" | "absent">()
+      .notNull()
+      .default("unmarked"),
+    attendanceMarkedAt: timestamp("attendanceMarkedAt", { withTimezone: true }),
+    attendanceMarkedByUserId: text("attendanceMarkedByUserId").references(() => user.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("createdAt").notNull().defaultNow(),
     updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },

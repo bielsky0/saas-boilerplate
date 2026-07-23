@@ -28,7 +28,11 @@ export type TemplateName =
   // Onboarding sequence (spec 10.3) — carries an unsubscribe link.
   | "welcome"
   | "onboarding-tips"
-  | "onboarding-features";
+  | "onboarding-features"
+  // E-dziennik (langlion §2.33, EPIK 35, v16, Faza 6) — e-mail-first client
+  // notification, Rozstrzygnięcie #3. Unsuppressible: see categories.ts.
+  | "grade-recorded"
+  | "progress-note-added";
 // `magic-link` lands with spec 2.2, which is not implemented yet.
 
 /**
@@ -59,6 +63,9 @@ export interface TemplateProps {
   welcome: { name?: string | null; unsubscribeUrl: string };
   "onboarding-tips": { name?: string | null; unsubscribeUrl: string };
   "onboarding-features": { name?: string | null; unsubscribeUrl: string };
+  /** No value/comment text in the mail (see template header) — just the fact. */
+  "grade-recorded": { orgName: string; athleteName: string; fieldName: string };
+  "progress-note-added": { orgName: string; athleteName: string };
 }
 
 /** Loose payload shape for callers that resolve the template at runtime. */

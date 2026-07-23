@@ -7,12 +7,14 @@ import {
   booking,
   classSession,
   client,
+  creditType,
+  gradeField,
   groupType,
   groupTypeRecurrence,
   location,
 } from "@/lib/db/schema";
 import { env } from "@/lib/env/server";
-import { sqlStateOf } from "../sql-error";
+import { constraintOf, sqlStateOf } from "../sql-error";
 
 /**
  * Test-only langlion fixture seeder (spec 14.1 pattern). Disabled in production.
@@ -77,6 +79,25 @@ type Body = {
   client?: { email: string; name?: string; isVerified?: boolean };
   athletes?: { name: string; age?: number }[];
   bookings?: { sessionIndex: number; athleteIndex: number; paymentStatus?: string }[];
+  /**
+   * The 1:1 `credit_type` for `groupTypeId` (Faza 6) — needed to exercise
+   * `confirmCashPayment`, which has no path to create one itself
+   * (`getCreditTypeForGroupType` is a pure read; see `features/credits/data.ts`).
+   */
+  creditType?: { name?: string };
+  /**
+   * RAW insert, deliberately bypassing the zod XOR validation the real
+   * `createGradeFieldAction` enforces (Faza 6) — the point is to prove the
+   * DATABASE refuses a row the app layer would never construct, the same
+   * reasoning as this route's athlete-overlap and duplicate-recurrence tests.
+   * Pass both or neither of `groupTypeId`/`sessionId` to hit `grade_field_owner_ck`.
+   */
+  gradeField?: {
+    groupTypeId?: string | null;
+    sessionId?: string | null;
+    name?: string;
+    fieldType?: "numeric" | "scale" | "text";
+  };
 };
 
 type PaymentStatus = "payment_pending" | "booked_offline" | "confirmed" | "cancelled" | "no_show";
@@ -230,6 +251,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         bookingIds.push(row!.id);
       }
 
+      let creditTypeId: string | null = null;
+      if (body.creditType && groupTypeId) {
+        const [row] = await tx
+          .insert(creditType)
+          .values({
+            organizationId: orgId,
+            name: body.creditType.name ?? "E2E credit type",
+            groupTypeId,
+          })
+          .returning({ id: creditType.id });
+        creditTypeId = row!.id;
+      }
+
+      let gradeFieldId: string | null = null;
+      if (body.gradeField) {
+        const [row] = await tx
+          .insert(gradeField)
+          .values({
+            organizationId: orgId,
+            name: body.gradeField.name ?? "E2E field",
+            fieldType: body.gradeField.fieldType ?? "text",
+            groupTypeId: body.gradeField.groupTypeId ?? null,
+            sessionId: body.gradeField.sessionId ?? null,
+          })
+          .returning({ id: gradeField.id });
+        gradeFieldId = row!.id;
+      }
+
       return {
         locationId,
         groupTypeId,
@@ -238,6 +287,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         clientId,
         athleteIds,
         bookingIds,
+        creditTypeId,
+        gradeFieldId,
       };
     });
 
@@ -247,6 +298,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       ok: false,
       sqlState,
+      constraint: constraintOf(error),
       message: error instanceof Error ? error.message : String(error),
     });
   }

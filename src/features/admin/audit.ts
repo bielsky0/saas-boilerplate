@@ -182,6 +182,24 @@ export const AUDIT_ACTIONS = [
   //
   // The ACTOR here is usually a parent, not staff — see `clientActor` below.
   "booking.create",
+  // langlion §2.29 / EPIK 31, §2.33 / EPIK 35 — panel trenera i recepcji (F6).
+  //
+  // Cash confirmation and attendance are both logged for the same reason
+  // `booking.create` is: each is the money- or fact-bearing act itself, not a
+  // consequence of one recorded elsewhere. `booking.confirm_cash` additionally
+  // creates and consumes the `on_site_payment` credit in the same transaction
+  // (see `features/bookings/confirm-cash.ts`) — the credit rows are the ledger
+  // detail, this row is the accountable act ("who confirmed, when, for how much").
+  "booking.confirm_cash",
+  // Logged on every mark AND every overwrite (DoD) — `metadata.previous` carries
+  // the prior value so "who changed unmarked→absent→present and when" stays
+  // reconstructable without a second table.
+  "booking.mark_attendance",
+  "grade_field.create",
+  "grade_field.update",
+  // Logged on every entry AND every overwrite, same reasoning as attendance.
+  "grade.enter",
+  "progress_note.create",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -204,8 +222,15 @@ export type AuditTargetType =
    * we give this client", never "what happened to credit #7 of 10".
    */
   | "client"
-  /** The seat, target of `booking.create` (F5). */
-  | "booking";
+  /** The seat, target of `booking.create` (F5), `booking.confirm_cash` and
+   * `booking.mark_attendance` (F6). */
+  | "booking"
+  /** Target of `grade_field.create`/`update` (F6). */
+  | "grade_field"
+  /** Target of `grade.enter` (F6) — the participant's value for one field. */
+  | "grade"
+  /** Target of `progress_note.create` (F6). */
+  | "progress_note";
 
 /**
  * WHO acted, as a kind — §6.4's actor model. A different question from WHICH
