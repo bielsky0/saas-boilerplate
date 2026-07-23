@@ -162,7 +162,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           })
           .returning({ id: booking.id });
 
-        const creditId = await consumeCreditForBooking(tx, {
+        const creditConsumed = await consumeCreditForBooking(tx, {
           organizationId,
           clientId: body.clientId!,
           creditTypeId: body.creditTypeId!,
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           await new Promise((resolve) => setTimeout(resolve, body.holdMs));
         }
 
-        return { bookingId: created!.id, creditId };
+        return { bookingId: created!.id, creditId: creditConsumed?.creditId ?? null };
       });
       return NextResponse.json({ ok: true, ...result });
     }

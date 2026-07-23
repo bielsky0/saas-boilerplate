@@ -10,7 +10,9 @@
       "Bash(rtk git *)",
       "Bash(rtk psql *)",
       "Bash(graphify path *)",
-      "Bash(graphify query *)"
+      "Bash(graphify query *)",
+      "Bash(pnpm test *)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/bielsky/Documents/saas-school/src/lib/i18n/messages/pl.json'\\)\\); print\\(list\\(d.keys\\(\\)\\)[:30]\\)\")"
     ]
   }
 }

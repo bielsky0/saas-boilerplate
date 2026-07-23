@@ -72,11 +72,29 @@ export type Permission =
    * trainer cannot be expressed by this map — enforced at the action call site
    * by comparing `classSession.trainerId` to the caller. */
   | "bookings.mark_attendance"
+  // ── Faza 7 — anulowanie rezerwacji i sesji (§2.10, EPIK 12, US-19.2) ──
+  //
+  /** Anulowanie rezerwacji klienta (US-12.2) lub całej sesji (US-19.2).
+   * Secretariat i reception mogą anulować w imieniu akademii; trainer — nie
+   * (tylko własne sesje i obecność). */
+  | "bookings.cancel_reschedule"
   /** Define grade_field rows, per group_type or ad-hoc per session (§2.33, EPIK 35). */
   | "grade_fields.manage"
   /** Enter/overwrite a grade or progress note (§2.33, EPIK 35). Same "own
    * sessions only" enforcement as `bookings.mark_attendance` for a trainer. */
-  | "grades.enter";
+  | "grades.enter"
+  // ── Faza 8 — soft delete domenowy + reasygnacje (§2.11, EPIK 20, 21) ──────────
+  //
+  /** Dezaktywacja profilu trenera — offboarding (§2.11). Owner+Admin tylko. */
+  | "trainers.offboard"
+  /** Masowa zmiana trenera dla wielu przyszłych sesji (§2.11, US-21.3). Owner+Admin. */
+  | "sessions.mass_reassign_trainer"
+  /** Mass Move Bookings — przeniesienie uczestników odwoływanej sesji na inną
+   * (§2.11, US-21.4). Owner+Admin. */
+  | "sessions.mass_move_bookings"
+  /** Dezaktywacja Definicji (group_type) — blokowana przy aktywnych zależnościach
+   * (§2.11, US-21.6). Owner+Admin. */
+  | "group_types.deactivate";
 
 /**
  * role → permissions. Owner is a superset; Admin manages members; Member reads.
@@ -104,13 +122,18 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "billing.manage",
     "locations.manage",
     "group_types.manage",
+    "group_types.deactivate",
     "sessions.generate_season",
     "sessions.manage",
+    "sessions.mass_reassign_trainer",
+    "sessions.mass_move_bookings",
     "credits.manual_grant",
     "credits.confirm_on_site",
+    "bookings.cancel_reschedule",
     "bookings.mark_attendance",
     "grade_fields.manage",
     "grades.enter",
+    "trainers.offboard",
   ],
   // Admin manages people and settings, but NOT money.
   //
@@ -132,13 +155,18 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "audit.read",
     "locations.manage",
     "group_types.manage",
+    "group_types.deactivate",
     "sessions.generate_season",
     "sessions.manage",
+    "sessions.mass_reassign_trainer",
+    "sessions.mass_move_bookings",
     "credits.manual_grant",
     "credits.confirm_on_site",
+    "bookings.cancel_reschedule",
     "bookings.mark_attendance",
     "grade_fields.manage",
     "grades.enter",
+    "trainers.offboard",
   ],
   /**
    * The three langlion staff roles (§2.10).
@@ -158,11 +186,20 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
    * `grade_fields.manage` to trainer only (defining the e-dziennik's fields is
    * the same authority as entering values into them).
    *
+   * Faza 7 grants (this phase): `bookings.cancel_reschedule` to secretariat + reception
+   * (either may cancel individual bookings or full sessions on behalf of the academy);
+   * NOT to trainer — cancellation is not the same as marking own-session attendance.
+   *
    * Still to land: `credits.purchase_cash` (reception) in F12; `group_swap.approve`
    * and `credits.reassign_athlete` (secretariat) in F15.
    */
-  secretariat: ["organization.leave", "storage.upload"],
-  reception: ["organization.leave", "storage.upload", "credits.confirm_on_site"],
+  secretariat: ["organization.leave", "storage.upload", "bookings.cancel_reschedule"],
+  reception: [
+    "organization.leave",
+    "storage.upload",
+    "credits.confirm_on_site",
+    "bookings.cancel_reschedule",
+  ],
   trainer: [
     "organization.leave",
     "storage.upload",

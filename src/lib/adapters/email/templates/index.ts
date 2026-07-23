@@ -10,8 +10,10 @@ import { Invitation, invitationSubject } from "./invitation";
 import { OnboardingFeatures, onboardingFeaturesSubject } from "./onboarding-features";
 import { OnboardingTips, onboardingTipsSubject } from "./onboarding-tips";
 import { PasswordReset, passwordResetSubject } from "./password-reset";
+import { BookingCancelled, bookingCancelledSubject } from "./booking-cancelled";
 import { PaymentFailed, paymentFailedSubject } from "./payment-failed";
 import { ProgressNoteAdded, progressNoteAddedSubject } from "./progress-note-added";
+import { SessionCancelled, sessionCancelledSubject } from "./session-cancelled";
 import { SubscriptionConfirmed, subscriptionConfirmedSubject } from "./subscription-confirmed";
 import { VerifyEmail, verifyEmailSubject } from "./verify-email";
 import { Welcome, welcomeSubject } from "./welcome";
@@ -60,6 +62,8 @@ const templates: { [N in TemplateName]: TemplateDef<N> } = {
   },
   "grade-recorded": { subject: gradeRecordedSubject, component: GradeRecorded },
   "progress-note-added": { subject: progressNoteAddedSubject, component: ProgressNoteAdded },
+  "booking-cancelled": { subject: bookingCancelledSubject, component: BookingCancelled },
+  "session-cancelled": { subject: sessionCancelledSubject, component: SessionCancelled },
 };
 
 /**

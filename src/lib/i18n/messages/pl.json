@@ -111,6 +111,20 @@
       "preview": "Dla Twojego dziecka w {orgName} zapisano nową notatkę o postępach.",
       "heading": "Nowa notatka o postępach",
       "body": "Zapisano nową notatkę o postępach dla uczestnika {athleteName}."
+    },
+    "booking-cancelled": {
+      "subject": "Anulowano rezerwację — {orgName}",
+      "preview": "Rezerwacja w {orgName} została anulowana.",
+      "heading": "Anulowano zajęcia",
+      "body": "Rezerwacja dla {athleteName} ({groupTypeName}, {sessionDate} {sessionTime}) została anulowana.",
+      "creditInfo": "Przyznano 1 korepetycję do wykorzystania na inne zajęcia tego samego typu."
+    },
+    "session-cancelled": {
+      "subject": "Odwołano zajęcia — {orgName}",
+      "preview": "Zajęcia w {orgName} zostały odwołane przez administrację.",
+      "heading": "Odwołano zajęcia",
+      "body": "Zajęcia {groupTypeName} ({sessionDate} {sessionTime}) dla {athleteName} zostały odwołane przez administrację.",
+      "creditInfo": "Przyznano 1 korepetycję do wykorzystania na inne zajęcia tego samego typu."
     }
   },
   "auth": {
@@ -319,7 +333,8 @@
         "update": "Zaktualizowano wzorzec"
       },
       "class_session": {
-        "update": "Skorygowano sesję"
+        "update": "Skorygowano sesję",
+        "cancel": "Odwołano całą sesję"
       },
       "credit": {
         "grant": "Kredyty przyznane"
@@ -327,7 +342,9 @@
       "booking": {
         "create": "Rezerwacja utworzona",
         "confirm_cash": "Potwierdzono płatność gotówką",
-        "mark_attendance": "Oznaczono obecność"
+        "mark_attendance": "Oznaczono obecność",
+        "cancel": "Anulowano rezerwację",
+        "cancel_admin": "Anulowano rezerwację (admin)"
       },
       "grade_field": {
         "create": "Utworzono pole oceny",
@@ -785,6 +802,12 @@
       "notFound": "Ta sesja już nie istnieje.",
       "trainerConflict": "Trener ma już sesję nakładającą się na tę."
     },
+    "cancelSession": "Odwołaj sesję",
+    "cancellingSession": "Odwoływanie…",
+    "sessionCancelled": "Sesja została odwołana.",
+    "sessionCancelConfirm": "Czy na pewno chcesz odwołać całą sesję? Spowoduje to anulowanie wszystkich rezerwacji i przyznanie kredytów za opłacone.",
+    "sessionCancelWarning": "Tej operacji nie można cofnąć.",
+    "cancel": "Anuluj",
     "edit": {
       "open": "Skoryguj",
       "save": "Zapisz",
@@ -877,8 +900,20 @@
       "paymentMethodUnavailable": "Ta metoda płatności jest niedostępna dla tej oferty.",
       "foreignAthlete": "To dziecko nie należy do Twojego konta.",
       "unknownSession": "Nie znaleziono tej oferty lub terminu.",
+      "noCredits": "Brak dostępnych kredytów — skontaktuj się z recepcją.",
       "generic": "Coś poszło nie tak. Spróbuj ponownie."
-    }
+    },
+    "myBookings": "Moje zajęcia",
+    "noBookings": "Brak nadchodzących zajęć.",
+    "cancel": "Anuluj",
+    "cancelling": "Anulowanie…",
+    "table": {
+      "session": "Zajęcia",
+      "status": "Status",
+      "actions": "Akcje"
+    },
+    "makeupBooked": "Odrabianie zapisane — wykorzystano kredyt.",
+    "extraBooked": "Dodatkowe zajęcia zapisane."
   },
   "credits": {
     "validation": {
@@ -929,10 +964,15 @@
       "bookingNotFound": "Ta rezerwacja nie należy do tej akademii.",
       "notConfirmable": "Nie można zatwierdzić tej rezerwacji — nie oczekuje na płatność gotówką.",
       "noCreditType": "Ta oferta nie ma jeszcze skonfigurowanego typu kredytu — poproś administratora o utworzenie go.",
-      "foreignSession": "Możesz to zrobić wyłącznie na własnych sesjach."
+      "foreignSession": "Możesz to zrobić wyłącznie na własnych sesjach.",
+      "tooLate": "Anulowanie jest możliwe najpóźniej 24 godziny przed zajęciami.",
+      "verifyFirst": "Najpierw zweryfikuj swój adres e-mail."
     },
     "cashConfirmed": "Płatność gotówką potwierdzona.",
     "attendanceMarked": "Obecność zaktualizowana.",
+    "cancelBooking": "Anuluj rezerwację",
+    "cancelling": "Anulowanie…",
+    "bookingCancelled": "Rezerwacja anulowana.",
     "table": {
       "participant": "Uczestnik",
       "payment": "Płatność",

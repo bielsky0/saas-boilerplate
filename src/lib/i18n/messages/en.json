@@ -111,6 +111,20 @@
       "preview": "A new progress note was recorded for your child at {orgName}.",
       "heading": "New progress note",
       "body": "A new progress note was recorded for {athleteName}."
+    },
+    "booking-cancelled": {
+      "subject": "Booking cancelled — {orgName}",
+      "preview": "Your booking at {orgName} has been cancelled.",
+      "heading": "Session cancelled",
+      "body": "The booking for {athleteName} ({groupTypeName}, {sessionDate} {sessionTime}) has been cancelled.",
+      "creditInfo": "1 make-up credit has been issued for another session of the same type."
+    },
+    "session-cancelled": {
+      "subject": "Session cancelled — {orgName}",
+      "preview": "A session at {orgName} has been cancelled by the administration.",
+      "heading": "Session cancelled",
+      "body": "The session {groupTypeName} ({sessionDate} {sessionTime}) for {athleteName} has been cancelled by the administration.",
+      "creditInfo": "1 make-up credit has been issued for another session of the same type."
     }
   },
   "auth": {
@@ -319,7 +333,8 @@
         "update": "Pattern updated"
       },
       "class_session": {
-        "update": "Session adjusted"
+        "update": "Session adjusted",
+        "cancel": "Session cancelled"
       },
       "credit": {
         "grant": "Credits granted"
@@ -327,7 +342,9 @@
       "booking": {
         "create": "Booking created",
         "confirm_cash": "Cash payment confirmed",
-        "mark_attendance": "Attendance marked"
+        "mark_attendance": "Attendance marked",
+        "cancel": "Booking cancelled",
+        "cancel_admin": "Booking cancelled (admin)"
       },
       "grade_field": {
         "create": "Grade field created",
@@ -785,6 +802,12 @@
       "notFound": "That session no longer exists.",
       "trainerConflict": "The trainer already has a session that overlaps this one."
     },
+    "cancelSession": "Cancel session",
+    "cancellingSession": "Cancelling…",
+    "sessionCancelled": "Session cancelled.",
+    "sessionCancelConfirm": "Are you sure you want to cancel the entire session? This will cancel all bookings and issue credits for paid ones.",
+    "sessionCancelWarning": "This action cannot be undone.",
+    "cancel": "Cancel",
     "edit": {
       "open": "Adjust",
       "save": "Save",
@@ -877,8 +900,20 @@
       "paymentMethodUnavailable": "That payment method is not available for this offer.",
       "foreignAthlete": "That child does not belong to your account.",
       "unknownSession": "That offer or slot could not be found.",
+      "noCredits": "No credits available — contact the reception.",
       "generic": "Something went wrong. Please try again."
-    }
+    },
+    "myBookings": "My bookings",
+    "noBookings": "No upcoming bookings.",
+    "cancel": "Cancel",
+    "cancelling": "Cancelling…",
+    "table": {
+      "session": "Session",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "makeupBooked": "Make-up session booked using credit.",
+    "extraBooked": "Extra session booked."
   },
   "credits": {
     "validation": {
@@ -929,10 +964,15 @@
       "bookingNotFound": "That booking does not belong to this academy.",
       "notConfirmable": "This booking cannot be confirmed — it is not awaiting cash payment.",
       "noCreditType": "This offer has no credit type configured yet — ask an admin to set one up.",
-      "foreignSession": "You may only do this for your own sessions."
+      "foreignSession": "You may only do this for your own sessions.",
+      "tooLate": "Cancellation is only possible at least 24 hours before the session.",
+      "verifyFirst": "Verify your email address first."
     },
     "cashConfirmed": "Cash payment confirmed.",
     "attendanceMarked": "Attendance updated.",
+    "cancelBooking": "Cancel booking",
+    "cancelling": "Cancelling…",
+    "bookingCancelled": "Booking cancelled.",
     "table": {
       "participant": "Participant",
       "payment": "Payment",

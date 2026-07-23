@@ -195,11 +195,35 @@ export const AUDIT_ACTIONS = [
   // the prior value so "who changed unmarked→absent→present and when" stays
   // reconstructable without a second table.
   "booking.mark_attendance",
+  // langlion §2.3 / EPIK 12, US-19.2 — anulowanie rezerwacji i sesji (F7).
+  //
+  // `booking.cancel` — klient anuluje własną rezerwację z regułą 24h (US-12.1),
+  // lub staff z bookings.cancel_reschedule. Loguje poprzedni paymentStatus.
+  // `booking.cancel_admin` — owner/admin anuluje z pominięciem 24h (US-12.2).
+  // Oba logują informację o przyznanym kredycie w metadata.
+  "booking.cancel",
+  "booking.cancel_admin",
+  // `class_session.cancel` — admin odwołuje całą sesję (US-19.2).
+  // Loguje liczbę anulowanych bookingów i przyznanych kredytów.
+  "class_session.cancel",
   "grade_field.create",
   "grade_field.update",
   // Logged on every entry AND every overwrite, same reasoning as attendance.
   "grade.enter",
   "progress_note.create",
+  // langlion EPIK 20/21, §2.11 — soft delete domenowy + reasygnacje (F8).
+  //
+  // Dezaktywacje: każda logowana osobno, z metadataną zawierającą informację
+  // o blokerach i liczbie dotkniętych zasobów. Masowe operacje (masowa zmiana
+  // trenera, Mass Move Bookings) logowane jako pojedynczy wpis z licznikami
+  // w metadata zamiast jednego wpisu per booking/sesja.
+  "trainer.deactivate",
+  "group_type.deactivate",
+  "credit_type.deactivate",
+  "location.deactivate",
+  "session.reassign_trainer",
+  "session.mass_reassign_trainer",
+  "booking.mass_move",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -230,7 +254,9 @@ export type AuditTargetType =
   /** Target of `grade.enter` (F6) — the participant's value for one field. */
   | "grade"
   /** Target of `progress_note.create` (F6). */
-  | "progress_note";
+  | "progress_note"
+  /** Target of dezaktywacji trenera — user z membership.role='trainer' (F8). */
+  | "trainer";
 
 /**
  * WHO acted, as a kind — §6.4's actor model. A different question from WHICH

@@ -1,6 +1,8 @@
 <!-- @docs/specyfikacja.md -->
 @AGENTS.md
 
+NAZWY ZMIENNYCH FUNKCJI ITP TYLKO PO ANGIELSKU
+
 Pełna treść specyfikacji żyje teraz w `docs/spec/` (docs/specyfikacja.md to tylko spis treści), plan implementacji w `docs/plan/` (docs/plan-implementacji.md to tylko spis treści), konwencje kodu w `docs/architecture/` (docs/ARCHITECTURE.md to tylko spis treści), a specyfikacja fundamentu boilerplate'owego w `docs/boilerplate-spec/` (docs/boilerplate-spec.md to tylko spis treści) — patrz sekcja „Duże dokumenty — zasady dostępu" poniżej.
 
 Don't remove agents.md file

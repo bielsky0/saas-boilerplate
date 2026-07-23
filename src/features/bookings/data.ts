@@ -1,7 +1,7 @@
 import { and, count, eq, gte, lt, ne, sql } from "drizzle-orm";
 
 import type { TenantDb } from "@/lib/db/tenant";
-import { athlete, booking, classSession, location } from "@/lib/db/schema";
+import { athlete, booking, classSession, groupType, location } from "@/lib/db/schema";
 
 /**
  * Booking data access (langlion §1.2, §2.3, §5.2).
@@ -213,4 +213,141 @@ export async function listRosterForSession(
       ),
     )
     .orderBy(athlete.name);
+}
+
+/**
+ * A booking joined with its session, used by the cancellation flow (F7 D3/D5).
+ *
+ * When `lockSession` is true, takes `FOR UPDATE` on the `class_session` row
+ * BEFORE any booking lock — enforces LOCK ORDER: class_session → booking.
+ */
+export interface BookingWithSession {
+  bookingId: string;
+  athleteId: string;
+  paymentStatus: "payment_pending" | "booked_offline" | "confirmed" | "cancelled" | "no_show";
+  sessionId: string;
+  sessionStartTime: Date;
+  sessionEndTime: Date;
+  groupTypeId: string;
+  sessionStatus: "scheduled" | "cancelled";
+}
+
+export async function getBookingWithSession(
+  tx: TenantDb,
+  organizationId: string,
+  bookingId: string,
+  opts?: { lockSession?: boolean },
+): Promise<BookingWithSession | null> {
+  const query = tx
+    .select({
+      bookingId: booking.id,
+      athleteId: booking.athleteId,
+      paymentStatus: booking.paymentStatus,
+      sessionId: classSession.id,
+      sessionStartTime: classSession.startTime,
+      sessionEndTime: classSession.endTime,
+      groupTypeId: classSession.groupTypeId,
+      sessionStatus: classSession.status,
+    })
+    .from(booking)
+    .innerJoin(
+      classSession,
+      and(
+        eq(classSession.id, booking.sessionId),
+        eq(classSession.organizationId, booking.organizationId),
+      ),
+    )
+    .where(
+      and(eq(booking.id, bookingId), eq(booking.organizationId, organizationId)),
+    )
+    .limit(1);
+
+  if (opts?.lockSession) {
+    query.for("update", { of: classSession });
+  }
+
+  const [row] = await query;
+  return row ?? null;
+}
+
+/** All non-cancelled bookings for all athletes of a parent client (F7 D6). */
+export interface ClientBookingRow {
+  bookingId: string;
+  athleteId: string;
+  athleteName: string;
+  sessionId: string;
+  sessionStartTime: Date;
+  sessionEndTime: Date;
+  groupTypeId: string;
+  groupTypeName: string;
+  paymentStatus: "payment_pending" | "booked_offline" | "confirmed" | "cancelled" | "no_show";
+  attendanceStatus: "unmarked" | "present" | "absent";
+}
+
+export async function getActiveBookingsForClient(
+  tx: TenantDb,
+  organizationId: string,
+  clientId: string,
+): Promise<ClientBookingRow[]> {
+  return tx
+    .select({
+      bookingId: booking.id,
+      athleteId: booking.athleteId,
+      athleteName: athlete.name,
+      sessionId: booking.sessionId,
+      sessionStartTime: booking.sessionStartTime,
+      sessionEndTime: booking.sessionEndTime,
+      groupTypeId: classSession.groupTypeId,
+      groupTypeName: groupType.name,
+      paymentStatus: booking.paymentStatus,
+      attendanceStatus: booking.attendanceStatus,
+    })
+    .from(booking)
+    .innerJoin(
+      athlete,
+      and(eq(athlete.id, booking.athleteId), eq(athlete.organizationId, booking.organizationId)),
+    )
+    .innerJoin(
+      classSession,
+      and(
+        eq(classSession.id, booking.sessionId),
+        eq(classSession.organizationId, booking.organizationId),
+      ),
+    )
+    .innerJoin(
+      groupType,
+      and(
+        eq(groupType.id, classSession.groupTypeId),
+        eq(groupType.organizationId, booking.organizationId),
+      ),
+    )
+    .where(
+      and(
+        eq(booking.organizationId, organizationId),
+        eq(athlete.parentClientId, clientId),
+        ACTIVE_BOOKING_FILTER,
+        eq(classSession.status, "scheduled"),
+      ),
+    )
+    .orderBy(booking.sessionStartTime);
+}
+
+/** Resolve the parent clientId that owns a booking, via athlete.parentClientId. */
+export async function getClientIdForBooking(
+  tx: TenantDb,
+  organizationId: string,
+  bookingId: string,
+): Promise<string | null> {
+  const [row] = await tx
+    .select({ clientId: athlete.parentClientId })
+    .from(booking)
+    .innerJoin(
+      athlete,
+      and(eq(athlete.id, booking.athleteId), eq(athlete.organizationId, booking.organizationId)),
+    )
+    .where(
+      and(eq(booking.id, bookingId), eq(booking.organizationId, organizationId)),
+    )
+    .limit(1);
+  return row?.clientId ?? null;
 }

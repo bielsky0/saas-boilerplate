@@ -21,11 +21,15 @@ import type { TenantDb } from "@/lib/db/tenant";
  * `withTenant`, do the seat work and this in the same handle.
  */
 
+import type { CreditSource } from "./schema";
+
 /** A credit the caller has taken and must now spend, or roll back. */
 export type ClaimedCredit = {
   id: string;
   validUntil: Date;
   athleteId: string | null;
+  /** The source tells the caller what kind of credit was consumed (F7 D11). */
+  source: CreditSource;
 };
 
 /**
@@ -90,9 +94,14 @@ export async function claimCredit(
    * text-versus-timestamp. The query builder handles this for us elsewhere; raw
    * SQL is the one place it has to be said.
    */
-  const claimed = await tx.execute<{ id: string; validUntil: string; athleteId: string | null }>(
+  const claimed = await tx.execute<{
+    id: string;
+    validUntil: string;
+    athleteId: string | null;
+    source: string;
+  }>(
     sql`
-      select "id", "validUntil", "athleteId"
+      select "id", "validUntil", "athleteId", "source", "source"
       from "credit"
       where "organizationId" = ${input.organizationId}
         and "clientId" = ${input.clientId}
@@ -111,7 +120,7 @@ export async function claimCredit(
   // (`api/dev/rls-probe`) normalises it the same way.
   const row = Array.from(claimed)[0] ?? null;
   if (!row) return null;
-  return { id: row.id, validUntil: new Date(row.validUntil), athleteId: row.athleteId };
+  return { id: row.id, validUntil: new Date(row.validUntil), athleteId: row.athleteId, source: row.source as CreditSource };
 }
 
 /**
@@ -179,7 +188,7 @@ export async function consumeCreditForBooking(
     bookingId: string;
     now?: Date;
   },
-): Promise<string | null> {
+): Promise<{ creditId: string; source: CreditSource } | null> {
   const claimed = await claimCredit(tx, input);
   if (!claimed) return null;
   await spendCredit(tx, {
@@ -187,5 +196,5 @@ export async function consumeCreditForBooking(
     creditId: claimed.id,
     bookingId: input.bookingId,
   });
-  return claimed.id;
+  return { creditId: claimed.id, source: claimed.source };
 }

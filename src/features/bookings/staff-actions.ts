@@ -8,6 +8,12 @@ import { requireOrgPermission } from "@/features/organizations/context";
 import { withTenant } from "@/lib/db/tenant";
 import type { FormState } from "@/lib/validation";
 import {
+  BookingAlreadyCancelledError,
+  BookingNotFoundError as CancelBookingNotFoundError,
+  CancellationTooLateError,
+  cancelBooking,
+} from "./cancel";
+import {
   BookingNotConfirmableError,
   BookingNotFoundError as ConfirmCashBookingNotFoundError,
   confirmCashPayment,
@@ -95,6 +101,38 @@ export async function markAttendanceAction(
 
   revalidatePath(`/dashboard/sessions/${sessionId}`);
   return { success: t("attendanceMarked") };
+}
+
+export async function cancelBookingAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const ctx = await requireOrgPermission("bookings.cancel_reschedule");
+  const t = await getTranslations("staffPanel");
+  const bookingId = str(formData.get("bookingId"));
+  if (!bookingId) return { error: t("errors.generic") };
+
+  const actor = await resolveActor(ctx.session);
+
+  try {
+    await withTenant(ctx.org.id, (tx) =>
+      cancelBooking(tx, {
+        organizationId: ctx.org.id,
+        bookingId,
+        timeZone: ctx.org.timezone,
+        actor,
+        bypass24h: true,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof CancelBookingNotFoundError) return { error: t("errors.bookingNotFound") };
+    if (error instanceof BookingAlreadyCancelledError) return { error: t("errors.bookingNotFound") };
+    if (error instanceof CancellationTooLateError) return { error: t("errors.generic") };
+    throw error;
+  }
+
+  revalidatePath(`/dashboard/sessions`);
+  return { success: t("bookingCancelled") };
 }
 
 function str(value: FormDataEntryValue | null): string {

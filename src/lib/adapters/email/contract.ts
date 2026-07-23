@@ -32,7 +32,13 @@ export type TemplateName =
   // E-dziennik (langlion §2.33, EPIK 35, v16, Faza 6) — e-mail-first client
   // notification, Rozstrzygnięcie #3. Unsuppressible: see categories.ts.
   | "grade-recorded"
-  | "progress-note-added";
+  | "progress-note-added"
+  // Anulowanie rezerwacji i sesji (langlion EPIK 12, US-19.2, Faza 7).
+  //
+  // `booking-cancelled` — potwierdzenie anulowania pojedynczej rezerwacji.
+  // `session-cancelled` — cała sesja odwołana przez admina (US-19.2/AC3).
+  | "booking-cancelled"
+  | "session-cancelled";
 // `magic-link` lands with spec 2.2, which is not implemented yet.
 
 /**
@@ -66,6 +72,31 @@ export interface TemplateProps {
   /** No value/comment text in the mail (see template header) — just the fact. */
   "grade-recorded": { orgName: string; athleteName: string; fieldName: string };
   "progress-note-added": { orgName: string; athleteName: string };
+  /**
+   * Potwierdzenie anulowania rezerwacji przez klienta lub personel (F7, EPIK 12).
+   * `creditInfo` obecne tylko gdy przyznano kredyt kompensacyjny.
+   */
+  "booking-cancelled": {
+    orgName: string;
+    athleteName: string;
+    groupTypeName: string;
+    sessionDate: string;
+    sessionTime: string;
+    creditInfo?: string;
+  };
+  /**
+   * Odwołanie całej sesji przez admina (US-19.2/AC3).
+   * Wysyłany do wszystkich dotkniętych klientów jednocześnie.
+   * `creditInfo` obecne dla bookingów opłaconych — informacja o kredycie.
+   */
+  "session-cancelled": {
+    orgName: string;
+    athleteName: string;
+    groupTypeName: string;
+    sessionDate: string;
+    sessionTime: string;
+    creditInfo?: string;
+  };
 }
 
 /** Loose payload shape for callers that resolve the template at runtime. */

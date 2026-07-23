@@ -15,8 +15,10 @@ import { hasPermission } from "@/features/rbac";
 import { getSession } from "@/features/schedule/data";
 import { getGroupType } from "@/features/groups/data";
 import { listRosterForSession } from "@/features/bookings/data";
-import { ConfirmCashButton } from "@/features/bookings/components/confirm-cash-button";
 import { AttendanceControls } from "@/features/bookings/components/attendance-controls";
+import { CancelBookingButton } from "@/features/bookings/components/cancel-booking-button";
+import { ConfirmCashButton } from "@/features/bookings/components/confirm-cash-button";
+import { CancelSessionButton } from "@/features/schedule/components/cancel-session-button";
 import {
   listGradeFieldsForSessionRoster,
   listGradesForBooking,
@@ -88,17 +90,23 @@ export default async function SessionRosterPage({
   const canMarkAttendance = hasPermission(role, "bookings.mark_attendance");
   const canEnterGrades = hasPermission(role, "grades.enter");
   const canManageGradeFields = hasPermission(role, "grade_fields.manage");
+  const canCancelBooking = hasPermission(role, "bookings.cancel_reschedule");
 
   const paymentBadge = (status: string) =>
     status === "confirmed" ? "success" : status === "booked_offline" ? "warning" : "outline";
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">{groupType?.name ?? t("title")}</h1>
-        <p className="text-muted-foreground text-sm">
-          {formatWhen.format(session.startTime)} · {org.timezone}
-        </p>
+      <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold">{groupType?.name ?? t("title")}</h1>
+          <p className="text-muted-foreground text-sm">
+            {formatWhen.format(session.startTime)} · {org.timezone}
+          </p>
+        </div>
+        {session.status === "scheduled" && hasPermission(role, "sessions.manage") ? (
+          <CancelSessionButton sessionId={sessionId} />
+        ) : null}
       </div>
 
       {roster.length === 0 ? (
@@ -152,6 +160,9 @@ export default async function SessionRosterPage({
                   <div className="flex flex-col items-end gap-2">
                     {canConfirmCash && row.paymentStatus === "booked_offline" ? (
                       <ConfirmCashButton bookingId={row.bookingId} />
+                    ) : null}
+                    {canCancelBooking && row.paymentStatus !== "cancelled" ? (
+                      <CancelBookingButton bookingId={row.bookingId} />
                     ) : null}
                     {canEnterGrades ? (
                       <div className="flex w-64 flex-col gap-1">

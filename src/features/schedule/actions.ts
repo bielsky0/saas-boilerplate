@@ -11,6 +11,11 @@ import { withTenant } from "@/lib/db/tenant";
 import { SQLSTATE_EXCLUSION_VIOLATION, sqlStateOf } from "@/lib/db/sql-error";
 import { wallClockToInstant } from "@/lib/datetime";
 import type { FormState } from "@/lib/validation";
+import {
+  SessionAlreadyCancelledError,
+  SessionNotFoundError as CancelSessionNotFoundError,
+  cancelClassSession,
+} from "./cancel-session";
 import { updateSessionSchema } from "./schema";
 
 /**
@@ -159,4 +164,35 @@ export async function updateSessionAction(
 
   revalidatePath(`/dashboard/schedule`);
   return { success: t("updated") };
+}
+
+export async function cancelSessionAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const ctx = await requireOrgPermission("sessions.manage");
+  const t = await getTranslations("schedule");
+  const sessionId = str(formData.get("sessionId"));
+  if (!sessionId) return { error: t("errors.generic") };
+
+  const actor = await resolveActor(ctx.session);
+
+  try {
+    await withTenant(ctx.org.id, (tx) =>
+      cancelClassSession(tx, {
+        organizationId: ctx.org.id,
+        sessionId,
+        timeZone: ctx.org.timezone,
+        actor,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof CancelSessionNotFoundError) return { error: t("errors.notFound") };
+    if (error instanceof SessionAlreadyCancelledError) return { error: t("errors.generic") };
+    throw error;
+  }
+
+  revalidatePath(`/dashboard/schedule`);
+  revalidatePath(`/dashboard/sessions/${sessionId}`);
+  return { success: t("sessionCancelled") };
 }

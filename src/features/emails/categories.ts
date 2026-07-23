@@ -59,6 +59,10 @@ export const TEMPLATE_CATEGORY: Record<TemplateName, EmailCategory> = {
   // built the client panel view yet).
   "grade-recorded": "transactional",
   "progress-note-added": "transactional",
+  // Faza 7 — anulowanie rezerwacji i sesji. Unsuppressible: klient musi wiedzieć,
+  // że jego zajęcia zostały odwołane, zwłaszcza gdy przyznano kredyt (US-19.2/AC3).
+  "booking-cancelled": "transactional",
+  "session-cancelled": "transactional",
 };
 
 export function categoryFor(template: TemplateName): EmailCategory {
