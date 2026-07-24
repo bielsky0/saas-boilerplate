@@ -20,11 +20,16 @@ export const E2E_BILLING_ENV = {
   BILLING_PROVIDER: "stripe",
   STRIPE_SECRET_KEY: "sk_test_e2eDummyKeyNeverSentAnywhere",
   STRIPE_WEBHOOK_SECRET: "whsec_e2eDummySigningSecretForLocalHmac",
+  // Separate signing secret for Connect webhook (Faza 10 / EPIK 30).
+  STRIPE_CONNECT_WEBHOOK_SECRET: "whsec_e2eDummyConnectSecretForLocalHmac",
   // Maps to PLANS.pro, so a subscription on this price records planId="pro".
   STRIPE_PRICE_PRO: "price_e2e_pro",
 } as const;
 
 export const E2E_PRO_PRICE_ID = E2E_BILLING_ENV.STRIPE_PRICE_PRO;
+
+/** Webhook secret for signing Connect event fixtures. */
+export const E2E_CONNECT_WEBHOOK_SECRET = E2E_BILLING_ENV.STRIPE_CONNECT_WEBHOOK_SECRET;
 
 const stripe = new Stripe(E2E_BILLING_ENV.STRIPE_SECRET_KEY);
 
@@ -133,6 +138,69 @@ export function invoiceEvent(opts: InvoiceEventOpts) {
         parent: opts.subscriptionId
           ? { subscription_details: { subscription: opts.subscriptionId } }
           : null,
+      },
+    },
+  };
+}
+
+// ── Faza 10 — Stripe Connect fixtures ────────────────────────────────────
+
+export const E2E_CONNECT_ACCOUNT_ID = "acct_e2eConnectDummyAccount";
+
+type ConnectEventBase = {
+  eventId: string;
+  accountId?: string;
+  createdAt?: number;
+};
+
+/**
+ * Minimal `account.updated` payload — only the fields the adapter parses.
+ */
+export function connectAccountUpdatedEvent(
+  opts: ConnectEventBase & {
+    detailsSubmitted?: boolean;
+    chargesEnabled?: boolean;
+    payoutsEnabled?: boolean;
+    disabledReason?: string | null;
+  },
+) {
+  const created = opts.createdAt ?? Math.floor(Date.now() / 1000);
+  return {
+    id: opts.eventId,
+    object: "event",
+    created,
+    type: "account.updated",
+    data: {
+      object: {
+        id: opts.accountId ?? E2E_CONNECT_ACCOUNT_ID,
+        object: "account",
+        details_submitted: opts.detailsSubmitted ?? true,
+        charges_enabled: opts.chargesEnabled ?? true,
+        payouts_enabled: opts.payoutsEnabled ?? true,
+        requirements: opts.disabledReason
+          ? { disabled_reason: opts.disabledReason }
+          : {},
+      },
+    },
+  };
+}
+
+/**
+ * Minimal `account.application.deauthorized` payload.
+ */
+export function connectAccountDeauthorizedEvent(
+  opts: ConnectEventBase,
+) {
+  const created = opts.createdAt ?? Math.floor(Date.now() / 1000);
+  return {
+    id: opts.eventId,
+    object: "event",
+    created,
+    type: "account.application.deauthorized",
+    data: {
+      object: {
+        id: opts.accountId ?? E2E_CONNECT_ACCOUNT_ID,
+        object: "account",
       },
     },
   };

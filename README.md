@@ -1,4 +1,4 @@
-# Next.js SaaS Boilerplate
+# SaaS School
 
 A robust foundation for building B2B and B2C SaaS applications. The project is designed around multi-tenancy (personal accounts and organizations), secure access management, subscription billing, and an architecture that lets external service providers be replaced without changing business logic.
 

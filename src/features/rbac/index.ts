@@ -46,6 +46,10 @@ export type Permission =
   | "storage.delete"
   | "audit.read"
   | "billing.manage"
+  // ── Faza 10 — Stripe Connect per organization (EPIK 30) ──────────────────
+  //
+  /** Connect/disconnect the organization's own Stripe account (owner-only). */
+  | "billing_connect.manage"
   // ── langlion domain permissions (§2.10) ──────────────────────────────────
   //
   // FIRST BATCHES ONLY — the ones a phase actually enforces at a call site. The spec's §2.10 table
@@ -120,6 +124,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "storage.delete",
     "audit.read",
     "billing.manage",
+    "billing_connect.manage",
     "locations.manage",
     "group_types.manage",
     "group_types.deactivate",

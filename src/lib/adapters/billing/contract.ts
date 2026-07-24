@@ -149,6 +149,53 @@ export interface PortalSessionInput {
   returnUrl: string;
 }
 
+// ── Faza 10 — Stripe Connect (EPIK 30) ───────────────────────────────────
+
+/** Stripe Connect account status, managed exclusively by webhooks. */
+export type ConnectAccountStatus =
+  | "not_connected"
+  | "onboarding_incomplete"
+  | "active"
+  | "restricted"
+  | "disabled";
+
+export type ConnectEventType =
+  | "account.updated"
+  | "account.application.deauthorized";
+
+export interface ConnectEvent {
+  provider: string;
+  id: string;
+  occurredAt: Date;
+  /** The Connect account id (acct_xxx). */
+  accountId: string;
+  type: ConnectEventType;
+  /** Fields relevant to account.updated. */
+  status: ConnectAccountStatus;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+}
+
+export interface CreateConnectAccountInput {
+  /** ISO 3166-1 alpha-2 country code. Must be in Stripe's supported list. */
+  country: string;
+}
+
+export type CreateConnectAccountResult =
+  | { ok: true; accountId: string }
+  | { ok: false; code: BillingOperationErrorCode };
+
+export interface CreateAccountOnboardingLinkInput {
+  accountId: string;
+  returnUrl: string;
+  refreshUrl: string;
+}
+
+export type VerifyConnectWebhookResult =
+  | { ok: true; status: "handled"; event: ConnectEvent }
+  | { ok: true; status: "ignored"; eventId: string; eventType: string }
+  | { ok: false; code: BillingWebhookErrorCode };
+
 export interface BillingAdapter {
   /**
    * Which provider this adapter is, e.g. "stripe". Persisted on `billing_customer`
@@ -190,4 +237,35 @@ export interface BillingAdapter {
    * never polls the provider on page load.
    */
   createPortalSession(input: PortalSessionInput): Promise<BillingRedirectResult>;
+
+  // ── Faza 10 — Stripe Connect (EPIK 30) ─────────────────────────────────
+
+  /**
+   * Verify a Connect webhook signature and parse it into a neutral ConnectEvent.
+   * Uses a DIFFERENT signing secret than the platform billing webhook.
+   * See the separate route at /api/billing/connect/webhook.
+   */
+  verifyConnectWebhook(
+    rawBody: string,
+    headers: Headers,
+  ): Promise<VerifyConnectWebhookResult>;
+
+  /**
+   * Create a Stripe Standard Connect account for an organization.
+   * The `country` must be in Stripe's supported list for Connect accounts.
+   * Does NOT write to our database — the caller persists the mapping.
+   */
+  createConnectAccount(
+    input: CreateConnectAccountInput,
+  ): Promise<CreateConnectAccountResult>;
+
+  /**
+   * Generate an onboarding link (Account Link) for the Connect account.
+   * Stripe hosts the onboarding flow; `refreshUrl` sends the user back to
+   * regenerate the link when it expires. Status is updated exclusively via
+   * webhook (account.updated), never from this redirect.
+   */
+  createAccountOnboardingLink(
+    input: CreateAccountOnboardingLinkInput,
+  ): Promise<BillingRedirectResult>;
 }

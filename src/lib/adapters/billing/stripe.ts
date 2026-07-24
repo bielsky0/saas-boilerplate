@@ -9,9 +9,15 @@ import type {
   BillingRedirectResult,
   BillingSubscriptionStatus,
   CheckoutSessionInput,
+  ConnectAccountStatus,
+  ConnectEvent,
+  CreateAccountOnboardingLinkInput,
+  CreateConnectAccountInput,
+  CreateConnectAccountResult,
   CreateCustomerInput,
   CreateCustomerResult,
   PortalSessionInput,
+  VerifyConnectWebhookResult,
   VerifyWebhookResult,
 } from "./contract";
 
@@ -182,6 +188,65 @@ function parseEvent(event: Stripe.Event): BillingEvent | null {
   }
 }
 
+/**
+ * Parse a Connect event into a neutral ConnectEvent.
+ * Handles account.updated and account.application.deauthorized.
+ */
+function parseConnectEvent(event: Stripe.Event): ConnectEvent | null {
+  const base = { provider: PROVIDER, id: event.id, occurredAt: new Date(event.created * 1000) };
+
+  switch (event.type) {
+    case "account.updated": {
+      const account = event.data.object as {
+        id: string;
+        charges_enabled?: boolean;
+        payouts_enabled?: boolean;
+        details_submitted?: boolean;
+        requirements?: { disabled_reason?: string | null };
+      };
+      const detailsSubmitted = account.details_submitted ?? false;
+      const chargesEnabled = account.charges_enabled ?? false;
+      const payoutsEnabled = account.payouts_enabled ?? false;
+      const disabledReason = account.requirements?.disabled_reason;
+
+      let status: ConnectAccountStatus;
+      if (disabledReason) {
+        status = "disabled";
+      } else if (detailsSubmitted && chargesEnabled && payoutsEnabled) {
+        status = "active";
+      } else if (detailsSubmitted && (!chargesEnabled || !payoutsEnabled)) {
+        status = "restricted";
+      } else {
+        status = "onboarding_incomplete";
+      }
+
+      return {
+        ...base,
+        accountId: account.id,
+        type: "account.updated",
+        status,
+        chargesEnabled,
+        payoutsEnabled,
+      };
+    }
+
+    case "account.application.deauthorized": {
+      const account = event.data.object as { id: string };
+      return {
+        ...base,
+        accountId: account.id,
+        type: "account.application.deauthorized",
+        status: "not_connected",
+        chargesEnabled: false,
+        payoutsEnabled: false,
+      };
+    }
+
+    default:
+      return null;
+  }
+}
+
 export function createStripeBillingAdapter(): BillingAdapter {
   if (!env.STRIPE_SECRET_KEY || !env.STRIPE_WEBHOOK_SECRET) {
     throw new Error(
@@ -191,6 +256,7 @@ export function createStripeBillingAdapter(): BillingAdapter {
   }
   const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: API_VERSION });
   const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
+  const connectWebhookSecret = env.STRIPE_CONNECT_WEBHOOK_SECRET;
   const log = createLogger("billing.stripe");
 
   /**
@@ -275,6 +341,64 @@ export function createStripeBillingAdapter(): BillingAdapter {
         return { ok: true, url: session.url };
       } catch (err) {
         return providerError("createPortalSession", err);
+      }
+    },
+
+    // ── Faza 10 — Stripe Connect (EPIK 30) ───────────────────────────────
+
+    async verifyConnectWebhook(
+      rawBody: string,
+      headers: Headers,
+    ): Promise<VerifyConnectWebhookResult> {
+      if (!connectWebhookSecret) return { ok: false, code: "NOT_CONFIGURED" };
+
+      const signature = headers.get("stripe-signature");
+      if (!signature) return { ok: false, code: "INVALID_SIGNATURE" };
+
+      let event: Stripe.Event;
+      try {
+        event = stripe.webhooks.constructEvent(rawBody, signature, connectWebhookSecret);
+      } catch {
+        return { ok: false, code: "INVALID_SIGNATURE" };
+      }
+
+      try {
+        const parsed = parseConnectEvent(event);
+        return parsed
+          ? { ok: true, status: "handled", event: parsed }
+          : { ok: true, status: "ignored", eventId: event.id, eventType: event.type };
+      } catch {
+        return { ok: false, code: "MALFORMED_PAYLOAD" };
+      }
+    },
+
+    async createConnectAccount(
+      input: CreateConnectAccountInput,
+    ): Promise<CreateConnectAccountResult> {
+      try {
+        const account = await stripe.accounts.create({
+          type: "standard",
+          country: input.country,
+        });
+        return { ok: true, accountId: account.id };
+      } catch (err) {
+        return providerError("createConnectAccount", err);
+      }
+    },
+
+    async createAccountOnboardingLink(
+      input: CreateAccountOnboardingLinkInput,
+    ): Promise<BillingRedirectResult> {
+      try {
+        const link = await stripe.accountLinks.create({
+          account: input.accountId,
+          return_url: input.returnUrl,
+          refresh_url: input.refreshUrl,
+          type: "account_onboarding",
+        });
+        return { ok: true, url: link.url };
+      } catch (err) {
+        return providerError("createAccountOnboardingLink", err);
       }
     },
   };

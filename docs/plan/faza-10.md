@@ -1,6 +1,6 @@
 ### Faza 10 — ⚠️ Stripe Connect per organizacja (EPIK 30; Zasada #7)
 
-**Status:** nierozpoczęta
+**Status:** zakończona (2026-07-24)
 **Cel:** każda akademia podłącza WŁASNE konto Stripe (Standard Connect); platforma nigdy nie miesza go z kontem Platform Billing.
 **Pokrywa:** EPIK 30 w całości; §2.24–§2.26; Constraint 7; spec §5 pkt 8b.
 **Zależności:** F9 (kolejność spec 8a→8b; wspólny adapter).

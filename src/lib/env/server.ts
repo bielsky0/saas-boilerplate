@@ -102,6 +102,10 @@ export const env = createEnv({
     // Webhook signing secret (spec 5.4). Verification is a local HMAC against
     // this value — no network call — so tests can sign fixtures offline.
     STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional(),
+    // Webhook signing secret for Connect events (Faza 10 / EPIK 30). Separate
+    // from STRIPE_WEBHOOK_SECRET because Connect events arrive on a different
+    // endpoint with their own signing secret in the Stripe Dashboard.
+    STRIPE_CONNECT_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional(),
     // Price IDs differ per environment (test vs live), so each paid plan gets
     // its own variable rather than a JSON blob: a missing one then fails with a
     // per-variable error, which is the point of fail-fast (spec 19.1). Unset =

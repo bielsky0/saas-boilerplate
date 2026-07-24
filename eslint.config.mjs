@@ -201,6 +201,7 @@ const eslintConfig = defineConfig([
       "src/features/storage/purge.ts",
       "src/features/onboarding/data.ts",
       "src/features/billing/cross-tenant.ts",
+      "src/features/billing/connect-webhooks.ts",
       "src/features/credits/expire.ts",
     ],
     rules: {

@@ -1,7 +1,9 @@
 import type {
   BillingAdapter,
   BillingRedirectResult,
+  CreateConnectAccountResult,
   CreateCustomerResult,
+  VerifyConnectWebhookResult,
   VerifyWebhookResult,
 } from "./contract";
 
@@ -36,6 +38,18 @@ export const noneBillingAdapter: BillingAdapter = {
   },
 
   async createPortalSession(): Promise<BillingRedirectResult> {
+    return { ok: false, code: "NOT_CONFIGURED" };
+  },
+
+  async verifyConnectWebhook(): Promise<VerifyConnectWebhookResult> {
+    return { ok: false, code: "NOT_CONFIGURED" };
+  },
+
+  async createConnectAccount(): Promise<CreateConnectAccountResult> {
+    return { ok: false, code: "NOT_CONFIGURED" };
+  },
+
+  async createAccountOnboardingLink(): Promise<BillingRedirectResult> {
     return { ok: false, code: "NOT_CONFIGURED" };
   },
 };

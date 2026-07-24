@@ -6,6 +6,13 @@ import { getBillingCustomerForOwner, insertBillingCustomer } from "./data";
 import type { BillingOwner, ResolvedBillingOwner } from "./context";
 import type { Plan } from "./plans";
 
+import { forbidden } from "next/navigation";
+
+import { eq } from "drizzle-orm";
+
+import { db } from "@/lib/db";
+import { organization } from "@/lib/db/schema";
+
 /**
  * Checkout and customer portal (spec 5.3, 5.5).
  *
@@ -22,6 +29,28 @@ import type { Plan } from "./plans";
  * user can close the tab before ever being redirected). Nothing here writes a
  * subscription row.
  */
+
+/**
+ * Assert that the organization's Stripe Connect account is active.
+ *
+ * Called BEFORE any online checkout for class/package payments. Throws 403
+ * when Connect is not active, so the backend is the final enforcement point
+ * (spec §2.25). Cash payments MUST skip this check.
+ *
+ * This is forward-looking for F11 (online payments). The function exists now
+ * so the enforcement pattern is visible and testable before F11 uses it.
+ */
+export async function assertConnectActive(orgId: string): Promise<void> {
+  const [row] = await db
+    .select({ status: organization.stripeConnectStatus })
+    .from(organization)
+    .where(eq(organization.id, orgId))
+    .limit(1);
+
+  if (!row || row.status !== "active") {
+    forbidden();
+  }
+}
 
 /**
  * Where the provider sends the browser back to, per tenant context.
