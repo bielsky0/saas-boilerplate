@@ -224,6 +224,22 @@ export const AUDIT_ACTIONS = [
   "session.reassign_trainer",
   "session.mass_reassign_trainer",
   "booking.mass_move",
+  // F9 / EPIK 29 — Plany i limity jako dane w DB
+  //
+  // Wszystkie zmiany konfiguracji planów/limitów/featur/override'ów są audytowane
+  // z aktorem SuperAdmin i metadatą from→to.
+  "plan.create",
+  "plan.update",
+  "plan.delete",
+  "plan_limit_definition.create",
+  "plan_limit_definition.update",
+  "plan_limit_definition.delete",
+  "plan_feature_flag.create",
+  "plan_feature_flag.update",
+  "plan_feature_flag.delete",
+  "organization_limit_override.create",
+  "organization_limit_override.update",
+  "organization_limit_override.delete",
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -257,7 +273,12 @@ export type AuditTargetType =
   /** Target of `progress_note.create` (F6). */
   | "progress_note"
   /** Target of dezaktywacji trenera — user z membership.role='trainer' (F8). */
-  | "trainer";
+  | "trainer"
+  // F9 / EPIK 29 — Plan CRUD targets
+  | "plan"
+  | "plan_limit_definition"
+  | "plan_feature_flag"
+  | "organization_limit_override";
 
 /**
  * WHO acted, as a kind — §6.4's actor model. A different question from WHICH
@@ -267,7 +288,7 @@ export type AuditTargetType =
  * "a super admin". A super admin using the panel normally is also `Admin`; the
  * distinction that matters is authority, not surface.
  */
-export type ActorType = "User" | "System" | "AIAgent" | "Admin" | "Client";
+export type ActorType = "User" | "System" | "AIAgent" | "Admin" | "SuperAdmin" | "Client";
 
 export type AuditActor = {
   actorType: ActorType;

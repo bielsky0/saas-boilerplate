@@ -38,7 +38,10 @@ export type TemplateName =
   // `booking-cancelled` — potwierdzenie anulowania pojedynczej rezerwacji.
   // `session-cancelled` — cała sesja odwołana przez admina (US-19.2/AC3).
   | "booking-cancelled"
-  | "session-cancelled";
+  | "session-cancelled"
+  // F9 / EPIK 29 — Plan limits (email-only, not suppressible in-app).
+  | "plan_limit_approaching"
+  | "plan_limit_reached";
 // `magic-link` lands with spec 2.2, which is not implemented yet.
 
 /**
@@ -85,17 +88,29 @@ export interface TemplateProps {
     creditInfo?: string;
   };
   /**
-   * Odwołanie całej sesji przez admina (US-19.2/AC3).
-   * Wysyłany do wszystkich dotkniętych klientów jednocześnie.
-   * `creditInfo` obecne dla bookingów opłaconych — informacja o kredycie.
+   * F9 / EPIK 29 — Plan limit approaching (80% threshold, email-only).
+   * Not suppressible in-app (not in notification_preference) — always delivered via email.
    */
-  "session-cancelled": {
+  "plan_limit_approaching": {
     orgName: string;
-    athleteName: string;
-    groupTypeName: string;
-    sessionDate: string;
-    sessionTime: string;
-    creditInfo?: string;
+    limitKey: string; // "max_students", "max_groups", etc.
+    limitLabel: string; // human-readable label
+    usage: number;
+    limit: number;
+    percentage: number; // e.g., 85
+    upgradeUrl: string; // link to billing page
+  };
+  /**
+   * F9 / EPIK 29 — Plan limit reached (100%, blocked operation, email-only).
+   * Not suppressible in-app — always delivered via email.
+   */
+  "plan_limit_reached": {
+    orgName: string;
+    limitKey: string;
+    limitLabel: string;
+    usage: number;
+    limit: number;
+    upgradeUrl: string;
   };
 }
 

@@ -41,3 +41,4 @@ export type {
   JobWriter,
   JobsAdapter,
 } from "./contract";
+export { isDeduped } from "./contract";

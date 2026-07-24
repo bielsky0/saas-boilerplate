@@ -6,7 +6,7 @@ import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
-import { PLAN_LIST, type Plan } from "@/features/billing";
+import { getAllActivePlans } from "@/features/billing/limits";
 import { pageMetadata } from "@/features/content";
 import { JsonLd } from "@/features/content/components/json-ld";
 import { organizationJsonLd, webSiteJsonLd } from "@/features/content/jsonld";
@@ -14,6 +14,8 @@ import { servedSubdomain } from "@/features/organizations/served-org";
 import { Link } from "@/lib/i18n/navigation";
 import { site } from "@/lib/site";
 import { orgsEnabled } from "@/lib/tenancy";
+
+const BYTES_PER_GB = 1024 ** 3;
 
 /**
  * Public landing page (spec §7.3). Server-rendered for SEO; sections: header,
@@ -71,37 +73,42 @@ const FEATURES = [
   { icon: Zap, title: "lockinTitle", body: "lockinBody" },
 ] as const;
 
-const BYTES_PER_GB = 1024 ** 3;
-
 /**
  * The bullet list for one plan, derived from its configured limits and features.
  *
  * Generated rather than hand-written per plan (§5.2, §7.3): a limit raised in
- * `plans.ts` must move the pricing table by itself, or the table is just a second
+ * the DB must move the pricing table by itself, or the table is just a second
  * source of truth wearing the first one's clothes — which is exactly how the
  * previous placeholder drifted to an `ent` plan the billing config never had.
  */
 function planBullets(
-  plan: Plan,
+  plan: Awaited<ReturnType<typeof getAllActivePlans>>[0],
   t: Awaited<ReturnType<typeof getTranslations<"landing">>>,
 ): string[] {
-  const { members, files, storageBytes } = plan.limits;
-  return [
-    members === null
-      ? t("pricing.limits.membersUnlimited")
-      : t("pricing.limits.members", { count: members }),
-    files === null
-      ? t("pricing.limits.filesUnlimited")
-      : t("pricing.limits.files", { count: files }),
-    storageBytes === null
-      ? t("pricing.limits.storageUnlimited")
-      : t("pricing.limits.storage", { gb: Math.round(storageBytes / BYTES_PER_GB) }),
-    // Entitlement ids are dotted ("audit.export"), and next-intl SPLITS keys on
-    // "." — so the catalog nests them (features.audit.export) and this lookup
-    // resolves by navigation. A flat key named "audit.export" would be
-    // unreachable and throw MISSING_MESSAGE, 500ing the page.
-    ...plan.features.map((feature) => t(`pricing.features.${feature}`)),
-  ];
+  const limits = plan.limits || {};
+  const features = plan.features || {};
+  const members = limits.max_students;
+  const files = limits.max_groups;
+  const storageBytes = limits.max_sessions_per_month ? limits.max_sessions_per_month * 1024 * 1024 * 1024 : null;
+
+  const bullets: string[] = [];
+  if (members === null) bullets.push(t("pricing.limits.membersUnlimited"));
+  else if (members !== undefined) bullets.push(t("pricing.limits.members", { count: members }));
+
+  if (files === null) bullets.push(t("pricing.limits.filesUnlimited"));
+  else if (files !== undefined) bullets.push(t("pricing.limits.files", { count: files }));
+
+  if (storageBytes === null) bullets.push(t("pricing.limits.storageUnlimited"));
+  else if (storageBytes !== undefined) bullets.push(t("pricing.limits.storage", { gb: Math.round(storageBytes / BYTES_PER_GB) }));
+
+  // Features are stored as snake_case keys (e.g., "audit.export")
+  // Translation keys use dots: "pricing.features.audit.export"
+  for (const [featureKey, enabled] of Object.entries(features)) {
+    if (enabled) {
+      bullets.push(t(`pricing.features.${featureKey}`));
+    }
+  }
+  return bullets;
 }
 
 export default async function Home() {
@@ -127,6 +134,7 @@ export default async function Home() {
    */
   if (await servedSubdomain()) notFound();
 
+  const plans = await getAllActivePlans();
   const [t, nav, format] = await Promise.all([
     getTranslations("landing"),
     getTranslations("nav"),
@@ -218,7 +226,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Pricing (static placeholder — wired to billing config in Phase 5) */}
+        {/* Pricing — generated from DB (F9, EPIK 29) */}
         <section className="mx-auto w-full max-w-5xl px-4 py-16">
           <div className="mb-10 flex flex-col items-center gap-2 text-center">
             <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -227,10 +235,10 @@ export default async function Home() {
             <p className="text-muted-foreground max-w-lg">{t("pricing.subheading")}</p>
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
-            {PLAN_LIST.map((plan) => (
+            {plans.map((plan) => (
               <Card
                 key={plan.id}
-                className={plan.featured ? "border-primary shadow-md" : undefined}
+                className={plan.isActive ? "border-primary shadow-md" : undefined}
               >
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -240,7 +248,7 @@ export default async function Home() {
                       <Badge className="normal-case">{t("pricing.popular")}</Badge>
                     ) : null}
                   </div>
-                  <p className="text-muted-foreground text-sm">{t(`pricing.${plan.id}.desc`)}</p>
+                  <p className="text-muted-foreground text-sm">{t(`pricing.${plan.code}.desc`)}</p>
                   <div className="mt-2 flex items-baseline gap-1">
                     <span className="text-3xl font-semibold">
                       {format.number(plan.amount / 100, {
@@ -272,7 +280,7 @@ export default async function Home() {
                     variant={plan.featured ? "default" : "outline"}
                     className="w-full"
                   >
-                    <Link href="/signup">{t(`pricing.${plan.id}.cta`)}</Link>
+                    <Link href="/signup">{t(`pricing.${plan.code}.cta`)}</Link>
                   </Button>
                 </CardContent>
               </Card>

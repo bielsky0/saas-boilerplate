@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { clientActor, recordAudit } from "@/features/admin/audit";
 import { getOwnedAthlete, insertAthlete } from "@/features/clients/data";
+import { checkLimit } from "@/features/billing/limits";
 import { booking, classSession } from "@/lib/db/schema";
 import type { TenantDb } from "@/lib/db/tenant";
 import { isMethodAcceptable } from "./payment-options";
@@ -147,6 +148,8 @@ export async function createBooking(
     if (!owned) throw new ForeignAthleteError(input.participant.athleteId);
     athleteId = owned.id;
   } else {
+    // F9, EPIK 29: Enforce max_students limit before creating new athlete
+    await checkLimit(input.organizationId, "max_students");
     athleteId = await insertAthlete(tx, input.organizationId, input.client.id, {
       name: input.participant.name,
       age: input.participant.age,

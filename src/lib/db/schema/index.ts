@@ -111,8 +111,8 @@ export * from "./notifications";
 export * from "./notification-preferences";
 export * from "./rate-limits";
 
-// langlion domain (§1.2). Ordered by dependency, not alphabetically: each table
-// references only the ones above it.
+// langlion domain (§1.2 + EPIK 29). Ordered by dependency.
+export * from "./plans";
 export * from "./locations";
 export * from "./group-types";
 export * from "./group-type-recurrences";

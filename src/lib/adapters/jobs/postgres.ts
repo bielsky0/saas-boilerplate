@@ -166,6 +166,20 @@ export const postgresJobsAdapter: JobsAdapter = {
       .onConflictDoNothing({ target: [job.dedupeKey] });
   },
 
+  /**
+   * Check if a dedupe key has already been used (exists in job table).
+   * Returns true if the key exists (already enqueued), false otherwise.
+   */
+  async isDeduped(dedupeKey: string): Promise<boolean> {
+    if (!dedupeKey) return false;
+    const [row] = await db
+      .select({ id: job.id })
+      .from(job)
+      .where(eq(job.dedupeKey, dedupeKey))
+      .limit(1);
+    return !!row;
+  },
+
   async drain(registry: JobRegistry, opts): Promise<DrainResult> {
     const batchSize = opts?.batchSize ?? DEFAULT_BATCH_SIZE;
     const budgetMs = opts?.budgetMs ?? DEFAULT_BUDGET_MS;

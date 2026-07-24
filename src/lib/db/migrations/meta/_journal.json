@@ -190,6 +190,27 @@
       "when": 1784675164810,
       "tag": "0026_rls_grade_book",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1784882193245,
+      "tag": "0027_quick_hellfire_club",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1784999999999,
+      "tag": "0028_faza9_plans_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1785000000000,
+      "tag": "0029_faza9_plan_pricing_fields",
+      "breakpoints": true
     }
   ]
 }

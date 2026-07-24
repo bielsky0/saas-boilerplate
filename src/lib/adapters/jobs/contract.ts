@@ -219,6 +219,12 @@ export interface JobsAdapter {
   ): Promise<void>;
 
   /**
+   * Check if a dedupe key has already been used (exists in job table).
+   * Returns true if the key exists (already enqueued), false otherwise.
+   */
+  isDeduped(dedupeKey: string): Promise<boolean>;
+
+  /**
    * Claim and run due jobs until none are due or `budgetMs` is spent.
    *
    * The registry is passed IN rather than imported: an adapter that imported

@@ -63,6 +63,9 @@ export const TEMPLATE_CATEGORY: Record<TemplateName, EmailCategory> = {
   // że jego zajęcia zostały odwołane, zwłaszcza gdy przyznano kredyt (US-19.2/AC3).
   "booking-cancelled": "transactional",
   "session-cancelled": "transactional",
+  // F9 / EPIK 29 — plan limit notifications (email-only, transactional).
+  "plan_limit_approaching": "transactional",
+  "plan_limit_reached": "transactional",
 };
 
 export function categoryFor(template: TemplateName): EmailCategory {

@@ -2,6 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import type { TenantDb } from "@/lib/db/tenant";
 import { athlete, client } from "@/lib/db/schema";
+import { checkLimit } from "@/features/billing/limits";
 
 /**
  * Client (parent) and athlete (child) data access (langlion §1.2 rewizja 14.1, §2.8).
@@ -69,6 +70,9 @@ export async function insertAthlete(
   parentClientId: string,
   values: { name: string; age?: number },
 ): Promise<string> {
+  // F9, EPIK 29: Enforce max_students limit before creating new athlete
+  await checkLimit(organizationId, "max_students");
+
   const [row] = await tx
     .insert(athlete)
     .values({

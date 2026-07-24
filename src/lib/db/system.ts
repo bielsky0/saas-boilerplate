@@ -45,7 +45,7 @@ export async function withSystemBypass<T>(
     // Transaction-scoped for the same reason as withTenant: a session-scoped
     // bypass would outlive this call on a pooled connection and silently disable
     // isolation for whatever ran next.
-    await tx.execute(sql`select set_config('app.bypass_rls', 'on', true)`);
+    await tx.execute(sql`select set_config('app.is_system_bypass', 'true', true)`);
     // Logged at warn, not debug: every one of these is a deliberate hole in
     // tenant isolation, and they should be countable in production logs. Pass a
     // literal — `reason` is documentation for whoever reads that line at 3am.

@@ -16,7 +16,9 @@
  */
 
 export type NotificationType =
-  "verify-email" | "invitation" | "payment-failed" | "subscription-confirmed";
+  "verify-email" | "invitation" | "payment-failed" | "subscription-confirmed"
+  // F9 / EPIK 29 — Plan limits (email-only, not suppressible in-app per spec)
+  | "plan_limit_approaching" | "plan_limit_reached";
 
 /**
  * Exhaustive by construction: `Record<NotificationType, _>` makes adding a type
@@ -27,6 +29,9 @@ export const NOTIFICATION_META: Record<NotificationType, { suppressible: boolean
   invitation: { suppressible: true },
   "payment-failed": { suppressible: true },
   "subscription-confirmed": { suppressible: true },
+  // F9: email-only, not suppressible in-app (spec says email-only)
+  "plan_limit_approaching": { suppressible: false },
+  "plan_limit_reached": { suppressible: false },
 };
 
 export const NOTIFICATION_TYPES = Object.keys(NOTIFICATION_META) as NotificationType[];

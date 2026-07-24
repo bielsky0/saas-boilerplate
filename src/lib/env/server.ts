@@ -52,6 +52,9 @@ export const env = createEnv({
     // src/lib/site.ts). Host recognition must not inherit that constraint: it is
     // read per request by src/proxy.ts via `parseHost`.
     APP_ROOT_DOMAIN: z.string().min(1).default("localhost"),
+    // Public base URL of the app, available on both client and server.
+    // Used in emails, jobs, and webhook callbacks.
+    NEXT_PUBLIC_APP_URL: z.url().default("http://localhost:3000"),
     // Selects the email adapter implementation (spec 10.1). "log" prints the
     // message (incl. verification link) to the server console + an in-memory
     // outbox for dev/CI; "resend" sends real mail.

@@ -24,3 +24,8 @@ export {
   purchasablePlan,
 } from "./plans";
 export type { Plan, PlanFeature, PlanId, PlanLimits } from "./plans";
+
+// F9: DB-driven plans & limits
+export * from "./plans-db";
+export * from "./limits";
+export * from "./features";

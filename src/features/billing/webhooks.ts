@@ -8,7 +8,7 @@ import type {
 import { jobs } from "@/lib/adapters/jobs";
 import { changed, recordAudit, SYSTEM_ACTOR } from "@/features/admin/audit";
 import { withOwner, type Owner, type TenantDb } from "@/lib/db/tenant";
-import { billingPayment, subscription, webhookEvent } from "@/lib/db/schema";
+import { billingPayment, organization, plan, subscription, webhookEvent } from "@/lib/db/schema";
 import { createLogger } from "@/lib/logger";
 import { findBillingCustomer } from "./cross-tenant";
 import { planIdForPriceId } from "./plans";
@@ -200,6 +200,24 @@ async function applySubscriptionEvent(
       providerEventId: event.id,
     },
   });
+
+  // F9: Update organization.plan_id when plan changes (idempotent via webhook watermark)
+  if (customer.organizationId && before?.planId !== after.planId) {
+    const newPlanCode = after.planId;
+    if (newPlanCode) {
+      const [planRow] = await tx
+        .select({ id: plan.id })
+        .from(plan)
+        .where(eq(plan.code, newPlanCode))
+        .limit(1);
+      if (planRow) {
+        await tx
+          .update(organization)
+          .set({ planId: planRow.id, updatedAt: new Date() })
+          .where(eq(organization.id, customer.organizationId));
+      }
+    }
+  }
 }
 
 /** Same watermarked upsert for payments — stops a late `invoice.paid` from

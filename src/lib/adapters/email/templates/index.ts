@@ -17,6 +17,8 @@ import { SessionCancelled, sessionCancelledSubject } from "./session-cancelled";
 import { SubscriptionConfirmed, subscriptionConfirmedSubject } from "./subscription-confirmed";
 import { VerifyEmail, verifyEmailSubject } from "./verify-email";
 import { Welcome, welcomeSubject } from "./welcome";
+import { PlanLimitApproaching, planLimitApproachingSubject } from "./plan-limit-approaching";
+import { PlanLimitReached, planLimitReachedSubject } from "./plan-limit-reached";
 
 /**
  * Template registry (spec 10.2 — component templates, HTML + plain-text).
@@ -64,6 +66,8 @@ const templates: { [N in TemplateName]: TemplateDef<N> } = {
   "progress-note-added": { subject: progressNoteAddedSubject, component: ProgressNoteAdded },
   "booking-cancelled": { subject: bookingCancelledSubject, component: BookingCancelled },
   "session-cancelled": { subject: sessionCancelledSubject, component: SessionCancelled },
+  "plan_limit_approaching": { subject: planLimitApproachingSubject, component: PlanLimitApproaching },
+  "plan_limit_reached": { subject: planLimitReachedSubject, component: PlanLimitReached },
 };
 
 /**

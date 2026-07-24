@@ -1,6 +1,7 @@
 import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { user } from "./auth";
+import { plan } from "./plans";
 
 /**
  * Organization (spec 3.1 — the team/tenant account; langlion: one academy).
@@ -30,6 +31,10 @@ import { user } from "./auth";
  * once transactional data exists. Same reasoning for `subdomain` — it is a
  * deliberate choice at creation time, never derived from `name`, because academy
  * names collide in practice.
+ *
+ * `plan_id` (F9, EPIK 29) — FK to `plan` table, NOT NULL with default 'trial'.
+ * Every organization must have a plan. The trial plan has real free-tier caps
+ * (max_students=10, etc.) so enforcement works from day one.
  */
 export const organization = pgTable("organization", {
   id: text("id")
@@ -47,6 +52,11 @@ export const organization = pgTable("organization", {
   createdByUserId: text("createdByUserId")
     .notNull()
     .references(() => user.id, { onDelete: "restrict" }),
+  /** Plan this organization is on (F9, EPIK 29). NOT NULL, default 'trial'. */
+  planId: text("plan_id")
+    .notNull()
+    .default("trial")
+    .references(() => plan.id, { onDelete: "restrict" }),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   deletedAt: timestamp("deletedAt"),
