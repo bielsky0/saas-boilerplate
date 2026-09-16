@@ -4,48 +4,15 @@ import { revalidatePath } from "next/cache";
 
 import { requireSession } from "@/lib/auth";
 import type { FormState } from "@/lib/validation";
-import { markAllRead, markRead, setPreference } from "./data";
-import { resolveNotificationOwner } from "./context";
-import { markAllReadSchema, markReadSchema } from "./schema";
+import { setPreference } from "./data";
 import { NOTIFICATION_TYPES, isSuppressibleType } from "./types";
 
 /**
- * Notification server actions (spec 23.2 / 23.3). Reads are polled via the route
- * handler; these are the mutations. Mark-read actions resolve the active owner
- * (from the posted `slug`) so a user can only touch their OWN notifications in
- * the context they are acting as; the preference action is per-user (session
- * only). The pattern mirrors `features/organizations/actions.ts`.
+ * Notification server actions (spec 23.3) — only the preference form remains.
+ * Reads and mark-read moved to Nest (`GET/PATCH /v1/notifications`, proxied
+ * through `src/app/api/notifications/*`); the preference form follows in
+ * etap 2 with the creation pipeline.
  */
-
-/**
- * Mark one notification read. `slug` names the active context (null = personal);
- * `resolveNotificationOwner` re-authorizes it server-side, so the owner scope on
- * `markRead` is what stops a caller clearing someone else's notification.
- *
- * The parse runs BEFORE `resolveNotificationOwner` (§22.2: validation is the
- * entry point, ahead of any authorization side effect). Returning silently on a
- * malformed argument rather than throwing keeps the `void` contract the bell
- * component fires-and-forgets against — a caller sending junk gets nothing done
- * and nothing told, which is the right amount of feedback for a request the UI
- * cannot produce. The `if (id)` guard this replaces did the same job for exactly
- * one of the two arguments.
- */
-export async function markReadAction(slug: string | null, id: string): Promise<void> {
-  const parsed = markReadSchema.safeParse({ slug, id });
-  if (!parsed.success) return;
-
-  const { owner, userId } = await resolveNotificationOwner(parsed.data.slug ?? null);
-  await markRead(userId, owner, parsed.data.id);
-}
-
-/** Mark every notification in the active context read. */
-export async function markAllReadAction(slug: string | null): Promise<void> {
-  const parsed = markAllReadSchema.safeParse({ slug });
-  if (!parsed.success) return;
-
-  const { owner, userId } = await resolveNotificationOwner(parsed.data.slug ?? null);
-  await markAllRead(userId, owner);
-}
 
 /**
  * Save the in-app channel preferences (spec 23.3). One form, one Save button: for

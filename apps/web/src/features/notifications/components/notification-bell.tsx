@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import { markAllReadAction, markReadAction } from "../actions";
+import { markAllNotificationsRead, markNotificationRead } from "../client";
 import { isNotificationType } from "../types";
 
 /**
@@ -88,7 +88,7 @@ export function NotificationBell() {
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, readAt: "now" } : i)));
       setUnread((n) => Math.max(0, n - 1));
     }
-    await markReadAction(slug, item.id);
+    await markNotificationRead(slug, item.id);
     if (item.link) {
       // verify-email links are absolute (a full app URL); everything else is an
       // app-relative route the locale-aware router can take.
@@ -100,7 +100,7 @@ export function NotificationBell() {
   async function markAll() {
     setItems((prev) => prev.map((i) => ({ ...i, readAt: i.readAt ?? "now" })));
     setUnread(0);
-    await markAllReadAction(slug);
+    await markAllNotificationsRead(slug);
   }
 
   return (

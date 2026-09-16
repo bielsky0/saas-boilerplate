@@ -1,26 +1,35 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { resolveNotificationOwner } from "@/features/notifications/context";
-import { countUnread, listNotificationsForUser } from "@/features/notifications/data";
+import { ApiError } from "@repo/api-client";
+import { api } from "@/lib/api";
 
 /**
  * Notifications polling endpoint (spec 23.2 / 23.4) — the read side of the bell.
  *
- * Session-protected by the proxy; still resolves the owner here, because the
- * proxy is a UX convenience, not the security boundary. `slug` present → org
- * context (requires active membership); absent → the caller's personal account.
- * Returns the unread count for the badge + the most recent notifications, scoped
- * to the acting owner so no notification leaks across tenants. Reads only —
- * mark-read is a server action.
+ * Thin reverse proxy since the read path moved to Nest (`GET
+ * /v1/notifications`): the session cookie is forwarded by `@/lib/api`, Nest
+ * resolves the owner (org `slug` → membership, absent → personal account) and
+ * answers `{ unreadCount, items }`. Shape and status codes pass through
+ * untouched, so the bell and the E2E suite see no difference.
+ *
+ * Reads only — mutations live on the PATCH routes beside this file.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const slug = request.nextUrl.searchParams.get("slug");
-  const { owner, userId } = await resolveNotificationOwner(slug);
-
-  const [unreadCount, items] = await Promise.all([
-    countUnread(userId, owner),
-    listNotificationsForUser(userId, owner),
-  ]);
-
-  return NextResponse.json({ unreadCount, items });
+  try {
+    const data = await api().get<{ unreadCount: number; items: unknown[] }>("/v1/notifications", {
+      query: slug ? { slug } : {},
+    });
+    return NextResponse.json(data);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return NextResponse.json(
+        error.issues !== undefined
+          ? { error: error.code, issues: error.issues }
+          : { error: error.code },
+        { status: error.status },
+      );
+    }
+    return NextResponse.json({ error: "Notifications unavailable" }, { status: 502 });
+  }
 }

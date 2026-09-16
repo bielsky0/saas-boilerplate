@@ -198,6 +198,10 @@ export const env = createEnv({
     //   server action refuses, and the switcher/CTAs are gone. Existing org rows
     //   are retained and untouched — just unreachable from the tenant UI.
     MULTI_TENANCY_MODE: z.enum(["required", "optional", "disabled"]).default("required"),
+    // Base URL of the NestJS API (apps/api). Server Components and route
+    // handlers talk to Nest through `@/lib/api`, which forwards the browser's
+    // session cookie — that forward is what lets Nest resolve the session.
+    API_BASE_URL: z.url().default("http://localhost:3001"),
   },
   // Server vars are read straight from process.env in the Node runtime.
   experimental__runtimeEnv: {},

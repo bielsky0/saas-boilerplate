@@ -14,6 +14,10 @@ const ApiEnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
   DATABASE_URL: z.url(),
   BETTER_AUTH_SECRET: z.string().min(1),
+  // Mirrors the web app's MULTI_TENANCY_MODE (spec 1.4) — same names, so one
+  // `.env` shape serves both apps. Cosmetic-by-contract, like in web: it gates
+  // what the API resolves, never the data model.
+  MULTI_TENANCY_MODE: z.enum(["required", "optional", "disabled"]).default("required"),
 });
 
 export type ApiConfig = z.infer<typeof ApiEnvSchema>;
