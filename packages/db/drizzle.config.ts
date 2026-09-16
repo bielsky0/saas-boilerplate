@@ -6,12 +6,12 @@ import { defineConfig } from "drizzle-kit";
  *
  * `dotenv/config` loads `.env` so the CLI (`pnpm db:generate` / `db:migrate` /
  * `db:studio`) can read DATABASE_URL. Schema is split across
- * `src/lib/db/schema/*`; generated SQL migrations live in `src/lib/db/migrations`.
+ * `src/schema/*`; generated SQL migrations live in `src/migrations`.
  */
 export default defineConfig({
   dialect: "postgresql",
-  schema: "./src/lib/db/schema/index.ts",
-  out: "./src/lib/db/migrations",
+  schema: "./src/schema/index.ts",
+  out: "./src/migrations",
   dbCredentials: {
     url: process.env.DATABASE_URL ?? "",
   },

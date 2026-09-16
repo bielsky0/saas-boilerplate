@@ -17,6 +17,16 @@ const nextConfig: NextConfig = {
   // Emit a self-contained server bundle so the app runs on Vercel *and* as a
   // standalone Node.js server / Docker container (spec 19.1).
   output: "standalone",
+  // Workspace packages ship TypeScript sources; compile them as part of the
+  // web bundle (standard Turborepo setup). Without this, imports of
+  // `@repo/*` resolve to uncompiled `.ts` outside the compilation scope.
+  transpilePackages: [
+    "@repo/validation",
+    "@repo/db",
+    "@repo/contracts",
+    "@repo/i18n-core",
+    "@repo/api-client",
+  ],
   experimental: {
     // Enable `forbidden()` / `unauthorized()` so RBAC failures render real
     // 403/401 responses from server components, actions, and route handlers

@@ -1,0 +1,25 @@
+{
+  "name": "@repo/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./auth": "./src/auth.ts",
+    "./billing": "./src/billing.ts",
+    "./email": "./src/email.ts",
+    "./jobs": "./src/jobs.ts",
+    "./storage": "./src/storage.ts",
+    "./rate-limit": "./src/rate-limit.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/db": "workspace:*",
+    "@repo/i18n-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

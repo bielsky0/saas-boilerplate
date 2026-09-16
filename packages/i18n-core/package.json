@@ -1,0 +1,20 @@
+{
+  "name": "@repo/i18n-core",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@formatjs/intl-localematcher": "^0.8.13",
+    "@types/negotiator": "^0.6.4",
+    "negotiator": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

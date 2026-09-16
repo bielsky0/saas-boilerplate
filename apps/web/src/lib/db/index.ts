@@ -1,28 +1,27 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-
 import { env } from "@/lib/env/server";
-import * as schema from "./schema";
+import { createDb } from "@repo/db";
 
 /**
- * Drizzle database client (spec 1.1 / 11 — ORM isolated behind one module).
+ * Web-side database wiring (spec 11).
  *
- * This is the ONLY place the application opens a database connection. Feature
- * code imports `db` from here and never touches the `postgres` driver directly,
- * so the ORM/driver can be swapped without changing business logic.
+ * The schema, migrations and client factory live in `@repo/db`; this module
+ * only injects the connection string from the validated server env and holds
+ * the instance. Cached on `globalThis` so Next.js hot-reload in development
+ * does not open a new connection pool on every module reload.
  *
- * The client is cached on `globalThis` so Next.js hot-reload in development does
- * not open a new connection pool on every module reload.
+ * Feature code keeps importing `db` from here unchanged — until the feature
+ * moves to Nest, at which point its `data.ts` goes with it and this module
+ * loses another importer. When the last one is gone, this file dies too.
  */
 const globalForDb = globalThis as unknown as {
-  client: ReturnType<typeof postgres> | undefined;
+  db: ReturnType<typeof createDb> | undefined;
 };
 
-const client = globalForDb.client ?? postgres(env.DATABASE_URL);
+export const db = globalForDb.db ?? createDb(env.DATABASE_URL);
 
 if (env.NODE_ENV !== "production") {
-  globalForDb.client = client;
+  globalForDb.db = db;
 }
 
-export const db = drizzle(client, { schema });
-export { schema };
+export { schema } from "@repo/db";
+export type { Db } from "@repo/db";

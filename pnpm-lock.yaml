@@ -65,6 +65,21 @@ importers:
       '@react-email/render':
         specifier: ^2.1.0
         version: 2.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@repo/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@repo/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@repo/i18n-core':
+        specifier: workspace:*
+        version: link:../../packages/i18n-core
+      '@repo/validation':
+        specifier: workspace:*
+        version: link:../../packages/validation
       '@t3-oss/env-nextjs':
         specifier: ^0.13.8
         version: 0.13.11(typescript@5.9.3)(zod@4.4.3)
@@ -156,12 +171,6 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.2.3(@types/react@19.2.17)
-      dotenv:
-        specifier: ^17.4.2
-        version: 17.4.2
-      drizzle-kit:
-        specifier: ^0.31.6
-        version: 0.31.10
       eslint:
         specifier: ^9
         version: 9.39.5(jiti@2.7.0)
@@ -187,7 +196,77 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  packages/api-client:
+    devDependencies:
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/contracts:
+    dependencies:
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../db
+      '@repo/i18n-core':
+        specifier: workspace:*
+        version: link:../i18n-core
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/db:
+    dependencies:
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@prisma/client@5.22.0)(@types/pg@8.20.0)(better-sqlite3@12.11.1)(kysely@0.29.3)(pg@8.22.0)(postgres@3.4.9)
+      postgres:
+        specifier: ^3.4.7
+        version: 3.4.9
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
+      drizzle-kit:
+        specifier: ^0.31.6
+        version: 0.31.10
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/i18n-core:
+    dependencies:
+      '@formatjs/intl-localematcher':
+        specifier: ^0.8.13
+        version: 0.8.13
+      '@types/negotiator':
+        specifier: ^0.6.4
+        version: 0.6.4
+      negotiator:
+        specifier: ^1.0.0
+        version: 1.0.0
+    devDependencies:
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   packages/tsconfig: {}
+
+  packages/validation:
+    dependencies:
+      zod:
+        specifier: ^4.1.13
+        version: 4.4.3
+    devDependencies:
+      typescript:
+        specifier: ^5
+        version: 5.9.3
 
 packages:
 

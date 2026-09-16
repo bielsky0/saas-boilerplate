@@ -1,0 +1,19 @@
+{
+  "name": "@repo/validation",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./primitives": "./src/primitives.ts",
+    "./state": "./src/state.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
