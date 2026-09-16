@@ -1,0 +1,42 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "globalEnv": ["NODE_ENV"],
+  "tasks": {
+    "typegen": {
+      "outputs": ["next-env.d.ts", ".next/types/**"]
+    },
+    "build": {
+      "dependsOn": ["^build", "typegen"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": [
+        "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "BETTER_AUTH_URL",
+        "BILLING_PROVIDER",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "NEXT_PUBLIC_APP_URL",
+        "MULTI_TENANCY_MODE",
+        "EMAIL_PROVIDER"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {},
+    "typecheck": {
+      "dependsOn": ["typegen"]
+    },
+    "test:e2e": {
+      "outputs": ["playwright-report/**", "test-results/**"]
+    },
+    "db:generate": {},
+    "db:migrate": {},
+    "db:studio": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
