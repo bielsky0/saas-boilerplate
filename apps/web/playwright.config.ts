@@ -43,6 +43,16 @@ const E2E_AUTH_ENV: Record<string, string> =
     ? { BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET }
     : {};
 
+/**
+ * Faza 2.1 — the auth module enqueues mail from Nest and kicks the web drain
+ * afterwards, so the drain endpoint must accept the kick here. A dummy secret
+ * (never a real one): `cron-drain.spec.ts` accepts either 401 or 404, so the
+ * guard assertions hold either way.
+ */
+const E2E_CRON_ENV = {
+  CRON_SECRET: "e2e-cron-secret-not-a-real-secret",
+} as const;
+
 export default defineConfig({
   testDir: "./e2e",
   /**
@@ -97,6 +107,7 @@ export default defineConfig({
         ...E2E_DB_ENV,
         ...E2E_AUTH_ENV,
         // Accepts the post-enqueue drain kick from Nest (faza 2.1).
+        ...E2E_CRON_ENV,
         // Selects the Stripe adapter and shares the signing secret with the tests
         // that sign fixtures. Verification is a local HMAC, so these dummy values
         // never reach Stripe and the suite needs no account (spec 5.4).
@@ -127,6 +138,7 @@ export default defineConfig({
         ...E2E_AUTH_ENV,
         ...E2E_TENANCY_ENV,
         // Sends the post-enqueue drain kick to web (faza 2.1).
+        ...E2E_CRON_ENV,
       },
     },
   ],

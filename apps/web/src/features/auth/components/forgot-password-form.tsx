@@ -1,22 +1,21 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useActionState } from "react";
+import { useState, type FormEvent } from "react";
 
 import { Button, FormField, FormMessage, Input } from "@/components/ui";
 import { Link } from "@/lib/i18n/navigation";
-import { requestPasswordResetAction, type ForgotPasswordState } from "../actions";
-
-const initialState: ForgotPasswordState = {};
+import { requestResetWithNest, type ForgotFormState } from "../client";
 
 export function ForgotPasswordForm() {
-  const [state, formAction, pending] = useActionState(requestPasswordResetAction, initialState);
+  const [state, setState] = useState<ForgotFormState>({});
+  const [pending, setPending] = useState(false);
   const t = useTranslations("auth");
 
-  // The confirmation is deliberately identical whether or not the address has an
-  // account (spec 2.1). Do not "improve" this into "no account found" — that turns
-  // the form into a free account-enumeration oracle. There is exactly ONE key here
-  // for the same reason: a translator never sees a variant to diverge from.
+  // The confirmation is deliberately identical whether or not the address has
+  // an account (spec 2.1). Do not "improve" this into "no account found".
+  // There is exactly ONE outcome here, so no client-side validation either:
+  // even "that isn't an email" must resolve to the same screen.
   if (state.sent) {
     return (
       <div className="flex flex-col gap-4">
@@ -31,8 +30,22 @@ export function ForgotPasswordForm() {
     );
   }
 
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    try {
+      const formData = new FormData(event.currentTarget);
+      await requestResetWithNest({ email: String(formData.get("email") ?? "") });
+      // Always the sent screen — the API resolves success for unknown and
+      // malformed addresses too (and skips the send silently when limited).
+      setState({ sent: true });
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
-    <form action={formAction} className="flex flex-col gap-4" noValidate>
+    <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
       <FormField label={t("fields.email")} htmlFor="email">
         <Input id="email" name="email" type="email" autoComplete="email" required />
       </FormField>

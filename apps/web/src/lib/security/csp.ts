@@ -65,12 +65,37 @@ function storageOrigin(): string | null {
 }
 
 /**
+ * Origin (scheme + host + port, no path) of the NestJS API, or null when it
+ * cannot be parsed.
+ *
+ * Faza 2.1: auth forms fetch Nest DIRECTLY from the browser, so the API is a
+ * cross-origin `connect-src` exactly like the storage bucket above — and like
+ * the bucket, it is DERIVED, not configured. The browser calls
+ * `NEXT_PUBLIC_API_BASE_URL` while the server calls `API_BASE_URL`; the two
+ * name the same deployment, and this reads the server half (the one available
+ * in the proxy). Do not add it to `CSP_EXTRA_CONNECT_SRC` — that env is for
+ * third-party integrations, and this origin is already in config, so a second
+ * place to keep in sync would only drift. A same-origin API deployment simply
+ * repeats `'self'`; the browser ignores the duplicate.
+ */
+function apiOrigin(): string | null {
+  try {
+    return new URL(env.API_BASE_URL).origin;
+  } catch {
+    // A malformed API URL must not take down every response with a 500 from
+    // the proxy. Auth is already broken at this point; the forms report it.
+    return null;
+  }
+}
+
+/**
  * Sources computed ONCE at module load, not per request.
  *
  * Env is fixed for the lifetime of the process, so doing this work on every
  * request would be pure waste on the hottest path in the app.
  */
 const STORAGE_ORIGIN = storageOrigin();
+const API_ORIGIN = apiOrigin();
 const IS_DEV = env.NODE_ENV === "development";
 
 /**
@@ -152,8 +177,9 @@ export function buildCsp(nonce: string): string {
     sources(`img-src 'self' blob: data:`, STORAGE_ORIGIN, env.CSP_EXTRA_IMG_SRC),
     // Fonts are self-hosted by next/font at build time — no external origin.
     `font-src 'self'`,
-    // The bucket is here because the browser uploads to it directly.
-    sources(`connect-src 'self'`, STORAGE_ORIGIN, env.CSP_EXTRA_CONNECT_SRC),
+    // The bucket is here because the browser uploads to it directly. The API
+    // is here for the same reason: auth forms fetch it directly (faza 2.1).
+    sources(`connect-src 'self'`, STORAGE_ORIGIN, API_ORIGIN, env.CSP_EXTRA_CONNECT_SRC),
     // No <object>/<embed>/<applet>; nothing in this app uses them and they are a
     // classic bypass for script-src.
     `object-src 'none'`,
