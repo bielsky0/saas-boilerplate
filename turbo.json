@@ -25,9 +25,11 @@
       "cache": false,
       "persistent": true
     },
-    "lint": {},
+    "lint": {
+      "dependsOn": ["^build"]
+    },
     "typecheck": {
-      "dependsOn": ["typegen"]
+      "dependsOn": ["^build", "typegen"]
     },
     "test:e2e": {
       "outputs": ["playwright-report/**", "test-results/**"]
