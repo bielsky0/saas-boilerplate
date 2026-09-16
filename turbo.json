@@ -35,7 +35,15 @@
       "outputs": ["playwright-report/**", "test-results/**"]
     },
     "db:generate": {},
-    "db:migrate": {},
+    "db:migrate": {
+      // Faza 2.0 (K5): migracja pisze do zewnętrznej bazy, więc nigdy nie może
+      // być pomijana przez cache. Samo `env` nie wystarcza — udowodnione
+      // testem: dwa identyczne przebiegi z rzędu, drugi to "cache hit".
+      // `env` dokumentuje zależność (zmiana bazy = inny klucz), a
+      // `cache: false` gwarantuje, że migracja ZAWSZE uderza w bazę.
+      "cache": false,
+      "env": ["DATABASE_URL"]
+    },
     "db:studio": {
       "cache": false,
       "persistent": true

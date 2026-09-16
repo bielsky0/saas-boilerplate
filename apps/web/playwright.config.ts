@@ -20,6 +20,29 @@ import { E2E_TENANCY_ENV, ORG_DEPENDENT_SPECS, TENANCY_MODE } from "./e2e/tenanc
 const PORT = 3000;
 const baseURL = process.env.NEXT_PUBLIC_APP_URL ?? `http://localhost:${PORT}`;
 
+// Faza 2.0 — dual-server E2E: każdy slice od tej fazy testujemy przeciw web+api.
+// API słucha na :3001 (domyślny PORT z apps/api/src/common/config.ts).
+const API_PORT = 3001;
+const apiHealthURL = `http://localhost:${API_PORT}/v1/health`;
+
+/**
+ * Forward DB + auth secret do obu serwerów (faza 2.0: "ten sam DATABASE_URL
+ * co web + BETTER_AUTH_SECRET").
+ *
+ * Lokalnie te zmienne pochodzą z plików .env obu aplikacji (Next ładuje swój,
+ * Nest ładuje swój przez dotenv w main.ts), więc brak ich w process.env jest OK. W CI
+ * .env nie istnieje — zmienne przychodzą z workflow env i muszą być
+ * przekazane explicite, inaczej API wstałoby bez bazy.
+ */
+const E2E_DB_ENV: Record<string, string> =
+  process.env.DATABASE_URL != null && process.env.DATABASE_URL !== ""
+    ? { DATABASE_URL: process.env.DATABASE_URL }
+    : {};
+const E2E_AUTH_ENV: Record<string, string> =
+  process.env.BETTER_AUTH_SECRET != null && process.env.BETTER_AUTH_SECRET !== ""
+    ? { BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET }
+    : {};
+
 export default defineConfig({
   testDir: "./e2e",
   /**
@@ -54,34 +77,57 @@ export default defineConfig({
     locale: "en-US",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command: "pnpm build && pnpm start",
-    url: baseURL,
-    /**
-     * ⚠️ Reuse is forced OFF outside `required` mode. A server already running on
-     * :3000 in the default mode would otherwise be silently reused by the
-     * `disabled` leg, which would then assert disabled behaviour against a
-     * required-mode server — and every failure message would be about a missing
-     * switcher, not about the stale server. This footgun has already cost time
-     * twice in this repo (faza 7 and faza 11a.1); here it is closed in config.
-     */
-    reuseExistingServer: !process.env.CI && TENANCY_MODE === "required",
-    timeout: 120_000,
-    env: {
-      NODE_ENV: "test",
-      EMAIL_PROVIDER: "log",
-      // Selects the Stripe adapter and shares the signing secret with the tests
-      // that sign fixtures. Verification is a local HMAC, so these dummy values
-      // never reach Stripe and the suite needs no account (spec 5.4).
-      ...E2E_BILLING_ENV,
-      // Selects the S3 adapter against local MinIO (spec 21 / 25).
-      ...E2E_STORAGE_ENV,
-      // Rate limiting at PRODUCTION limits (spec 2.1 / 22.3). The suite stays
-      // green because each test gets its own bucket via a header fixture, not
-      // because the limits are relaxed — see e2e/rate-limit-fixtures.ts.
-      ...E2E_RATE_LIMIT_ENV,
-      // Which tenancy mode this leg boots in (spec 1.4). Default `required`.
-      ...E2E_TENANCY_ENV,
+  webServer: [
+    {
+      command: "pnpm build && pnpm start",
+      url: baseURL,
+      /**
+       * ⚠️ Reuse is forced OFF outside `required` mode. A server already running on
+       * :3000 in the default mode would otherwise be silently reused by the
+       * `disabled` leg, which would then assert disabled behaviour against a
+       * required-mode server — and every failure message would be about a missing
+       * switcher, not about the stale server. This footgun has already cost time
+       * twice in this repo (faza 7 and faza 11a.1); here it is closed in config.
+       */
+      reuseExistingServer: !process.env.CI && TENANCY_MODE === "required",
+      timeout: 120_000,
+      env: {
+        NODE_ENV: "test",
+        EMAIL_PROVIDER: "log",
+        ...E2E_DB_ENV,
+        ...E2E_AUTH_ENV,
+        // Accepts the post-enqueue drain kick from Nest (faza 2.1).
+        // Selects the Stripe adapter and shares the signing secret with the tests
+        // that sign fixtures. Verification is a local HMAC, so these dummy values
+        // never reach Stripe and the suite needs no account (spec 5.4).
+        ...E2E_BILLING_ENV,
+        // Selects the S3 adapter against local MinIO (spec 21 / 25).
+        ...E2E_STORAGE_ENV,
+        // Rate limiting at PRODUCTION limits (spec 2.1 / 22.3). The suite stays
+        // green because each test gets its own bucket via a header fixture, not
+        // because the limits are relaxed — see e2e/rate-limit-fixtures.ts.
+        ...E2E_RATE_LIMIT_ENV,
+        // Which tenancy mode this leg boots in (spec 1.4). Default `required`.
+        ...E2E_TENANCY_ENV,
+      },
     },
-  },
+    {
+      // Faza 2.0: drugi serwer — Nest API na :3001. Na razie tylko health
+      // (żaden slice jeszcze nie bije w API); od fazy 2.1 kolejne moduły będą
+      // testowane przeciw web+api. `build &&` jest celowe: w CI runner jest
+      // świeży i dist/ nie istnieje, a sam `start` (= node dist/main) by padł.
+      command: "pnpm --filter api build && pnpm --filter api start",
+      url: apiHealthURL,
+      reuseExistingServer: !process.env.CI && TENANCY_MODE === "required",
+      timeout: 120_000,
+      env: {
+        NODE_ENV: "test",
+        PORT: String(API_PORT),
+        ...E2E_DB_ENV,
+        ...E2E_AUTH_ENV,
+        ...E2E_TENANCY_ENV,
+        // Sends the post-enqueue drain kick to web (faza 2.1).
+      },
+    },
+  ],
 });
