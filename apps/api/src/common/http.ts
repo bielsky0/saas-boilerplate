@@ -35,3 +35,13 @@ export function forbidden(message = "Forbidden"): never {
 export function notFound(message = "Not found"): never {
   throw new HttpException({ error: message }, HttpStatus.NOT_FOUND);
 }
+
+/** 409 — a business invariant refused the write (last owner, taken slug). */
+export function conflict(code: string): never {
+  throw new HttpException({ error: code }, HttpStatus.CONFLICT);
+}
+
+/** 400 — a token that is expired, used, or forged (one code, never which). */
+export function badRequest(code: string): never {
+  throw new HttpException({ error: code }, HttpStatus.BAD_REQUEST);
+}

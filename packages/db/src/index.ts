@@ -4,4 +4,5 @@
  * arrives as an argument to `createDb`.
  */
 export * from "./client";
+export * from "./pagination";
 export * from "./schema";

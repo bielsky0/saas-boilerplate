@@ -25,6 +25,7 @@ import {
   stampLocaleIfUnset,
 } from "../auth/auth-enqueue";
 import { RATE_LIMIT_MEMORY, RATE_LIMIT_POSTGRES } from "../rate-limit/rate-limit.module";
+import { OrganizationsService } from "../organizations/organizations.service";
 
 /**
  * Test-only seams (spec 14.1) — the Nest twin of web's `/api/dev/*` routes.
@@ -53,6 +54,7 @@ export class DevController {
     @Inject(API_CONFIG) private readonly config: ApiConfig,
     @Inject(RATE_LIMIT_MEMORY) private readonly memory: RateLimitAdapter,
     @Inject(RATE_LIMIT_POSTGRES) private readonly postgres: RateLimitAdapter,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   private assertDev(): void {
@@ -122,6 +124,18 @@ export class DevController {
       .limit(1);
     if (!row) notFound();
     return row;
+  }
+
+  /**
+   * Seed an organization owned by an existing seeded user — the Nest twin of
+   * web's `/api/dev/seed-org` (faza 2.2). Same contract (`{ownerEmail, name?,
+   * slug?, members?}` → `{ok, slug, orgId}`), so the E2E suite calls it
+   * through the thin web proxy unchanged.
+   */
+  @Post("seed-org")
+  async seedOrg(@Req() req: Request) {
+    this.assertDev();
+    return this.orgs.seedOrg((req.body ?? {}) as Parameters<OrganizationsService["seedOrg"]>[0]);
   }
 
   /**

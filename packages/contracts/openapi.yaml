@@ -1,0 +1,401 @@
+openapi: 3.1.0
+info:
+  title: SaaS Boilerplate API
+  version: 1.0.0
+  description: >-
+    Framework-independent contract (docs/backend-contract.md). Any backend
+    serves any frontend: NestJS today, FastAPI tomorrow. Error envelope
+    everywhere: { error, issues? }. Auth: session cookie, credentials:include.
+servers:
+  - url: http://localhost:3001
+    description: Local API (dual-server E2E)
+tags:
+  - name: organizations
+    description: Multi-tenancy / orgs (spec 3, faza 2.2)
+paths:
+  /v1/organizations:
+    post:
+      operationId: createOrganization
+      tags: [organizations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+    get:
+      operationId: listOrganizations
+      tags: [organizations]
+      responses:
+        '200':
+          description: Orgs of the caller
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrganizationWithRole'
+  /v1/organizations/{slug}:
+    get:
+      operationId: getOrganization
+      tags: [organizations]
+      parameters:
+        - $ref: '#/components/parameters/OrgSlug'
+      responses:
+        '200':
+          description: Single org with caller role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationWithRole'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateOrganization
+      tags: [organizations]
+      parameters:
+        - $ref: '#/components/parameters/OrgSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationInput'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '409':
+          $ref: '#/components/responses/SlugTaken'
+    delete:
+      operationId: deleteOrganization
+      tags: [organizations]
+      parameters:
+        - $ref: '#/components/parameters/OrgSlug'
+      responses:
+        '204':
+          description: Soft-deleted
+  /v1/organizations/{slug}/members:
+    get:
+      operationId: listMembers
+      tags: [organizations]
+      parameters:
+        - $ref: '#/components/parameters/OrgSlug'
+      responses:
+        '200':
+          description: Members newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Member'
+  /v1/organizations/{slug}/members/{memberId}:
+    patch:
+      operationId: updateMemberRole
+      tags: [organizations]
+      parameters:
+        - $ref: '#/components/parameters/OrgSlug'
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemberRoleInput'
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Member'
+        '409':
+          $ref: '#/components/responses/LastOwner'
+    delete:
+      operationId: removeMember
+      tags: [organizations]
+      parameters:
+        - $ref: '#/components/parameters/OrgSlug'
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '204':
+          description: Removed
+        '409':
+          $ref: '#/components/responses/LastOwner'
+  /v1/organizations/{slug}/membership:
+    delete:
+      operationId: leaveOrganization
+      tags: [organizations]
+      description: Delete own membership (leave). Distinct from removeMember (actor = target, audit member.leave).
+      parameters:
+        - $ref: '#/components/parameters/OrgSlug'
+      responses:
+        '204':
+          description: Left
+        '409':
+          $ref: '#/components/responses/LastOwner'
+  /v1/organizations/{slug}/invitations:
+    post:
+      operationId: createInvitation
+      tags: [organizations]
+      parameters:
+        - $ref: '#/components/parameters/OrgSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvitationInput'
+      responses:
+        '201':
+          description: Invited (mail only enqueued — delivery in faza 2.3)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+    get:
+      operationId: listInvitations
+      tags: [organizations]
+      parameters:
+        - $ref: '#/components/parameters/OrgSlug'
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending], default: pending }
+      responses:
+        '200':
+          description: Pending invitations newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Invitation'
+  /v1/organizations/{slug}/invitations/{invitationId}:
+    delete:
+      operationId: revokeInvitation
+      tags: [organizations]
+      parameters:
+        - $ref: '#/components/parameters/OrgSlug'
+        - name: invitationId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '204':
+          description: Revoked (idempotent — already-revoked also 204, no audit row)
+  /v1/invitations/{token}/accept:
+    post:
+      operationId: acceptInvitation
+      tags: [organizations]
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [slug]
+                properties:
+                  slug: { type: string }
+        '400':
+          $ref: '#/components/responses/InvalidToken'
+  /v1/organizations/{slug}/audit-logs:
+    get:
+      operationId: listOrgAuditLogs
+      tags: [organizations]
+      parameters:
+        - $ref: '#/components/parameters/OrgSlug'
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 200 }
+        - name: from
+          in: query
+          schema: { type: string }
+        - name: to
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 10000, default: 0 }
+      responses:
+        '200':
+          description: Tenant-scoped audit trail (spec 6.4)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, page, hasNext]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrgAuditRow'
+                  page: { type: integer }
+                  hasNext: { type: boolean }
+components:
+  parameters:
+    OrgSlug:
+      name: slug
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+        minLength: 2
+        maxLength: 48
+  schemas:
+    Organization:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+    OrganizationWithRole:
+      allOf:
+        - $ref: '#/components/schemas/Organization'
+        - type: object
+          required: [role]
+          properties:
+            role: { type: string }
+    Member:
+      type: object
+      required: [id, userId, email, role, status]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        email: { type: string }
+        name: { type: string, nullable: true }
+        role: { type: string }
+        status: { type: string }
+    Invitation:
+      type: object
+      required: [id, email, role, status]
+      properties:
+        id: { type: string }
+        email: { type: string }
+        role: { type: string }
+        status: { type: string, enum: [pending, accepted, revoked, expired] }
+    OrgAuditRow:
+      type: object
+      required: [id, action, actorType, actorEmail, targetType, targetLabel, createdAt]
+      properties:
+        id: { type: string }
+        action: { type: string }
+        actorType: { type: string }
+        actorEmail: { type: string }
+        targetType: { type: string }
+        targetLabel: { type: string }
+        metadata: { type: object, nullable: true }
+        createdAt: { type: string, format: date-time }
+    CreateOrganizationInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        slug: { type: string, minLength: 2, maxLength: 48 }
+    UpdateOrganizationInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        newSlug: { type: string, minLength: 2, maxLength: 48 }
+    CreateInvitationInput:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+        role: { type: string, enum: [admin, member], default: member }
+    UpdateMemberRoleInput:
+      type: object
+      required: [role]
+      properties:
+        role: { type: string, enum: [owner, admin, member] }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        issues:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+  responses:
+    ValidationFailed:
+      description: Schema failure
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ErrorEnvelope'
+              - type: object
+                required: [issues]
+    NotFound:
+      description: Unknown org slug, or orgs disabled (indistinguishable by design)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    LastOwner:
+      description: Demote/remove/leave of the last active owner
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error: { type: string, enum: [LAST_OWNER] }
+    SlugTaken:
+      description: Slug already taken (incl. soft-deleted orgs)
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error: { type: string, enum: [SLUG_TAKEN] }
+    InvalidToken:
+      description: Invitation expired/used/forged (one code)
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error: { type: string, enum: [INVALID_TOKEN] }

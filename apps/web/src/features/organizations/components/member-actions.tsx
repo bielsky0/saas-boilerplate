@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useActionState, useEffect, useId } from "react";
+import { useState, type FormEvent } from "react";
 
 import {
   Button,
@@ -14,16 +14,15 @@ import {
   SelectValue,
   toast,
 } from "@/components/ui";
-import { removeMemberAction, updateMemberRoleAction } from "../actions";
-import type { ActionState } from "../actions";
-
-const initial: ActionState = {};
+import { useRouter } from "@/lib/i18n/navigation";
+import { removeMember, updateMemberRole } from "../client";
 
 /**
- * Per-member controls (spec §3.4): change role + remove. Rendered only when the
- * viewer has the matching permission (cosmetic gating — the actions re-check
- * `members.update_role` / `members.remove` and the last-owner rule server-side).
- * Removal is confirmed in a dialog; failures stay inline, successes toast.
+ * Per-member controls (spec §3.4, faza 2.2): change role + remove. Rendered
+ * only when the viewer has the matching permission (cosmetic gating — Nest
+ * re-checks `members.update_role` / `members.remove` and the last-owner rule).
+ * Removal is confirmed in a dialog; failures stay inline, successes toast and
+ * refresh the list.
  */
 export function MemberActions({
   slug,
@@ -38,26 +37,57 @@ export function MemberActions({
   canUpdateRole: boolean;
   canRemove: boolean;
 }) {
-  const [roleState, roleAction, rolePending] = useActionState(updateMemberRoleAction, initial);
-  const [removeState, removeAction, removePending] = useActionState(removeMemberAction, initial);
-  const removeFormId = useId();
+  const [roleError, setRoleError] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [rolePending, setRolePending] = useState(false);
+  const [removePending, setRemovePending] = useState(false);
   const t = useTranslations("organizations");
+  const router = useRouter();
 
-  useEffect(() => {
-    if (roleState.success) toast.success(roleState.success);
-  }, [roleState]);
+  async function onRoleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setRolePending(true);
+    setRoleError(null);
+    try {
+      const formData = new FormData(event.currentTarget);
+      const role = String(formData.get("role") ?? "");
+      const result = await updateMemberRole(slug, membershipId, role);
+      if (result.ok) {
+        toast.success(t("success.roleUpdated"));
+        router.refresh();
+        return;
+      }
+      setRoleError(
+        result.code === "LAST_OWNER" ? t("errors.lastOwnerDemote") : t("errors.generic"),
+      );
+    } finally {
+      setRolePending(false);
+    }
+  }
 
-  useEffect(() => {
-    if (removeState.success) toast.success(removeState.success);
-  }, [removeState]);
+  async function onRemove() {
+    setRemovePending(true);
+    setRemoveError(null);
+    try {
+      const result = await removeMember(slug, membershipId);
+      if (result.ok) {
+        toast.success(t("success.memberRemoved"));
+        router.refresh();
+        return;
+      }
+      setRemoveError(
+        result.code === "LAST_OWNER" ? t("errors.lastOwnerRemove") : t("errors.generic"),
+      );
+    } finally {
+      setRemovePending(false);
+    }
+  }
 
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center justify-end gap-2">
         {canUpdateRole ? (
-          <form action={roleAction} className="flex items-center gap-1">
-            <input type="hidden" name="slug" value={slug} />
-            <input type="hidden" name="membershipId" value={membershipId} />
+          <form onSubmit={onRoleSubmit} className="flex items-center gap-1">
             <Select name="role" defaultValue={currentRole}>
               <SelectTrigger className="h-8 w-32" aria-label={t("members.roleLabel")}>
                 <SelectValue />
@@ -75,30 +105,22 @@ export function MemberActions({
         ) : null}
 
         {canRemove ? (
-          <>
-            <form id={removeFormId} action={removeAction}>
-              <input type="hidden" name="slug" value={slug} />
-              <input type="hidden" name="membershipId" value={membershipId} />
-            </form>
-            <ConfirmDialog
-              trigger={
-                <Button type="button" variant="ghost" size="sm" disabled={removePending}>
-                  {removePending ? t("members.removing") : t("members.remove")}
-                </Button>
-              }
-              title={t("members.confirmRemoveTitle")}
-              description={t("members.confirmRemoveBody")}
-              confirmLabel={t("members.confirmRemoveAction")}
-              confirmForm={removeFormId}
-              disabled={removePending}
-            />
-          </>
+          <ConfirmDialog
+            trigger={
+              <Button type="button" variant="ghost" size="sm" disabled={removePending}>
+                {removePending ? t("members.removing") : t("members.remove")}
+              </Button>
+            }
+            title={t("members.confirmRemoveTitle")}
+            description={t("members.confirmRemoveBody")}
+            confirmLabel={t("members.confirmRemoveAction")}
+            onConfirm={onRemove}
+            disabled={removePending}
+          />
         ) : null}
       </div>
-      {roleState.error ? <FormMessage className="text-xs">{roleState.error}</FormMessage> : null}
-      {removeState.error ? (
-        <FormMessage className="text-xs">{removeState.error}</FormMessage>
-      ) : null}
+      {roleError ? <FormMessage className="text-xs">{roleError}</FormMessage> : null}
+      {removeError ? <FormMessage className="text-xs">{removeError}</FormMessage> : null}
     </div>
   );
 }

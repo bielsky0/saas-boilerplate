@@ -1,5 +1,7 @@
 import { getLocale, getTranslations } from "next-intl/server";
+import { forbidden, notFound } from "next/navigation";
 
+import { ApiError } from "@repo/api-client";
 import {
   Badge,
   Button,
@@ -14,10 +16,38 @@ import {
   TableRow,
 } from "@/components/ui";
 import { withLocale } from "@/lib/i18n/config";
+import { api } from "@/lib/api";
 import { AUDIT_ACTIONS, type AuditAction } from "@/features/admin/audit";
-import { listOrgAuditEntries, type OrgAuditRow } from "@/features/organizations/audit-data";
 import { requireOrgPermission } from "@/features/organizations/context";
 import { orgAuditListQuerySchema } from "@/features/organizations/schema";
+
+export interface OrgAuditRow {
+  id: string;
+  action: string;
+  actorType: string;
+  actorEmail: string;
+  targetType: string;
+  targetLabel: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+}
+
+interface AuditLogItem {
+  id: string;
+  action: string;
+  actorType: string;
+  actorEmail: string;
+  targetType: string;
+  targetLabel: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+interface AuditLogsResponse {
+  items: AuditLogItem[];
+  page: number;
+  hasNext: boolean;
+}
 
 /**
  * Organization audit trail (spec 6.4) — who changed what in THIS org, newest first.
@@ -39,6 +69,36 @@ import { orgAuditListQuerySchema } from "@/features/organizations/schema";
  * Timestamps render in full UTC, never relative: "2 hours ago" is unusable in the
  * incident review and compliance export this page exists for.
  */
+async function listOrgAuditEntries(
+  slug: string,
+  query: { q: string; from: string; to: string; page: number },
+): Promise<{ rows: OrgAuditRow[]; page: number; hasNext: boolean }> {
+  // Tenant entries (faza 2.2) — read from Nest, never the database. The guard
+  // in the component below is render-only UX; the API re-checks `audit.read`,
+  // which is the actual boundary (spec 4.2).
+  const params: Record<string, string> = {};
+  if (query.q) params["q"] = query.q;
+  if (query.from) params["from"] = query.from;
+  if (query.to) params["to"] = query.to;
+  params["page"] = String(query.page);
+  try {
+    const body = await api().get<AuditLogsResponse>(
+      `/v1/organizations/${encodeURIComponent(slug)}/audit-logs`,
+      { query: params },
+    );
+    return {
+      rows: body.items.map((row) => ({ ...row, createdAt: new Date(row.createdAt) })),
+      page: body.page,
+      hasNext: body.hasNext,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      if (error.status === 403) forbidden();
+      if (error.status === 404) notFound();
+    }
+    throw error;
+  }
+}
 export default async function OrgAuditPage({
   params,
   searchParams,
@@ -47,11 +107,12 @@ export default async function OrgAuditPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug } = await params;
-  const { org } = await requireOrgPermission(slug, "audit.read");
+  // Render guard only (hides the target); the entries endpoint enforces `audit.read`.
+  await requireOrgPermission(slug, "audit.read");
 
   const query = orgAuditListQuerySchema.parse(await searchParams);
   const [{ rows, page, hasNext }, t, ta, locale] = await Promise.all([
-    listOrgAuditEntries(org.id, query),
+    listOrgAuditEntries(slug, query),
     getTranslations("dashboard.audit"),
     getTranslations("organizations.auditActions"),
     getLocale(),
@@ -66,6 +127,16 @@ export default async function OrgAuditPage({
   // pattern as `roleLabel` in members/page.tsx.
   const actionLabel = (action: string) =>
     (AUDIT_ACTIONS as readonly string[]).includes(action) ? ta(action as AuditAction) : action;
+
+  // `actorType` is wire vocabulary like `action` above: narrow before
+  // translating so a newer deploy's value renders raw instead of 500ing.
+  const actorLabel = (actorType: string) =>
+    actorType === "User" ||
+    actorType === "System" ||
+    actorType === "AIAgent" ||
+    actorType === "Admin"
+      ? t(`actorTypes.${actorType}`)
+      : actorType;
 
   const pageHref = (next: number) => {
     const params = new URLSearchParams();
@@ -141,7 +212,7 @@ export default async function OrgAuditPage({
                 <TableCell>
                   <span className="font-medium">{row.actorEmail}</span>
                   <div className="text-muted-foreground text-xs">
-                    {t(`actorTypes.${row.actorType}`)}
+                    {actorLabel(row.actorType)}
                     {typeof row.metadata?.onBehalfOf === "string"
                       ? ` — ${t("onBehalfOf", { email: row.metadata.onBehalfOf })}`
                       : null}

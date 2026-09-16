@@ -1,30 +1,47 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useActionState } from "react";
+import { useState, type FormEvent } from "react";
 
 import { Button, FormMessage } from "@/components/ui";
-import { acceptInvitationAction } from "../actions";
-import type { ActionState } from "../actions";
-
-const initial: ActionState = {};
+import { useRouter } from "@/lib/i18n/navigation";
+import { acceptInvitation } from "../client";
 
 /**
- * Accept-invitation button (spec 3.3). Shown to an authenticated user holding a
- * valid invite link; the action re-validates the token and, on success,
- * redirects into the org. Works for both an existing user who just signed in and
- * a brand-new user who just registered — both arrive here with a session.
+ * Accept-invitation button (spec 3.3, faza 2.2). Nest re-validates the token
+ * and, on success, answers the org slug — the client navigates into the org.
+ * Works for both an existing user who just signed in and a brand-new user who
+ * just registered — both arrive here with a session.
  */
 export function AcceptInvitationForm({ token }: { token: string }) {
-  const [state, action, pending] = useActionState(acceptInvitationAction, initial);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
   const t = useTranslations("organizations.accept");
+  const te = useTranslations("organizations");
+  const router = useRouter();
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setError(null);
+    try {
+      const result = await acceptInvitation(token);
+      if (result.ok) {
+        router.push(`/orgs/${result.data.slug}`);
+        return;
+      }
+      setError(te("errors.invitationInvalid"));
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
-    <form action={action} className="flex flex-col gap-3">
-      <input type="hidden" name="token" value={token} />
+    <form onSubmit={onSubmit} className="flex flex-col gap-3">
       <Button type="submit" disabled={pending}>
         {pending ? t("submitting") : t("submit")}
       </Button>
-      {state.error ? <FormMessage>{state.error}</FormMessage> : null}
+      {error ? <FormMessage>{error}</FormMessage> : null}
     </form>
   );
 }

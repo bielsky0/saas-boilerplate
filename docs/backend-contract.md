@@ -72,6 +72,49 @@ the "Implemented" section below), `@repo/contracts` (the types).
   session-guarded, owner-scoped, `422` on malformed `slug`/`id`.
 - `GET /v1/health` → `{ok:true}`, no auth, no database.
 
+## Implemented: organizations (faza 2.2, REST wg OpenAPI)
+
+Source of truth: `packages/contracts/openapi.yaml` + DTO
+`packages/contracts/src/organizations.ts`. Full nouns, verbs only via HTTP
+methods — no `/invite`, `/revoke`, `/leave`, `/accept` RPC suffixes.
+
+- `POST /v1/organizations` `{name, slug?}` → `201 {id, name, slug}`,
+  `422` envelope. Derives slug when omitted (`resolveUniqueSlug`).
+- `GET /v1/organizations` → `200 {items: OrganizationWithRole[]}` (switcher).
+- `GET /v1/organizations/{slug}` → `200 {id, name, slug, role}`,
+  `404` unknown slug or `MULTI_TENANCY_MODE=disabled` (indistinguishable).
+- `PATCH /v1/organizations/{slug}` `{name?, newSlug?}` → `200 {id, name, slug}`;
+  taken slug → `409 {error: SLUG_TAKEN}` (incl. soft-deleted orgs — the unique
+  constraint spans them); `422` envelope.
+- `DELETE /v1/organizations/{slug}` → `204` (soft-delete + audit
+  `organization.delete`).
+- `GET /v1/organizations/{slug}/members` → `200 {items: Member[]}`.
+- `PATCH /v1/organizations/{slug}/members/{memberId}` `{role}` → `200 Member`;
+  demote of the last active owner → `409 {error: LAST_OWNER}`.
+- `DELETE /v1/organizations/{slug}/members/{memberId}` → `204`; remove of the
+  last active owner → `409 LAST_OWNER`.
+- `DELETE /v1/organizations/{slug}/membership` (leave own) → `204`;
+  last-owner-leave → `409 LAST_OWNER`. Separate resource because `member.leave`
+  ≠ `member.remove` (actor = target, distinct audit actions).
+- `POST /v1/organizations/{slug}/invitations` `{email, role}` → `201 Invitation`.
+  Token SHA-256 + TTL 7d, link from `NEXT_PUBLIC_APP_URL`. Mail is enqueue-only
+  (`email.send` + `notification.create` rows in the same transaction — delivery
+  moves in faza 2.3).
+- `GET /v1/organizations/{slug}/invitations?status=pending` → `200 {items}`.
+- `DELETE /v1/organizations/{slug}/invitations/{invitationId}` → `204`,
+  idempotent (already-revoked also `204`, no audit row — the `.returning()`
+  rule from web `revokeInvitationAction`).
+- `POST /v1/invitations/{token}/accept` → `200 {slug}` (client navigates);
+  non-pending/expired/forged → `400 {error: INVALID_TOKEN}` (one code).
+  Bearer-token accept by the authenticated session holder.
+- `GET /v1/organizations/{slug}/audit-logs?q=&from=&to=&page=` → `200
+{items, page, hasNext}` (tenant-scoped, guard `audit.read`,
+  `changes{from→to}` in `metadata`).
+- Guard (all org routes): `OrgPermissionGuard` = port of `requireOrgPermission`
+  (`404` no org/disabled, `403` non-member/unknown role/missing permission).
+- Compat alias: `POST /v1/orgs` → `308` to `/v1/organizations` for one phase,
+  then deleted (no dual implementation).
+
 ## Auth formats a reimplementation must reproduce (the true lock-in)
 
 Endpoints are the easy half. A backend that does not reuse Better Auth must

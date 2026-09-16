@@ -35,8 +35,8 @@ import {
  * Read `./audit.ts`'s header before touching the ordering in any of these.
  */
 
-/** The shared shape from `@/lib/validation` (spec 22.2) — see the note in
- * `features/organizations/actions.ts` on why the alias keeps this name. */
+/** The shared shape from `@/lib/validation` (spec 22.2) — an alias, not a copy:
+ * a field added to `FormState` arrives here, which is the point. */
 export type ActionState = FormState;
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
