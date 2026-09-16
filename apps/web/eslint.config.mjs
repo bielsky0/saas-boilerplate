@@ -124,6 +124,42 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  /**
+   * Auth vendor containment (spec 1.2 — backend-independence).
+   *
+   * `better-auth` (SDK, plugins, cookie helpers) may be imported ONLY from
+   * `src/lib/adapters/auth/**` — the one directory that implements the
+   * contract. Everything else reads the session token through `@repo/contracts`
+   * (cookie names) or calls the engine through the adapter. This is what makes
+   * the backend swappable: dropping the vendor means deleting one directory,
+   * and this rule proves beforehand that nothing else would break.
+   *
+   * Deliberately SEPARATE from the super-admin block above: that one guards a
+   * privilege boundary, this one guards a vendor boundary. They fail for
+   * different reasons and must be fixable independently.
+   *
+   * Exempt: the adapter itself, plus the MCP/OAuth routes — they consume the
+   * engine's OAuth plugin directly and move to Nest with etap 2.7, which owns
+   * removing them from this list.
+   */
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/lib/adapters/auth/**", "src/app/api/mcp/**", "src/app/.well-known/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["better-auth", "better-auth/*"],
+              message:
+                "Import the auth contract (@/lib/adapters/auth or @repo/contracts) instead — the SDK lives only in src/lib/adapters/auth (spec 1.2).",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

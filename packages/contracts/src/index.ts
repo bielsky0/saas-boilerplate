@@ -8,6 +8,7 @@
  */
 export * from "./auth";
 export * from "./billing";
+export * from "./cookies";
 export * from "./email";
 export * from "./jobs";
 export * from "./storage";

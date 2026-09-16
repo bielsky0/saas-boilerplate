@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { getSessionCookie } from "better-auth/cookies";
 import type { NextRequest } from "next/server";
+
+import { getSessionCookieValue } from "@repo/contracts";
 
 import type { RateLimitDecision, RateLimitRule } from "@/lib/adapters/rate-limit";
 import { env } from "@/lib/env/server";
@@ -39,9 +40,10 @@ export type RateLimitTier =
   | "exempt";
 
 /**
- * The §2.1 login rule, exported because `features/auth/actions.ts` must use the
- * SAME numbers as the `authCredential` tier — two sources for one policy would
- * drift, and the drift would be invisible until someone was locked out or wasn't.
+ * The §2.1 login rule, exported because the Nest auth service
+ * (`apps/api/src/auth/auth.service.ts`) must use the SAME numbers as the
+ * `authCredential` tier — two sources for one policy would drift, and the
+ * drift would be invisible until someone was locked out or wasn't.
  */
 export const LOGIN_RULE: RateLimitRule = {
   limit: env.RATE_LIMIT_LOGIN_ATTEMPTS,
@@ -172,7 +174,7 @@ export function tierFor(pathname: string, method: string, isServerAction: boolea
    * may change without notice, so nothing security-critical may rest on it. In
    * particular the §2.1 login guarantee does NOT: that limit lives inside
    * `signInAction`, where it is reached by a function call rather than a header
-   * sniff. See `features/auth/actions.ts`.
+   * sniff. See `apps/api/src/auth/auth.service.ts`.
    */
   if (isServerAction) return "action";
 
@@ -228,7 +230,8 @@ function testBucket(headers: Headers): string {
 export function rateLimitKey(tier: RateLimitTier, request: NextRequest): string {
   const prefix = testBucket(request.headers);
 
-  const session = getSessionCookie(request);
+  // Session subject by cookie VALUE (contract, never the SDK — see proxy.ts).
+  const session = getSessionCookieValue(request.headers.get("cookie"));
   if (session) return `${tier}:session:${hash(prefix + session)}`;
 
   const authorization = request.headers.get("authorization");
@@ -251,12 +254,12 @@ export function rateLimitKey(tier: RateLimitTier, request: NextRequest): string 
 }
 
 /**
- * The §2.1 bucket for the sign-in server action.
+ * The §2.1 bucket for the sign-in flow.
  *
  * IP-ONLY, AND NEVER KEYED ON THE SUBMITTED EMAIL — the reasoning is in
- * `features/auth/actions.ts` and it is the load-bearing half of §2.1's
- * anti-enumeration requirement. Takes plain `Headers` because a server action
- * has `headers()`, not a NextRequest.
+ * `apps/api/src/auth/auth.service.ts` and it is the load-bearing half of §2.1's
+ * anti-enumeration requirement. Takes plain `Headers` because the callers have
+ * headers, not a NextRequest.
  */
 export function loginRateLimitKey(headers: Headers): string {
   const prefix = testBucket(headers);

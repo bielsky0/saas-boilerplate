@@ -7,9 +7,9 @@
  * Postgres. The provider is chosen at startup by `RATE_LIMIT_PROVIDER`.
  *
  * Only two callers exist by design, and both are chokepoints rather than feature
- * code: `src/proxy.ts` (every /api request — §22.3) and
- * `src/features/auth/actions.ts` (the sign-in server action — §2.1, which the
- * proxy cannot see because server actions POST to a page URL).
+ * code: `src/proxy.ts` (every /api request — §22.3) and the Nest auth service
+ * (`apps/api/src/auth/auth.service.ts` — §2.1, which the proxy cannot see
+ * because browser auth calls go straight to the API).
  *
  * Neither provider throws at construction — memory allocates a Map, postgres
  * closes over `db` — so the "default provider must never throw at module load, or

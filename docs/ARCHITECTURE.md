@@ -126,6 +126,32 @@ exports as modules are built.
    redelivery, and a week of elapsed time. That one is load-bearing; the other is
    just latency.
 
+6. **Cookies are a contract, not an implementation detail (framework
+   independence).** The API sets its cookies, each frontend sets its own, and
+   the only shared things are the NAMES — declared once in
+   `@repo/contracts/cookies.ts`, read everywhere else without importing any
+   auth SDK:
+   - the backend (any framework) mints the session cookie
+     (`better-auth.session_token`, `__Secure-`-prefixed over https) with
+     `HttpOnly; Path=/; SameSite=Lax`;
+   - the document (any framework) owns the locale cookie (`app-locale`,
+     client-writable BY DESIGN — a preference, not a credential — seeded from
+     the `locale` field of the sign-in response, never backfilled from null).
+   - no server writes the other side's cookie. The one historical exception
+     (a web route seeding `app-locale` after sign-in) is gone: it assumed a
+     Next.js frontend, and a Vue SPA has no route to bounce through.
+
+   Two consequences worth stating plainly:
+   - On localhost, ports are ignored in cookie domain matching, so `:3001`
+     setting a host-only `localhost` cookie that `:3000` reads proves NOTHING
+     about production. Split-host deploys (unrelated domains) cannot share
+     cookies at all — no `Domain` trick crosses unrelated domains — so a
+     same-host or shared-parent-domain topology (with `Domain` configured on
+     both engines) is a deployment REQUIREMENT, not a tuning option.
+   - Presence is not verification. The proxy guard and the rate-limit keying
+     read the cookie VALUE optimistically (fast, edge-safe); the session is
+     verified only in the backend's session resolver (`GET /v1/session`).
+
 ## Reference patterns (fill in as modules land)
 
 These are the canonical examples to copy. Each should have a real reference

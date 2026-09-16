@@ -1,5 +1,6 @@
-import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
+
+import { getSessionCookieValue } from "@repo/contracts";
 
 import {
   type Locale,
@@ -349,7 +350,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return forward(request, requestId, nonce, locale, rateHeaders);
   }
 
-  const hasSession = Boolean(getSessionCookie(request));
+  // Presence only (contract, never the SDK — the cookie NAME is the shared
+  // vocabulary with any backend; verification happens in `GET /v1/session`).
+  const hasSession = Boolean(getSessionCookieValue(request.headers.get("cookie")));
   if (!hasSession) {
     // The login URL keeps the locale, and so does the callback — a Polish reader
     // who hits a guarded page signs in in Polish and returns to a Polish page.

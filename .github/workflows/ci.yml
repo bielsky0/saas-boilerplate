@@ -42,6 +42,9 @@ jobs:
       - name: Prettier check
         run: pnpm format:check
 
+      - name: Package boundaries
+        run: pnpm check:boundaries
+
       - name: Lint
         run: pnpm lint
 
