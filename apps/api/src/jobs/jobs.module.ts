@@ -11,6 +11,7 @@ import { NotificationsModule } from "../notifications/notifications.module";
 import { NotificationsService } from "../notifications/notifications.service";
 import { OnboardingModule } from "../onboarding/onboarding.module";
 import { OnboardingService } from "../onboarding/onboarding.service";
+import { StorageModule } from "../storage/storage.module";
 import { RATE_LIMIT_MEMORY, RATE_LIMIT_POSTGRES } from "../rate-limit/rate-limit.module";
 import { CronController } from "./cron.controller";
 import { JobsService } from "./jobs.service";
@@ -28,7 +29,13 @@ import { StoragePurgeService } from "./storage-purge.service";
  * would be a cycle, and a service-level cycle is what the token avoids.
  */
 @Module({
-  imports: [EmailsModule, OnboardingModule, NotificationsModule, BillingNotifyModule],
+  imports: [
+    EmailsModule,
+    OnboardingModule,
+    NotificationsModule,
+    BillingNotifyModule,
+    StorageModule,
+  ],
   controllers: [CronController],
   providers: [
     JobsService,

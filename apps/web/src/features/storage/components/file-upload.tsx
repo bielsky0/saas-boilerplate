@@ -14,14 +14,15 @@ import {
   SelectValue,
   toast,
 } from "@/components/ui";
-import { ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES } from "@/features/storage";
+import { ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES } from "@repo/contracts";
+import { clientEnv } from "@/lib/env/client";
 
 /**
  * Demo upload control (spec 21.2). Drives the full direct-to-bucket flow entirely
- * from the browser:
- *   1. POST /api/storage/presign — backend validates + returns a presigned POST.
+ * from the browser, straight against Nest (faza 2.4):
+ *   1. POST /v1/storage/presign — backend validates + returns a presigned POST.
  *   2. POST the file straight to the bucket (never through the app server).
- *   3. POST /api/storage/confirm — mark the row ready.
+ *   3. POST /v1/storage/confirm — mark the row ready.
  * Then `router.refresh()` re-renders the server-side list. Client-side type/size
  * checks here are UX only; the backend + bucket policy are the real gate.
  */
@@ -33,10 +34,12 @@ export function FileUpload({ slug }: { slug: string }) {
   const [busy, setBusy] = useState(false);
 
   async function upload(fileToUpload: File): Promise<void> {
+    const base = clientEnv.NEXT_PUBLIC_API_BASE_URL.replace(/\/+$/, "");
     // Presign — the backend re-validates; this is the real authority.
-    const presignRes = await fetch("/api/storage/presign", {
+    const presignRes = await fetch(`${base}/v1/storage/presign`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({
         slug,
         filename: fileToUpload.name,
@@ -63,9 +66,10 @@ export function FileUpload({ slug }: { slug: string }) {
     }
 
     // Confirm.
-    const confirmRes = await fetch("/api/storage/confirm", {
+    const confirmRes = await fetch(`${base}/v1/storage/confirm`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ slug, fileId }),
     });
     if (!confirmRes.ok) {

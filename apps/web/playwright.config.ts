@@ -139,6 +139,10 @@ export default defineConfig({
         ...E2E_TENANCY_ENV,
         // Sends the post-enqueue drain kick to web (faza 2.1).
         ...E2E_CRON_ENV,
+        // Faza 2.4: presign/read/purge run in Nest now, against the same
+        // MinIO the web suite always used — without this the API boots with
+        // STORAGE_PROVIDER=none and every presign answers 404.
+        ...E2E_STORAGE_ENV,
       },
     },
   ],

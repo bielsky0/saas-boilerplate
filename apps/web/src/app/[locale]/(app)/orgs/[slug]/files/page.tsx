@@ -1,29 +1,39 @@
 import { getTranslations } from "next-intl/server";
 
+import { ApiError } from "@repo/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { hasPermission } from "@/features/rbac";
 import { requireOrgAccess } from "@/features/organizations/context";
-import { listFilesForOwner } from "@/features/storage/data";
+import { api } from "@/lib/api";
 import { FileList } from "@/features/storage/components/file-list";
 import { FileUpload } from "@/features/storage/components/file-upload";
 
 /**
  * Organization files (spec 21 demo surface). Access via `requireOrgAccess`
- * (403/404 for non-members/unknown slugs); the list is read server-side through
- * the owner-scoped data layer, so org A never sees org B's files. The upload
- * control renders only with `storage.upload` (cosmetic — the API re-checks).
+ * (403/404 for non-members/unknown slugs); the list is read from Nest
+ * (`GET /v1/storage/files`, faza 2.4) — the page renders, it never touches
+ * the database. The upload control renders only with `storage.upload`
+ * (cosmetic — the API re-checks).
  */
 export default async function OrgFilesPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { org, role } = await requireOrgAccess(slug);
+  const { role } = await requireOrgAccess(slug);
   const t = await getTranslations("storage");
 
-  const rows = await listFilesForOwner({ kind: "organization", organizationId: org.id });
-  const files = rows.map((f) => ({
-    id: f.id,
-    originalName: f.originalName,
-    visibility: f.visibility,
-  }));
+  let files: { id: string; originalName: string; visibility: "public" | "private" }[] = [];
+  try {
+    const data = await api().get<{ items: typeof files }>(
+      `/v1/storage/files?slug=${encodeURIComponent(slug)}`,
+    );
+    files = data.items;
+  } catch (error) {
+    if (!(error instanceof ApiError) || (error.status !== 401 && error.status !== 404)) {
+      throw error;
+    }
+    // Unauthenticated (or a vanished org mid-render) reads as an empty list
+    // rather than failing the page — the guard above already redirected
+    // anonymous visitors.
+  }
 
   const canUpload = hasPermission(role, "storage.upload");
   const canDelete = hasPermission(role, "storage.delete");

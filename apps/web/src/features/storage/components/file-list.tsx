@@ -15,6 +15,7 @@ import {
   TableRow,
   toast,
 } from "@/components/ui";
+import { clientEnv } from "@/lib/env/client";
 
 /** One file as rendered in the demo list (server passes these props). */
 export type FileRow = {
@@ -24,10 +25,10 @@ export type FileRow = {
 };
 
 /**
- * Demo file list (spec 21.3). "Open" resolves a usable URL through the read
- * endpoint (a fresh presigned GET for private files); "Delete" soft-deletes and
- * refreshes. Delete is shown only when the caller has `storage.delete` — cosmetic
- * gating over the server's real check (§4.2).
+ * Demo file list (spec 21.3). "Open" resolves a usable URL through Nest's read
+ * endpoint (faza 2.4: a fresh presigned GET for private files); "Delete"
+ * soft-deletes and refreshes. Delete is shown only when the caller has
+ * `storage.delete` — cosmetic gating over the server's real check (§4.2).
  */
 export function FileList({
   slug,
@@ -43,7 +44,13 @@ export function FileList({
   const [pendingId, setPendingId] = useState<string | null>(null);
 
   async function open(id: string): Promise<void> {
-    const res = await fetch(`/api/storage/file/${id}?slug=${encodeURIComponent(slug)}`);
+    const base = clientEnv.NEXT_PUBLIC_API_BASE_URL.replace(/\/+$/, "");
+    const res = await fetch(
+      `${base}/v1/storage/files/${encodeURIComponent(id)}?slug=${encodeURIComponent(slug)}`,
+      {
+        credentials: "include",
+      },
+    );
     if (!res.ok) {
       toast.error(t("errors.open"));
       return;
@@ -55,9 +62,11 @@ export function FileList({
   async function remove(id: string): Promise<void> {
     setPendingId(id);
     try {
-      const res = await fetch(`/api/storage/file/${id}?slug=${encodeURIComponent(slug)}`, {
-        method: "DELETE",
-      });
+      const base = clientEnv.NEXT_PUBLIC_API_BASE_URL.replace(/\/+$/, "");
+      const res = await fetch(
+        `${base}/v1/storage/files/${encodeURIComponent(id)}?slug=${encodeURIComponent(slug)}`,
+        { method: "DELETE", credentials: "include" },
+      );
       if (!res.ok) {
         toast.error(t("errors.delete"));
         return;

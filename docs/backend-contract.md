@@ -161,6 +161,37 @@ deadLettered, queue }`.
 - After every enqueue the backend kicks its OWN drain best-effort
   (in-process, post-response); cron is the guarantee, the kick is latency.
 
+## Implemented: storage (faza 2.4)
+
+Uploads stay direct-to-bucket: the app never proxies file bytes. It mints a
+short-lived, tightly-scoped presigned POST the browser uploads to; reads of
+private files are equally short-lived presigned GETs.
+
+- `POST /v1/storage/presign` `{slug?, filename, contentType, size,
+visibility?}` (slug present → org context, requires `storage.upload`;
+  absent → caller personal account) → `201 {fileId, upload: {url, fields}}`;
+  disallowed type / oversize → `422` envelope (no row, no object);
+  `STORAGE_PROVIDER=none` → `404`. The presigned POST policy pins
+  `content-length-range` + `Content-Type`, so the bucket rejects a lying
+  client even though the app already validated the declaration.
+- `POST /v1/storage/confirm` `{slug?, fileId}` → `200 {ok:true}`;
+  another tenant's file → `404`.
+- `GET /v1/storage/files?slug=` → `200 {items: [{id, originalName,
+visibility}]}` (the `/files` page list; reads need membership only).
+- `GET /v1/storage/files/:id?slug=` → `200 {id, originalName, contentType,
+visibility, url}` (public → stable URL, private → presigned GET);
+  malformed `:id` → `422`; another tenant's file → `404` (never `403`).
+- `DELETE /v1/storage/files/:id?slug=` → `200 {ok:true}` (soft-delete;
+  requires `storage.delete` in org context); another tenant's file → `404`.
+- Guard: `resolveStorageOwner` = port of web `resolveStorageOwner` (`404`
+  unknown slug/disabled, `403` non-member/missing permission).
+- Key layout `{visibility}/{org|acct}/{uuid}/{safeName}`; presign happens
+  BEFORE the row insert (a failed presign leaves no orphan row); presigned
+  URLs live 300s.
+- `storage.purge` now deletes objects through the shared adapter
+  (object-first-then-row, per-org `retention.purge` audit rows); on a `none`
+  deployment it dead-letters instead of silently passing.
+
 ## Auth formats a reimplementation must reproduce (the true lock-in)
 
 Endpoints are the easy half. A backend that does not reuse Better Auth must

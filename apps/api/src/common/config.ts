@@ -59,6 +59,24 @@ const ApiEnvSchema = z.object({
   // purge then dead-letters exactly like web's `none` adapter throws today.
   // Full S3 wiring (vars + adapter) lands with the storage port in faza 2.4.
   STORAGE_PROVIDER: z.enum(["none", "s3"]).default("none"),
+  // S3-compatible object store (spec 21.1) — faza 2.4 moves the adapter into
+  // the API, so these move with it. Same names as web, so one `.env` shape
+  // serves both apps. Only required when STORAGE_PROVIDER=s3; the adapter
+  // throws a clear error at construction when selected without a bucket or
+  // credentials. S3_ENDPOINT: custom endpoint for non-AWS S3 (MinIO
+  // "http://localhost:9000", R2, B2); unset = real AWS S3 for the region.
+  // S3_PUBLIC_URL: base for the STABLE public URL of public-visibility files;
+  // unset = derived from endpoint+bucket (path-style).
+  S3_ENDPOINT: z.string().optional(),
+  S3_REGION: z.string().default("us-east-1"),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_FORCE_PATH_STYLE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  S3_PUBLIC_URL: z.string().optional(),
 });
 
 export type ApiConfig = z.infer<typeof ApiEnvSchema>;

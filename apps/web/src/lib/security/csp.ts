@@ -48,7 +48,7 @@ export const NONCE_HEADER = "x-nonce";
  * `connect-src`; public file URLs make it an `img-src` too. A hardcoded origin
  * would pass E2E against MinIO on localhost:9000 and then break every real
  * deployment — so it is derived from the same env precedence the S3 adapter uses
- * (`publicBase` in src/lib/adapters/storage/s3.ts): explicit CDN, else endpoint,
+ * (`publicBase` in `apps/api/src/storage/s3.ts`): explicit CDN, else endpoint,
  * else the regional AWS host.
  */
 function storageOrigin(): string | null {

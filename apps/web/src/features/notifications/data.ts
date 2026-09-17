@@ -11,7 +11,8 @@ import { isSuppressibleType, type NotificationType } from "./types";
  * Every read/write is scoped by BOTH the recipient (`userId`) and the tenant
  * owner (org or personal account), so a user can only ever see or clear their own
  * notifications in the context they are acting as — isolation enforced here, not
- * in the UI (the same invariant as `features/storage/data.ts`). A caller resolves
+ * in the UI (the same invariant as the storage service's owner-scoped layer
+ * (`apps/api/src/storage/storage.service.ts`). A caller resolves
  * WHICH owner via `resolveNotificationOwner` and passes it as a `NotificationOwner`.
  */
 

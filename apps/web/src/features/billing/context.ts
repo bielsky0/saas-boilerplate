@@ -5,7 +5,8 @@ import { ensurePersonalAccount, getPersonalAccountByUserId } from "@/features/or
 /**
  * Resolve which tenant a billing request acts as (spec 5.2 → 1.3).
  *
- * Copies `features/storage/context.ts` deliberately: a request is ORG-scoped when
+ * Copies the storage owner-resolution shape deliberately (`resolveStorageOwner`
+ * in `apps/api/src/tenancy/owner.ts`): a request is ORG-scoped when
  * it carries a `slug`, PERSONAL-scoped otherwise. Org access goes through the
  * shared RBAC chokepoint (`requireOrgPermission`), so paying is authorized by the
  * same mechanism as every other org action (§4.2) rather than a bespoke check.

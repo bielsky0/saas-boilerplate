@@ -533,11 +533,11 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
   here is the list.** §22.2 was implemented as a layer plus the public and
   zero-validation surfaces, not as a repo-wide retrofit, because a sweep touching
   every endpoint in one change is unreviewable and the cost of arriving late is
-  low (see below). Covered today: all four auth actions, both storage routes, both
+  low (see below). Covered today: all four auth actions, all five storage
+  endpoints (presign, confirm, file read/delete, file list — the `:id` param
+  and `?slug=` parse via `@repo/validation` in Nest since faza 2.4), both
   unsubscribe entry points, the notification mark-read actions, every job payload,
   and the Stripe webhook. **Not covered, in rough risk order:**
-  - `src/app/api/storage/file/[id]/route.ts` — the `id` path param and `?slug=`
-    are read raw.
   - `src/app/api/notifications/route.ts` — `?slug=` is passed straight to
     `resolveNotificationOwner`.
   - `src/features/organizations/actions.ts` (org settings/slug update) — parses

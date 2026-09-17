@@ -48,7 +48,8 @@
  * describes, which is the reason it cannot simply inherit `RETENTION_DAYS`.
  *
  * WHEN THE PURGE JOB IS BUILT, it must audit what it deletes (§6.4). The worked
- * example already exists: `features/storage/purge.ts` writes one `retention.purge`
+ * example already exists: the storage purge (`apps/api/src/jobs/storage-purge.service.ts`,
+ * faza 2.4) writes one `retention.purge`
  * entry PER ORGANIZATION with a count, using `SYSTEM_ACTOR`, rather than one entry
  * per deleted record. Copy that shape — the reasoning (a tenant's audit page must
  * not be buried under thousands of rows about records it can no longer see) applies

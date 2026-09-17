@@ -28,7 +28,7 @@ import { flattenError } from "zod";
  * ⚠️ These build a response; they never THROW. The authz guards
  * (`requireSession`, `requireOrgPermission`, `resolveStorageOwner`) throw Next
  * navigation errors instead, and those must reach the framework untouched — see
- * `features/storage/http.ts`, which returns `null` for anything it does not
+ * the storage controller's `rethrowStorageError` (`apps/api/src/storage/storage.controller.ts`), which returns `null` for anything it does not
  * recognize precisely so its caller can rethrow.
  */
 

@@ -1,40 +1,36 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { resolveStorageOwner } from "@/features/storage/context";
-import { createUpload } from "@/features/storage/presign";
-import { presignInputSchema } from "@/features/storage/schema";
-import { storageErrorResponse } from "@/features/storage/http";
-import { invalidJson, validationFailed } from "@/lib/validation/http";
+import { env } from "@/lib/env/server";
 
 /**
- * Presigned upload endpoint (spec 21.2).
- *
- * Session-protected by the proxy (no session cookie → redirect before this runs);
- * still resolves the owner + RBAC here, because the proxy is a UX convenience, not
- * the security boundary. Validation runs BEFORE any storage/DB write: a disallowed
- * type or oversized declaration is a 422 with no row and no object created. The
- * response is a presigned POST the client uploads directly to the bucket.
- *
- * Body: { slug?, filename, contentType, size, visibility }.
- *   - `slug` present → organization context (requires `storage.upload`).
- *   - `slug` absent  → the caller's personal account.
+ * Presigned upload endpoint (spec 21.2) — thin reverse proxy since uploads
+ * moved to Nest (`POST /v1/storage/presign`, faza 2.4). The session cookie
+ * rides along untouched; Nest validates, mints the presigned POST and
+ * records the pending row, answering `201 { fileId, upload }`, `422` on a
+ * disallowed type/oversize, or `404` when no provider is configured — all
+ * relayed as-is (the 201 especially: the E2E upload flow asserts it).
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const body: unknown = await request.json().catch(() => null);
-  if (!body) return invalidJson();
+  const target = new URL("/v1/storage/presign", env.API_BASE_URL.replace(/\/+$/, ""));
+  const cookie = request.headers.get("cookie");
 
-  const parsed = presignInputSchema.safeParse(body);
-  if (!parsed.success) return validationFailed(parsed.error, "Invalid upload");
-
-  const { slug, ...input } = parsed.data;
-  const { owner, userId } = await resolveStorageOwner(slug ?? null, "storage.upload");
-
+  let upstream: Response;
   try {
-    const result = await createUpload(owner, userId, input);
-    return NextResponse.json({ fileId: result.fileId, upload: result.upload }, { status: 201 });
-  } catch (err) {
-    const mapped = storageErrorResponse(err);
-    if (mapped) return mapped;
-    throw err;
+    upstream = await fetch(target, {
+      method: "POST",
+      headers: {
+        "content-type": request.headers.get("content-type") ?? "application/json",
+        ...(cookie ? { cookie } : {}),
+      },
+      body: Buffer.from(await request.arrayBuffer()),
+      redirect: "manual",
+    });
+  } catch {
+    return NextResponse.json({ error: "Storage unavailable" }, { status: 502 });
   }
+
+  return new NextResponse(Buffer.from(await upstream.arrayBuffer()), {
+    status: upstream.status,
+    headers: { "content-type": "application/json" },
+  });
 }

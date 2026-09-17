@@ -74,3 +74,68 @@ export interface StorageAdapter {
   /** List objects under a key prefix (spec 21.1 — listing per owner). */
   list(prefix: string): Promise<StorageObject[]>;
 }
+
+/**
+ * Upload policy (spec 21.2 / 22.2) — framework-free constants shared by the
+ * client (UX: block the picker early), the wire schemas (`@repo/validation`),
+ * and the API (the real check + the bucket policy).
+ *
+ * 10 MiB default cap; images + PDF allowlist ("images + documents" covers
+ * avatars, logos, attachments). Widen per feature, never to `*`.
+ */
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+export const ALLOWED_CONTENT_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+] as const;
+
+export type AllowedContentType = (typeof ALLOWED_CONTENT_TYPES)[number];
+
+export const VISIBILITIES = ["public", "private"] as const;
+
+export type Visibility = (typeof VISIBILITIES)[number];
+
+/** Tenant a storage operation acts as. Exactly one owner, mirroring the XOR. */
+export type FileOwner =
+  { kind: "organization"; organizationId: string } | { kind: "personal"; accountId: string };
+
+/** Wire shape: `POST /v1/storage/presign` body (slug absent → personal). */
+export interface PresignRequest {
+  slug?: string | null;
+  filename: string;
+  contentType: string;
+  size: number;
+  visibility?: Visibility;
+}
+
+/** Wire shape: `POST /v1/storage/presign` answer (201). */
+export interface PresignResponse {
+  fileId: string;
+  upload: PresignedUpload;
+}
+
+/** Wire shape: `POST /v1/storage/confirm` body. */
+export interface ConfirmRequest {
+  slug?: string | null;
+  fileId: string;
+}
+
+/** Wire shape: `GET /v1/storage/files/:id` answer. */
+export interface ReadableFile {
+  id: string;
+  originalName: string;
+  contentType: string;
+  visibility: Visibility;
+  url: string;
+}
+
+/** Wire shape: one row of `GET /v1/storage/files` (`{ items }`). */
+export interface FileListItem {
+  id: string;
+  originalName: string;
+  visibility: Visibility;
+}

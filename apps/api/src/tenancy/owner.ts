@@ -4,6 +4,7 @@ import { membership, organization, personalAccount } from "@repo/db";
 import type { Db } from "@repo/db";
 import { forbidden, notFound } from "../common/http";
 import type { RequestSession } from "../auth/auth-engine";
+import { hasPermission, isRole, type Permission } from "../organizations/rbac";
 
 /**
  * Tenant owner resolution — the Nest twin of the web app's
@@ -14,10 +15,6 @@ import type { RequestSession } from "../auth/auth-engine";
  * account (self-healed like in web). Reads need membership only — a member
  * may always see their OWN notifications; the RBAC map governs org data, not
  * a user's bell.
- *
- * `isRole` is inlined rather than imported: the canonical role→permission map
- * moves here with the RBAC module (etap 2). Until then this guard only needs
- * "is this a known role", which is these three strings.
  */
 
 export type NotificationOwner =
@@ -26,12 +23,6 @@ export type NotificationOwner =
 export interface ResolvedOwner {
   owner: NotificationOwner;
   userId: string;
-}
-
-const ROLES = ["member", "admin", "owner"] as const;
-
-function isRole(value: string): value is (typeof ROLES)[number] {
-  return (ROLES as readonly string[]).includes(value);
 }
 
 async function getOrgBySlug(db: Db, slug: string) {
@@ -89,6 +80,53 @@ export async function resolveNotificationOwner(
   if (!account) {
     // Unreachable in practice (the insert above just created it) — a 500
     // rather than a 404, because "no account" here means the write failed.
+    throw new Error(`no personal account for user ${session.user.id}`);
+  }
+  return { owner: { kind: "personal", accountId: account.id }, userId: session.user.id };
+}
+
+/**
+ * Resolve which tenant a storage request acts as (spec 21.3 → 1.3) — the
+ * Nest twin of web's `features/storage/context.ts`, ported in faza 2.4.
+ *
+ * A request is ORG-scoped when it carries a `slug`, PERSONAL-scoped
+ * otherwise. Org access runs through the shared RBAC map
+ * (`organizations/rbac`, same `storage.upload` / `storage.delete`
+ * permissions as web), so authorization is enforced identically to every
+ * other org action (§4.2). Personal files need only a valid session.
+ * Pass `null` as `permission` for reads (membership is enough, e.g. the
+ * file list and single reads — same as web's `requireOrgAccess` branch).
+ */
+export async function resolveStorageOwner(
+  db: Db,
+  session: RequestSession,
+  slug: string | null,
+  permission: Permission | null,
+  orgsEnabled: boolean,
+): Promise<ResolvedOwner> {
+  if (slug) {
+    if (!orgsEnabled) notFound("Organization not found");
+    const org = await getOrgBySlug(db, slug);
+    if (!org) notFound("Organization not found");
+    const member = await getMembership(db, org.id, session.user.id);
+    if (!member || member.status !== "active" || !isRole(member.role)) {
+      forbidden("Not a member of this organization");
+    }
+    if (permission && !hasPermission(member.role, permission)) {
+      forbidden("Forbidden");
+    }
+    return {
+      owner: { kind: "organization", organizationId: org.id },
+      userId: session.user.id,
+    };
+  }
+
+  let account = await getPersonalAccountByUserId(db, session.user.id);
+  if (!account) {
+    await db.insert(personalAccount).values({ userId: session.user.id }).onConflictDoNothing();
+    account = await getPersonalAccountByUserId(db, session.user.id);
+  }
+  if (!account) {
     throw new Error(`no personal account for user ${session.user.id}`);
   }
   return { owner: { kind: "personal", accountId: account.id }, userId: session.user.id };

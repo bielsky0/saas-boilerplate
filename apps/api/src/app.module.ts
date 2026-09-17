@@ -11,6 +11,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { OnboardingModule } from "./onboarding/onboarding.module";
 import { OrganizationsModule } from "./organizations/organizations.module";
 import { RateLimitModule } from "./rate-limit/rate-limit.module";
+import { StorageModule } from "./storage/storage.module";
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { RateLimitModule } from "./rate-limit/rate-limit.module";
     OrganizationsModule,
     BillingNotifyModule,
     JobsModule,
+    StorageModule,
   ],
   controllers: [HealthController],
 })

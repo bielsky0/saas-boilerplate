@@ -5,6 +5,7 @@ import { file, type Db } from "@repo/db";
 import { API_CONFIG, DB } from "../db/db.module";
 import type { ApiConfig } from "../common/config";
 import { recordAudit, SYSTEM_ACTOR } from "../organizations/audit";
+import { StorageService } from "../storage/storage.service";
 
 /**
  * File retention purge (spec 21.4) — the Nest twin of web's
@@ -19,10 +20,9 @@ import { recordAudit, SYSTEM_ACTOR } from "../organizations/audit";
  * AUDIT (spec 6.4): one row PER ORGANIZATION per run, with a count — never
  * one per file. `organizationId: null` collects personal-account files.
  *
- * STORAGE SCOPE (faza 2.4 owns the rest): the object delete resolves through
- * the same provider switch as web (`none` throws `NOT_CONFIGURED`, like web's
- * null adapter). Full S3 wiring lands with the storage port; until then a
- * `none` deployment dead-letters this job exactly like web does today.
+ * The object delete goes through `StorageService` (faza 2.4 owns it): one
+ * adapter owner shared with the foreground endpoints, so a `none`
+ * deployment dead-letters this job exactly like web's `none` adapter threw.
  */
 
 /** Days a soft-deleted file is retained before permanent purge. */
@@ -34,15 +34,6 @@ function retentionCutoff(now: Date = new Date()): Date {
   return cutoff;
 }
 
-export class StorageNotConfiguredError extends Error {
-  readonly code = "NOT_CONFIGURED";
-  constructor() {
-    super(
-      "STORAGE_PROVIDER=none: no object storage is configured. File purge needs the faza 2.4 storage port.",
-    );
-  }
-}
-
 @Injectable()
 export class StoragePurgeService {
   private readonly log = new Logger("StoragePurgeService");
@@ -50,6 +41,7 @@ export class StoragePurgeService {
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
+    private readonly storage: StorageService,
   ) {}
 
   async handlePurge(): Promise<void> {
@@ -98,11 +90,10 @@ export class StoragePurgeService {
   }
 
   private async deleteObject(key: string): Promise<void> {
-    // Faza 2.4 wires the S3 delete here. Until then every provider selection
-    // fails loudly — same as web's `none` adapter throwing NOT_CONFIGURED.
-    this.log.debug(
-      `purge object delete deferred key=${key} provider=${this.config.STORAGE_PROVIDER}`,
-    );
-    throw new StorageNotConfiguredError();
+    // One adapter owner (StorageService): the foreground endpoints and this
+    // job cannot disagree about the provider. On a `none` deployment this
+    // throws NOT_CONFIGURED and the job dead-letters — loud, not silent.
+    this.log.debug(`purge object delete key=${key} provider=${this.config.STORAGE_PROVIDER}`);
+    await this.storage.deleteObject(key);
   }
 }
