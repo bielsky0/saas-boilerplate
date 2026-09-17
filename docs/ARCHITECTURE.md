@@ -4,6 +4,8 @@ This document is the reference for how the codebase is organized so that both
 humans and AI assistants can add modules predictably (spec §17). It describes
 the directory layout, naming, and the reference patterns to copy when adding new
 code. The full product spec lives in [specyfikacja.md](specyfikacja.md).
+Structural decisions live in [adr/](adr/) — read it before "simplifying"
+anything the comments say not to touch.
 
 ## Stack
 
