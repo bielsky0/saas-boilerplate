@@ -33,10 +33,10 @@ const RELAYED_RESPONSE_HEADERS = ["content-type", "location"];
 
 /**
  * The `admin` plugin (spec 6) mounts /api/auth/admin/* — a SECOND path to
- * impersonate, ban and delete that bypasses our server actions and therefore
+ * impersonate, ban and delete that bypasses the audited flows and therefore
  * the audit log (spec 6.3). The surface stays closed here (and again in Nest's
- * allowlist), leaving `src/features/admin/actions.ts` — which writes the
- * audit row — as the only way in.
+ * allowlist), leaving the Nest `AdminService` — which writes the audit row
+ * Rule A / Rule B behind `SuperAdminGuard` — as the only way in (faza 2.6).
  *
  * Keep it `startsWith` and keep the trailing slash: `includes` would match
  * unrelated paths, and dropping the slash would swallow a future /api/auth/administer.

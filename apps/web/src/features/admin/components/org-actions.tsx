@@ -1,16 +1,15 @@
 "use client";
 
-import { useActionState, useEffect, useId } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Button, ConfirmDialog, FormMessage, toast } from "@/components/ui";
-import { deleteOrganizationAction, type ActionState } from "../actions";
-
-const initial: ActionState = {};
+import { deleteOrganization } from "../client";
 
 /**
- * Organization-level admin controls (spec 6.2): deletion.
- *
- * Cosmetic gating only — the action re-checks `requireSuperAdmin()` server-side.
+ * Organization-level admin controls (spec 6.2): deletion over the Nest API
+ * (faza 2.6). Cosmetic gating only — Nest re-checks `SuperAdminGuard`
+ * server-side.
  */
 export function OrgActions({
   organizationId,
@@ -23,20 +22,35 @@ export function OrgActions({
   memberCount: number;
   deleted: boolean;
 }) {
-  const [state, remove, pending] = useActionState(deleteOrganizationAction, initial);
-  const formId = useId();
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (state.success) toast.success(state.success);
-  }, [state]);
+  async function handleDelete() {
+    setPending(true);
+    setError(null);
+    try {
+      const result = await deleteOrganization(organizationId);
+      if (!result.ok) {
+        setError(
+          result.code === "ALREADY_DELETED"
+            ? "This organization is already deleted."
+            : "Something went wrong. Please try again.",
+        );
+        return;
+      }
+      toast.success(`${name} has been deleted.`);
+      router.push("/admin/organizations");
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
+  }
 
   if (deleted) return null;
 
   return (
     <div className="flex flex-col items-end gap-2">
-      <form id={formId} action={remove}>
-        <input type="hidden" name="organizationId" value={organizationId} />
-      </form>
       <ConfirmDialog
         trigger={
           <Button type="button" variant="destructive" size="sm" disabled={pending}>
@@ -48,10 +62,10 @@ export function OrgActions({
           memberCount === 1 ? "" : "s"
         } lose access immediately. User accounts are not deleted.`}
         confirmLabel="Delete organization"
-        confirmForm={formId}
+        onConfirm={() => void handleDelete()}
         disabled={pending}
       />
-      {state.error ? <FormMessage className="text-xs">{state.error}</FormMessage> : null}
+      {error ? <FormMessage className="text-xs">{error}</FormMessage> : null}
     </div>
   );
 }

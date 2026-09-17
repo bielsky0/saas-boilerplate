@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { forbidden, notFound } from "next/navigation";
 
+import { ApiError } from "@repo/api-client";
+import type { AdminUserDetail } from "@repo/contracts/admin";
 import {
   Badge,
   Card,
@@ -15,16 +17,17 @@ import {
   TableRow,
 } from "@/components/ui";
 import { requireSuperAdmin } from "@/features/admin/context";
-import { getUserDetail, listSolelyOwnedOrgs } from "@/features/admin/data";
 import { StatusBadge } from "@/features/admin/components/status-badge";
 import { UserActions } from "@/features/admin/components/user-actions";
+import { api } from "@/lib/api";
 
 /**
- * One account: details, memberships, and the privileged actions (spec 6.2).
+ * One account: details, memberships, and the privileged actions (spec 6.2) —
+ * read from Nest (faza 2.6), never the database.
  *
  * The action buttons here are cosmetic gating only — `UserActions` decides what to
- * SHOW, while every action re-checks `requireSuperAdmin()` and its own invariants
- * server-side (spec 4.2's rule, applied to §6).
+ * SHOW, while Nest re-checks `SuperAdminGuard` and every invariant behind it
+ * (spec 4.2's rule, applied to §6).
  */
 export default async function AdminUserDetailPage({
   params,
@@ -34,11 +37,19 @@ export default async function AdminUserDetailPage({
   const { userId } = await params;
   const { actorId } = await requireSuperAdmin(`/admin/users/${userId}`);
 
-  const [target, solelyOwnedOrgs] = await Promise.all([
-    getUserDetail(userId),
-    listSolelyOwnedOrgs(userId),
-  ]);
-  if (!target) notFound();
+  let target: AdminUserDetail;
+  try {
+    target = await api().get<AdminUserDetail>(`/v1/admin/users/${encodeURIComponent(userId)}`);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      if (error.status === 403) forbidden();
+      if (error.status === 404) notFound();
+    }
+    throw error;
+  }
+
+  const createdAt = new Date(target.createdAt);
+  const deletedAt = target.deletedAt ? new Date(target.deletedAt) : null;
 
   return (
     <div className="space-y-6">
@@ -57,7 +68,7 @@ export default async function AdminUserDetailPage({
           status={target.status}
           isSuperAdmin={target.isSuperAdmin}
           isSelf={target.id === actorId}
-          solelyOwnedOrgs={solelyOwnedOrgs}
+          solelyOwnedOrgs={target.solelyOwnedOrgs}
         />
       </div>
 
@@ -74,8 +85,8 @@ export default async function AdminUserDetailPage({
             <div>
               <dt className="text-muted-foreground text-sm">Registered</dt>
               <dd>
-                <time dateTime={target.createdAt.toISOString()}>
-                  {target.createdAt.toISOString().replace("T", " ").slice(0, 19)} UTC
+                <time dateTime={createdAt.toISOString()}>
+                  {createdAt.toISOString().replace("T", " ").slice(0, 19)} UTC
                 </time>
               </dd>
             </div>
@@ -85,12 +96,12 @@ export default async function AdminUserDetailPage({
                 <dd>{target.banReason}</dd>
               </div>
             ) : null}
-            {target.deletedAt ? (
+            {deletedAt ? (
               <div>
                 <dt className="text-muted-foreground text-sm">Deleted</dt>
                 <dd>
-                  <time dateTime={target.deletedAt.toISOString()}>
-                    {target.deletedAt.toISOString().replace("T", " ").slice(0, 19)} UTC
+                  <time dateTime={deletedAt.toISOString()}>
+                    {deletedAt.toISOString().replace("T", " ").slice(0, 19)} UTC
                   </time>
                 </dd>
               </div>

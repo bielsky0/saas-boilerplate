@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { AdminModule } from "../admin/admin.module";
 import { AuthModule } from "../auth/auth.module";
 import { BillingModule } from "../billing/billing.module";
 import { EmailsModule } from "../emails/emails.module";
@@ -12,11 +13,13 @@ import { DevController } from "./dev.controller";
  * Test-only dev controller (spec 14.1) — `seed-user`, `user`, `rate-limit`,
  * `seed-org`, plus the faza 2.3 delivery seams (`emails`, `emails/fail-next`,
  * `jobs`, `jobs/run`, `notifications`, `notification-preference`) plus the faza
- * 2.5 billing seams (`seed-billing-customer`, `billing-state`). Every
+ * 2.5 billing seams (`seed-billing-customer`, `billing-state`) plus the faza
+ * 2.6 admin seam (`seed-super-admin`). Every
  * route 404s in production (checked per-request, not just at boot).
  */
 @Module({
   imports: [
+    AdminModule,
     AuthModule,
     OrganizationsModule,
     EmailsModule,

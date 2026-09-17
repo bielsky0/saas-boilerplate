@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { forbidden } from "next/navigation";
 
+import { ApiError } from "@repo/api-client";
+import type { AdminUsersResponse } from "@repo/contracts/admin";
 import {
   Badge,
   Pagination,
@@ -12,16 +15,16 @@ import {
   TableRow,
 } from "@/components/ui";
 import { requireSuperAdmin } from "@/features/admin/context";
-import { listAllUsers } from "@/features/admin/data";
 import { StatusBadge } from "@/features/admin/components/status-badge";
 import { UserFilters } from "@/features/admin/components/user-filters";
 import { userListQuerySchema } from "@/features/admin/schema";
+import { api } from "@/lib/api";
 
 /**
- * All users, searchable (spec 6.2).
- *
- * `requireSuperAdmin()` is the first line — the layout's identical call is for the
- * shell, not the boundary (see `features/admin/context.ts`).
+ * All users, searchable (spec 6.2) — read from Nest (faza 2.6), never the
+ * database. `requireSuperAdmin()` is still the first line: it is the
+ * render-side guard, while the API re-checks behind `SuperAdminGuard`
+ * (spec 4.2's rule, applied to §6).
  */
 export default async function AdminUsersPage({
   searchParams,
@@ -31,7 +34,23 @@ export default async function AdminUsersPage({
   await requireSuperAdmin("/admin/users");
 
   const query = userListQuerySchema.parse(await searchParams);
-  const { rows, page, hasNext } = await listAllUsers(query);
+
+  const params: Record<string, string> = {};
+  if (query.q) params["q"] = query.q;
+  if (query.status !== "all") params["status"] = query.status;
+  if (query.from) params["from"] = query.from;
+  if (query.to) params["to"] = query.to;
+  params["page"] = String(query.page);
+
+  let body: AdminUsersResponse;
+  try {
+    body = await api().get<AdminUsersResponse>("/v1/admin/users", { query: params });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 403) forbidden();
+    throw error;
+  }
+  const rows = body.rows.map((row) => ({ ...row, createdAt: new Date(row.createdAt) }));
+  const { page, hasNext } = body;
 
   const pageHref = (next: number) => {
     const params = new URLSearchParams();

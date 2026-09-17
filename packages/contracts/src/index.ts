@@ -6,6 +6,7 @@
  * its app (`apps/web` today, `apps/api` tomorrow); swapping a provider means
  * implementing one contract, not touching callers.
  */
+export * from "./admin";
 export * from "./auth";
 export * from "./billing";
 export * from "./cookies";

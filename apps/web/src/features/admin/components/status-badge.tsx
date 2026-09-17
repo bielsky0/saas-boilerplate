@@ -1,5 +1,8 @@
+import type { AdminUserStatus } from "@repo/contracts/admin";
+
 import { Badge } from "@/components/ui";
-import type { UserStatus } from "../data";
+
+type UserStatus = AdminUserStatus;
 
 /**
  * Account status chip (spec 6.2). One place to map status → colour, so the users

@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { AdminModule } from "./admin/admin.module";
 import { AuthModule } from "./auth/auth.module";
 import { BillingNotifyModule } from "./billing-notify/billing-notify.module";
 import { BillingModule } from "./billing/billing.module";
@@ -23,6 +24,7 @@ import { StorageModule } from "./storage/storage.module";
     EmailsModule,
     OnboardingModule,
     NotificationsModule,
+    AdminModule,
     OrganizationsModule,
     BillingNotifyModule,
     BillingModule,

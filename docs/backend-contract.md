@@ -219,6 +219,51 @@ share one plan table); money moves only in the backend.
   the `billing_customer` XOR); `GET /v1/dev/billing-state?orgSlug=` →
   `{subscriptions, payments, webhookEvents, totalPaid}`.
 
+## Implemented: admin (faza 2.6)
+
+The panel reads and mutates across tenants by design (§6.2 carve-out);
+`SuperAdminGuard` (session + `impersonatedBy === null` + live `isSuperAdmin`,
+never a cookie claim) is the boundary, applied per-handler. Audit Rule A
+(our effect: same transaction) / Rule B (engine effect: audit-first, then
+the engine — the log over-logs rather than under-logs).
+
+- `GET /v1/admin/users?q=&status=&from=&to=&page=` → `200 {rows, page,
+hasNext}`; `GET /v1/admin/users/:id` → detail + memberships +
+  `solelyOwnedOrgs` (the cascade disclosure).
+- `GET /v1/admin/organizations?q=&page=` → `200 {rows, page, hasNext}`
+  (member count, plan, seats, no MRR — plans carry no price); `GET
+/v1/admin/organizations/:id` → detail + members + per-currency revenue.
+  Deleted orgs stay readable during the retention window.
+- `GET /v1/admin/audit?q=&page=` → `200 {rows, page, hasNext}`, newest
+  first (the `q` filter is load-bearing: the list is global, the E2E suite
+  is parallel).
+- `POST /v1/admin/users/:id/impersonate` `{reason ≥10}` → `200 {ok:true}`
+  - swapped `Set-Cookie` (audit-first; target super admin →
+    `403 IMPERSONATION_FORBIDDEN`, deleted → `400 ALREADY_DELETED`). The
+    browser goes through the same-origin web relay
+    (`POST /api/admin/impersonate`), which copies `Set-Cookie` — never a
+    post-swap session read (stale-cookie).
+- `POST /v1/admin/impersonate/stop` (session-guarded ONLY — the caller is
+  the impersonated non-admin) → `200 {ok, signedOut}` + restored
+  `Set-Cookie`; `signedOut` when the admin session expired mid-impersonation
+  and the backend fell back to a plain sign-out (client lands on `/login`).
+- `POST /v1/admin/users/:id/suspend` `{reason?}` /
+  `POST /v1/admin/users/:id/unsuspend` → `200 {ok:true}` (audit-first;
+  suspending self → `403 CANNOT_ACT_ON_SELF`, super-admin target →
+  `403 TARGET_IS_ADMIN`, deleted → `400 ALREADY_DELETED`).
+- `POST /v1/admin/users/:id/delete` → `200 {ok:true}`: soft-delete +
+  personal-account soft-delete + solely-owned-org cascade + membership
+  removal + audit rows in ONE transaction; session revocation best-effort
+  after commit (live sessions already die structurally via `getSession`).
+- `POST /v1/admin/organizations/:id/delete` → `200 {ok:true}` (soft-delete,
+  Rule A).
+- `POST /v1/admin/users/:id/super-admin` `{value: grant|revoke}` →
+  `200 {ok:true}` (audit-first; self-revoke → `403`, last admin →
+  `409 LAST_ADMIN`).
+- Conformance harness: `POST /v1/dev/seed-super-admin` `{email}` →
+  `{ok, userId}` (direct role write — bootstrapping cannot go through the
+  guarded endpoint; mirrors the documented production SQL).
+
 ## Auth formats a reimplementation must reproduce (the true lock-in)
 
 Endpoints are the easy half. A backend that does not reuse Better Auth must

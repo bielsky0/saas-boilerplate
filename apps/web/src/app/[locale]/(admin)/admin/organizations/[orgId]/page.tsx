@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { forbidden, notFound } from "next/navigation";
 
+import { ApiError } from "@repo/api-client";
+import type { AdminOrgDetail } from "@repo/contracts/admin";
 import {
   Badge,
   Card,
@@ -15,11 +17,12 @@ import {
   TableRow,
 } from "@/components/ui";
 import { requireSuperAdmin } from "@/features/admin/context";
-import { getOrganizationDetail } from "@/features/admin/data";
 import { OrgActions } from "@/features/admin/components/org-actions";
+import { api } from "@/lib/api";
 
 /**
- * One organization: metrics, members, revenue, and deletion (spec 6.2).
+ * One organization: metrics, members, revenue, and deletion (spec 6.2) —
+ * read from Nest (faza 2.6), never the database.
  */
 export default async function AdminOrgDetailPage({
   params,
@@ -29,8 +32,19 @@ export default async function AdminOrgDetailPage({
   const { orgId } = await params;
   await requireSuperAdmin(`/admin/organizations/${orgId}`);
 
-  const org = await getOrganizationDetail(orgId);
-  if (!org) notFound();
+  let org: AdminOrgDetail;
+  try {
+    org = await api().get<AdminOrgDetail>(`/v1/admin/organizations/${encodeURIComponent(orgId)}`);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      if (error.status === 403) forbidden();
+      if (error.status === 404) notFound();
+    }
+    throw error;
+  }
+
+  const createdAt = new Date(org.createdAt);
+  const deleted = org.deletedAt !== null;
 
   return (
     <div className="space-y-6">
@@ -40,14 +54,14 @@ export default async function AdminOrgDetailPage({
           <div className="mt-2 flex flex-wrap items-center gap-1">
             <span className="text-muted-foreground text-sm">/{org.slug}</span>
             <Badge variant="outline">{org.planId ?? "free"}</Badge>
-            {org.deletedAt ? <Badge variant="destructive">deleted</Badge> : null}
+            {deleted ? <Badge variant="destructive">deleted</Badge> : null}
           </div>
         </div>
         <OrgActions
           organizationId={org.id}
           name={org.name}
           memberCount={org.memberCount}
-          deleted={org.deletedAt !== null}
+          deleted={deleted}
         />
       </div>
 
@@ -71,13 +85,13 @@ export default async function AdminOrgDetailPage({
             <div>
               <dt className="text-muted-foreground text-sm">Created</dt>
               <dd>
-                <time dateTime={org.createdAt.toISOString()}>
-                  {org.createdAt.toISOString().slice(0, 10)}
+                <time dateTime={createdAt.toISOString()}>
+                  {createdAt.toISOString().slice(0, 10)}
                 </time>
               </dd>
             </div>
             <div>
-              {/* Revenue to date, not MRR — see the note on listAllOrganizations. */}
+              {/* Revenue to date, not MRR — see the note on the API query. */}
               <dt className="text-muted-foreground text-sm">Net revenue to date</dt>
               <dd>
                 {org.revenue.length === 0

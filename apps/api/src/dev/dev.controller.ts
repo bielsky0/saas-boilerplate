@@ -28,6 +28,7 @@ import { failFor, getOutbox, pendingFailures } from "../emails/log";
 import { JobsService } from "../jobs/jobs.service";
 import { isNotificationType } from "../notifications/types";
 import { NotificationsService } from "../notifications/notifications.service";
+import { AdminService } from "../admin/admin.service";
 import { BillingService } from "../billing/billing.service";
 import { RATE_LIMIT_MEMORY, RATE_LIMIT_POSTGRES } from "../rate-limit/rate-limit.module";
 import { OrganizationsService } from "../organizations/organizations.service";
@@ -63,6 +64,7 @@ export class DevController {
     private readonly jobs: JobsService,
     private readonly notifications: NotificationsService,
     private readonly billing: BillingService,
+    private readonly admin: AdminService,
   ) {}
 
   private assertDev(): void {
@@ -352,6 +354,25 @@ export class DevController {
   async seedBillingCustomer(@Req() req: Request) {
     this.assertDev();
     return this.billing.seedBillingCustomer(req.body ?? {});
+  }
+
+  /**
+   * Promote an existing seeded user to super admin (spec 6.1/14.1) — the Nest
+   * twin of web's `/api/dev/seed-super-admin` (faza 2.6). Same contract
+   * (`{email}` → `{ok, userId}`), so the §6 E2E suite calls it through the
+   * thin web proxy unchanged. Bootstrapping cannot go through the
+   * `super-admin` endpoint — that requires an existing super admin — so this
+   * writes the role column directly, mirroring the documented production SQL.
+   * There is deliberately NO in-app bootstrap path.
+   */
+  @Post("seed-super-admin")
+  async seedSuperAdmin(@Req() req: Request) {
+    this.assertDev();
+    const body = (req.body ?? {}) as { email?: unknown };
+    if (typeof body.email !== "string" || body.email === "") {
+      throw new HttpException({ error: "email is required" }, HttpStatus.BAD_REQUEST);
+    }
+    return this.admin.seedSuperAdmin(body.email);
   }
 
   /**

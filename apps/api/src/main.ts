@@ -33,8 +33,8 @@ import type { ApiConfig } from "./common/config";
  * `[...all]` proxy. Everything else under `/api/auth/*` — sign-in/up posts,
  * `get-session`, and the whole `/admin/*` plugin surface — answers 404: the
  * versioned `/v1/*` contract (with its rate limiting) is the only way in for
- * those, and the admin plugin stays reachable solely through audited
- * server-side calls until etap 2.6.
+ * those, and the admin plugin stays reachable solely through the audited
+ * `AdminService` (faza 2.6), never over HTTP.
  */
 function isAllowedEnginePath(method: string, path: string): boolean {
   if (method === "GET" && path === "/verify-email") return true;

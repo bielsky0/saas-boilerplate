@@ -71,60 +71,6 @@ const eslintConfig = defineConfig([
     },
   },
   /**
-   * Super-admin containment (spec 6.3).
-   *
-   * Two things must not leak out of `src/features/admin`:
-   *   - `adminAuthAdapter`: every privileged operation has to be audit-logged,
-   *     and the audit write lives in `features/admin/actions.ts`. An import from
-   *     anywhere else is an unaudited privileged action by construction.
-   *   - `features/admin/data`: it queries business tables WITHOUT a tenant-owner
-   *     filter (the §6.2 carve-out). Its access boundary is `requireSuperAdmin()`,
-   *     which only its own callers apply — behind any other caller, the same
-   *     query is a tenant-isolation breach.
-   *
-   * The rule is the enforcement, not the file headers that explain it. Note
-   * `importNames`: plain `authAdapter` from the same module stays free.
-   *
-   * Exempt: the admin feature itself, the auth adapter that defines the export,
-   * and the `(admin)` route group — the panel's own pages, which apply
-   * `requireSuperAdmin()` as their first line and are the intended consumers.
-   * Everything else in the app is denied by default.
-   *
-   * The group is matched as `src/app/**\/(admin)/**` rather than a fixed
-   * `src/app/(admin)/**` so it survives a segment being added above it — §16 put
-   * the whole page tree under `[locale]`, which silently un-exempted the panel and
-   * failed CI until this pattern stopped hard-coding the depth. (A literal
-   * `src/app/[locale]/...` would be worse than the depth: `[locale]` is a glob
-   * CHARACTER CLASS, so it would match `/l/`, `/o/`, `/c/` … and not the directory
-   * actually named `[locale]`.)
-   */
-  {
-    files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/features/admin/**", "src/lib/adapters/auth/**", "src/app/**/(admin)/**"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
-            {
-              name: "@/lib/adapters/auth",
-              importNames: ["adminAuthAdapter"],
-              message:
-                "Super-admin engine calls must go through src/features/admin/actions.ts so they are audit-logged (spec 6.3).",
-            },
-          ],
-          patterns: [
-            {
-              group: ["@/features/admin/data", "**/features/admin/data"],
-              message:
-                "features/admin/data queries across tenants; it is only safe behind requireSuperAdmin() (spec 6.2 carve-out).",
-            },
-          ],
-        },
-      ],
-    },
-  },
-  /**
    * Auth vendor containment (spec 1.2 — backend-independence).
    *
    * `better-auth` (SDK, plugins, cookie helpers) may be imported ONLY from

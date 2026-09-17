@@ -1,3 +1,7 @@
+import { forbidden } from "next/navigation";
+
+import { ApiError } from "@repo/api-client";
+import type { AdminAuditResponse } from "@repo/contracts/admin";
 import {
   Badge,
   Button,
@@ -12,11 +16,12 @@ import {
   TableRow,
 } from "@/components/ui";
 import { requireSuperAdmin } from "@/features/admin/context";
-import { listAuditEntries } from "@/features/admin/data";
 import { auditListQuerySchema } from "@/features/admin/schema";
+import { api } from "@/lib/api";
 
 /**
- * Audit log (spec 6.3) — every critical admin action, newest first.
+ * Audit log (spec 6.3) — every critical admin action, newest first, read from
+ * Nest (faza 2.6), never the database.
  *
  * Timestamps render in full (not relative): "2 hours ago" is unusable in an
  * incident review, which is the only reason this page exists.
@@ -29,7 +34,20 @@ export default async function AdminAuditPage({
   await requireSuperAdmin("/admin/audit");
 
   const query = auditListQuerySchema.parse(await searchParams);
-  const { rows, page, hasNext } = await listAuditEntries(query);
+
+  const params: Record<string, string> = {};
+  if (query.q) params["q"] = query.q;
+  params["page"] = String(query.page);
+
+  let body: AdminAuditResponse;
+  try {
+    body = await api().get<AdminAuditResponse>("/v1/admin/audit", { query: params });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 403) forbidden();
+    throw error;
+  }
+  const rows = body.rows.map((row) => ({ ...row, createdAt: new Date(row.createdAt) }));
+  const { page, hasNext } = body;
 
   const pageHref = (next: number) => {
     const params = new URLSearchParams();

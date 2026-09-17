@@ -17,7 +17,6 @@ import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
 import { requestLocale } from "@/lib/i18n/request-locale";
 import { storedLocaleForUser } from "@/lib/i18n/user-locale";
 import type {
-  AdminAuthAdapter,
   AuthAdapter,
   AuthResult,
   RequestPasswordResetInput,
@@ -274,9 +273,9 @@ export const auth = betterAuth({
   plugins: [
     /**
      * Super-admin engine (spec 6): impersonation, suspension, session revocation.
-     * Used ONLY through `betterAuthAdminAdapter` below — its HTTP surface
-     * (/api/auth/admin/*) is closed in the catch-all route so that our audited
-     * server actions stay the only way in (spec 6.3).
+     * Reachable ONLY through the Nest `AdminService` (faza 2.6 — audited Rule A
+     * / Rule B behind `SuperAdminGuard`); its HTTP surface (/api/auth/admin/*)
+     * is closed in the catch-all route and in Nest's allowlist (spec 6.3).
      */
     admin({
       // Own role vocabulary, so `user.role` never collides with `membership.role`.
@@ -473,105 +472,10 @@ export const betterAuthAdapter: AuthAdapter = {
 };
 
 /**
- * Maps the engine's admin errors onto neutral codes. Kept separate from
- * `errorCode` above because the admin plugin reports some failures by message
- * rather than by code.
+ * Faza 2.6: the super-admin engine calls (impersonate, ban/unban, setRole,
+ * revokeUserSessions) moved to Nest (`AdminService`, audited Rule A / Rule B
+ * behind `SuperAdminGuard`). The adapter wrapper that exposed them died with
+ * the move, together with its `no-restricted-imports` rule. The `admin`
+ * plugin registration above stays: its ban/role checks still run on the
+ * engine paths the MCP/OAuth routes mount (faza 2.7 owns that engine).
  */
-function adminErrorResult(error: unknown): AuthResult {
-  const code = errorCode(error);
-  const message = error instanceof APIError ? String(error.body?.message ?? "") : "";
-
-  if (
-    code === "YOU_ARE_NOT_ALLOWED_TO_IMPERSONATE_USERS" ||
-    code === "YOU_CANNOT_IMPERSONATE_ADMINS" ||
-    code === "YOU_ARE_NOT_ALLOWED_TO_BAN_USERS" ||
-    code === "YOU_ARE_NOT_ALLOWED_TO_SET_USERS_ROLE" ||
-    code === "YOU_CANNOT_BAN_YOURSELF"
-  ) {
-    return { ok: false, code: "IMPERSONATION_FORBIDDEN" };
-  }
-  if (code === "USER_NOT_FOUND") {
-    return { ok: false, code: "USER_NOT_FOUND" };
-  }
-  // The engine reports "not impersonating" as a bare BAD_REQUEST message.
-  if (/not impersonating/i.test(message)) {
-    return { ok: false, code: "NOT_IMPERSONATING" };
-  }
-  return { ok: false, code: "UNKNOWN" };
-}
-
-/**
- * Better Auth implementation of the super-admin contract (spec 6.1–6.2).
- *
- * Every method re-authenticates the caller through the engine via `headers`, on
- * top of the `requireSuperAdmin()` check the calling action already performed —
- * defence in depth, and it is what makes the engine's own guards (cannot
- * impersonate an admin, cannot ban yourself) actually run.
- */
-export const betterAuthAdminAdapter: AdminAuthAdapter = {
-  async impersonate(userId: string, headers: Headers): Promise<AuthResult> {
-    try {
-      await auth.api.impersonateUser({ headers, body: { userId } });
-      return { ok: true };
-    } catch (error) {
-      return adminErrorResult(error);
-    }
-  },
-
-  async stopImpersonating(headers: Headers): Promise<AuthResult> {
-    try {
-      await auth.api.stopImpersonating({ headers });
-      return { ok: true };
-    } catch (error) {
-      // NOTE: the engine throws a 500 here when the admin's ORIGINAL session has
-      // expired while they were impersonating — it cannot find the session to
-      // restore. That surfaces as UNKNOWN, and the caller
-      // (`stopImpersonatingAction`) must fall back to a plain sign-out rather
-      // than stranding the admin inside someone else's account.
-      return adminErrorResult(error);
-    }
-  },
-
-  async suspendUser(userId: string, reason: string | null, headers: Headers): Promise<AuthResult> {
-    try {
-      await auth.api.banUser({
-        headers,
-        // No banExpires: suspensions are indefinite until an admin lifts them.
-        body: { userId, ...(reason ? { banReason: reason } : {}) },
-      });
-      return { ok: true };
-    } catch (error) {
-      return adminErrorResult(error);
-    }
-  },
-
-  async unsuspendUser(userId: string, headers: Headers): Promise<AuthResult> {
-    try {
-      await auth.api.unbanUser({ headers, body: { userId } });
-      return { ok: true };
-    } catch (error) {
-      return adminErrorResult(error);
-    }
-  },
-
-  async setSuperAdmin(userId: string, value: boolean, headers: Headers): Promise<AuthResult> {
-    try {
-      await auth.api.setRole({
-        headers,
-        body: { userId, role: value ? SUPER_ADMIN_ROLE : DEFAULT_ROLE },
-      });
-      return { ok: true };
-    } catch (error) {
-      return adminErrorResult(error);
-    }
-  },
-
-  async revokeUserSessions(userId: string, headers: Headers): Promise<AuthResult> {
-    try {
-      await auth.api.revokeUserSessions({ headers, body: { userId } });
-      return { ok: true };
-    } catch (error) {
-      return adminErrorResult(error);
-    }
-  },
-};

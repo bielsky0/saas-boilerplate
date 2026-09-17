@@ -3,15 +3,13 @@
  *
  * Gated by a system-level super-admin flag (independent of org roles) via
  * `requireSuperAdmin()` in `./context.ts` — NOT by middleware; see that file for
- * why the spec's literal wording cannot be honoured. Provides global
- * user/organization listings, account suspension, impersonation (banner +
- * audit-logged), and account deletion (soft delete + retention). Critical admin
- * actions are written to the audit log (spec 6.3) by `./audit.ts`.
+ * why the spec's literal wording cannot be honoured. Reads and mutations go to
+ * the NestJS API (`./client.ts` in the browser, `@/lib/api` on the server);
+ * the panel holds no database access since faza 2.6. Critical admin actions
+ * are written to the audit log (spec 6.3) by the API, Rule A / Rule B.
  *
- * This barrel stays isomorphic. Server-only modules (`actions.ts`, `context.ts`,
- * `data.ts`) are imported by full path so server code never reaches a client
- * bundle — and `data.ts`/`adminAuthAdapter` are additionally restricted by
- * `no-restricted-imports` (see eslint.config.mjs).
+ * This barrel stays isomorphic. Server-only modules (`context.ts`) are
+ * imported by full path so server code never reaches a client bundle.
  */
 
 export { ImpersonationBanner } from "./components/impersonation-banner";

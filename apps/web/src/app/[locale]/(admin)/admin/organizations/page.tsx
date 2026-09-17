@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { forbidden } from "next/navigation";
 
+import { ApiError } from "@repo/api-client";
+import type { AdminOrgsResponse } from "@repo/contracts/admin";
 import {
   Alert,
   Badge,
@@ -15,14 +18,15 @@ import {
   TableRow,
 } from "@/components/ui";
 import { requireSuperAdmin } from "@/features/admin/context";
-import { listAllOrganizations } from "@/features/admin/data";
 import { orgListQuerySchema } from "@/features/admin/schema";
+import { api } from "@/lib/api";
 import { TENANCY_MODE, orgsEnabled } from "@/lib/tenancy";
 
 /**
- * All organizations with their metrics (spec 6.2).
+ * All organizations with their metrics (spec 6.2) — read from Nest
+ * (faza 2.6), never the database.
  *
- * MRR is absent by design — see the note on `listAllOrganizations`: plans carry no
+ * MRR is absent by design — see the note on the API query: plans carry no
  * price yet (§5.2), so any MRR figure here would be invented.
  */
 export default async function AdminOrganizationsPage({
@@ -33,7 +37,24 @@ export default async function AdminOrganizationsPage({
   await requireSuperAdmin("/admin/organizations");
 
   const query = orgListQuerySchema.parse(await searchParams);
-  const { rows, page, hasNext } = await listAllOrganizations(query);
+
+  const params: Record<string, string> = {};
+  if (query.q) params["q"] = query.q;
+  params["page"] = String(query.page);
+
+  let body: AdminOrgsResponse;
+  try {
+    body = await api().get<AdminOrgsResponse>("/v1/admin/organizations", { query: params });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 403) forbidden();
+    throw error;
+  }
+  const rows = body.rows.map((row) => ({
+    ...row,
+    createdAt: new Date(row.createdAt),
+    deletedAt: row.deletedAt ? new Date(row.deletedAt) : null,
+  }));
+  const { page, hasNext } = body;
 
   const pageHref = (next: number) => {
     const params = new URLSearchParams();
