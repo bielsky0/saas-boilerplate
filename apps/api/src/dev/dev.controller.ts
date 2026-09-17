@@ -16,8 +16,8 @@ import { notification, schema, user, type Db } from "@repo/db";
 import type { RateLimitAdapter } from "@repo/contracts";
 import { API_CONFIG, DB } from "../db/db.module";
 import type { ApiConfig } from "../common/config";
+import { forwardedHeaders } from "../common/headers";
 import { notFound, validationFailed } from "../common/http";
-import { forwardedHeaders } from "../auth/auth.controller";
 import { AUTH_ENGINE, engineErrorCode, type AuthEngine } from "../auth/auth-engine";
 import {
   requestLocaleFromHeaders,

@@ -15,7 +15,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 
 import { idParam, slugParam } from "@repo/validation";
-import { forwardedHeaders } from "../auth/auth.controller";
+import { forwardedHeaders } from "../common/headers";
 import { Session, SessionGuard, type AuthenticatedRequest } from "../auth/session.guard";
 import type { RequestSession } from "../auth/auth-engine";
 import { validationFailed } from "../common/http";

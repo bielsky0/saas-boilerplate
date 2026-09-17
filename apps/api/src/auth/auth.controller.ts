@@ -11,6 +11,7 @@ import {
 import type { Request, Response } from "express";
 
 import { AUTH_ENGINE, getFullSessionFromHeaders, type AuthEngine } from "./auth-engine";
+import { forwardedHeaders } from "../common/headers";
 import { unauthorized } from "../common/http";
 import { AuthService } from "./auth.service";
 
@@ -24,29 +25,6 @@ import { AuthService } from "./auth.service";
  * form renders the single `auth.errors.invalidCredentials` key for every
  * credential failure).
  */
-
-/** Inbound headers the engine is allowed to see (allowlist, not a pipe). */
-const FORWARDED_HEADERS = [
-  "cookie",
-  "authorization",
-  "origin",
-  "referer",
-  "user-agent",
-  "accept-language",
-  "x-app-locale",
-  "x-forwarded-for",
-  "x-real-ip",
-  "x-e2e-rate-limit-bucket",
-] as const;
-
-export function forwardedHeaders(req: Request): Headers {
-  const headers = new Headers();
-  for (const name of FORWARDED_HEADERS) {
-    const value = req.headers[name];
-    if (typeof value === "string" && value !== "") headers.set(name, value);
-  }
-  return headers;
-}
 
 /** Relay the engine's `Set-Cookie` onto the Express response (the
  * `nextCookies` replacement — spec 2.1 risks). */
