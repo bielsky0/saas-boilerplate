@@ -1,10 +1,8 @@
 import { getFormatter, getTranslations } from "next-intl/server";
 
+import { isSubscriptionStatus } from "@repo/billing";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
-import { getActiveSubscriptionForOwner } from "../data";
-import type { BillingOwner } from "../context";
 import { DEFAULT_PLAN_ID, PLANS, PLAN_LIST, isPlanId } from "../plans";
-import { isSubscriptionStatus } from "../status";
 import { CheckoutButton, PortalButton } from "./billing-actions";
 
 /**
@@ -12,25 +10,39 @@ import { CheckoutButton, PortalButton } from "./billing-actions";
  * (spec 5.3, 5.5, 5.7).
  *
  * One component for both contexts because the only difference is which owner is
- * being billed — the same reason `resolveBillingOwner` takes a nullable slug
- * rather than having two call paths.
+ * being billed. Presentational: the page resolves the active subscription from
+ * Nest (`GET /v1/billing/subscription`, faza 2.5) and passes it in — this file
+ * never touches the database, so the billing module stays DB-free in web.
  *
  * The current plan is read from the SUBSCRIPTION ROW, which only ever exists
  * because a webhook wrote it (spec 5.4). Nothing here asks the provider anything,
  * and nothing here infers a plan from a redirect the user just came back from.
  */
-export async function BillingPanel({ owner, slug }: { owner: BillingOwner; slug: string | null }) {
-  const [t, format, active] = await Promise.all([
-    getTranslations("billing"),
-    getFormatter(),
-    getActiveSubscriptionForOwner(owner),
-  ]);
+
+/** The shape `GET /v1/billing/subscription` answers with (null = no active plan). */
+export interface PanelSubscription {
+  planId: string | null;
+  status: string;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+}
+
+export async function BillingPanel({
+  subscription,
+  slug,
+}: {
+  subscription: PanelSubscription | null;
+  slug: string | null;
+}) {
+  const [t, format] = await Promise.all([getTranslations("billing"), getFormatter()]);
+  const active = subscription;
 
   // A subscription whose price id is not mapped in this environment has a null
   // planId; it still entitles nothing specific, so it reads as the default plan
   // rather than crashing or inventing a name (see `planIdForPriceId`).
   const currentPlanId = active?.planId && isPlanId(active.planId) ? active.planId : DEFAULT_PLAN_ID;
   const currentPlan = PLANS[currentPlanId];
+  const periodEnd = active?.currentPeriodEnd ? new Date(active.currentPeriodEnd) : null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -48,9 +60,9 @@ export async function BillingPanel({ owner, slug }: { owner: BillingOwner; slug:
           </div>
           <p className="text-muted-foreground text-sm">
             {currentPlan.name}
-            {active?.currentPeriodEnd
+            {active && periodEnd
               ? ` · ${t(active.cancelAtPeriodEnd ? "endsOn" : "renewsOn", {
-                  date: format.dateTime(active.currentPeriodEnd, { dateStyle: "medium" }),
+                  date: format.dateTime(periodEnd, { dateStyle: "medium" }),
                 })}`
               : null}
           </p>

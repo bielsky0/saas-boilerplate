@@ -77,6 +77,24 @@ const ApiEnvSchema = z.object({
     .default("false")
     .transform((v) => v === "true"),
   S3_PUBLIC_URL: z.string().optional(),
+  // Billing provider selection (spec 5.1) — faza 2.5 moves the money path
+  // into the API, so these move with it. Same names as web, so one `.env`
+  // shape serves both apps. Defaults to "none" so the boilerplate builds and
+  // boots with zero payment configuration: the adapter factory must never
+  // throw for the default (it runs at provider init, which would break boot
+  // for everyone). "none" makes the webhook route answer 404.
+  BILLING_PROVIDER: z.enum(["none", "stripe"]).default("none"),
+  // Only required when BILLING_PROVIDER=stripe; the stripe adapter throws a
+  // clear error at construction if it is selected without these.
+  STRIPE_SECRET_KEY: z.string().optional(),
+  // Webhook signing secret (spec 5.4). Verification is a local HMAC against
+  // this value — no network call — so tests sign fixtures offline.
+  STRIPE_WEBHOOK_SECRET: z.string().startsWith("whsec_").optional(),
+  // Price IDs differ per environment (test vs live), so each paid plan gets
+  // its own variable rather than a JSON blob. Unset = the plan is simply
+  // unmapped in this environment (see `planIdForPriceId` in `@repo/billing`).
+  STRIPE_PRICE_PRO: z.string().optional(),
+  STRIPE_PRICE_BUSINESS: z.string().optional(),
 });
 
 export type ApiConfig = z.infer<typeof ApiEnvSchema>;

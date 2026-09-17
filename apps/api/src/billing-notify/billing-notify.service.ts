@@ -3,6 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { membership, organization, personalAccount, subscription, user, type Db } from "@repo/db";
+import { LIVE_STATUSES, planDisplayName } from "@repo/billing";
 import type { Locale } from "@repo/i18n-core";
 import { DB } from "../db/db.module";
 import type { ApiConfig } from "../common/config";
@@ -24,13 +25,10 @@ import { NotificationsService } from "../notifications/notifications.service";
  * also more correct: an Owner added between the event and the send gets the
  * mail, and one removed in that window does not.
  *
- * SCOPE NOTE: this module is notify-only. Checkout/portal/webhook move in
- * faza 2.5 (with `@repo/billing` for plans); the plan-name map below is the
- * minimal display lookup the confirmation mail needs until then.
+ * SCOPE NOTE: this module is notify-only. Checkout/portal/webhook live in
+ * `src/billing` (faza 2.5); plan names and status sets come from
+ * `@repo/billing`, the shared catalog both modules read.
  */
-
-/** Statuses where announcing "your subscription is active" is still true. */
-const LIVE_STATUSES = ["active", "trialing"];
 
 const notifySchema = z.discriminatedUnion("kind", [
   z.object({
@@ -49,21 +47,6 @@ const notifySchema = z.discriminatedUnion("kind", [
     providerSubscriptionId: z.string(),
   }),
 ]);
-
-/**
- * Display names for the confirmation mail (spec 5.2). Minimal on purpose:
- * the full plan table (prices, limits, entitlements) moves to `@repo/billing`
- * in faza 2.5 — this only answers "what do we call it in a sentence?".
- */
-const PLAN_NAMES: Record<string, string> = {
-  free: "Free",
-  pro: "Pro",
-  business: "Business",
-};
-
-function planName(planId: string | null): string {
-  return (planId && PLAN_NAMES[planId]) || "your new";
-}
 
 export interface Mailbox {
   userId: string;
@@ -111,7 +94,9 @@ export class BillingNotifyService {
        * Re-reading the CURRENT row is what makes the guard authoritative.
        */
       const sub = await this.getSubscriptionByProviderId(p.providerSubscriptionId);
-      if (!sub || !LIVE_STATUSES.includes(sub.status)) {
+      // The column is `text`, so the check IS the narrowing — same cast as the
+      // web app's `isSubscriptionStatus` uses for the same reason.
+      if (!sub || !(LIVE_STATUSES as readonly string[]).includes(sub.status)) {
         this.log.log(
           `skip subscription-confirmed event=${p.eventId} reason=${sub ? `status=${sub.status}` : "subscription-missing"}`,
         );
@@ -128,7 +113,7 @@ export class BillingNotifyService {
           "subscription-confirmed",
           {
             orgName: ownerName,
-            planName: planName(sub.planId),
+            planName: planDisplayName(sub.planId) ?? "your new",
             manageUrl: this.manageUrl(orgSlug),
           },
           { to: box.email, ...(box.name ? { name: box.name } : {}), locale: box.locale },
@@ -145,7 +130,7 @@ export class BillingNotifyService {
             organizationId: p.organizationId,
             accountId: p.accountId,
             type: "subscription-confirmed",
-            params: { orgName: ownerName, planName: planName(sub.planId) },
+            params: { orgName: ownerName, planName: planDisplayName(sub.planId) ?? "your new" },
             link: this.manageUrl(orgSlug),
           },
           { dedupeKey: `notif:${p.kind}:${p.eventId}:${box.userId}` },

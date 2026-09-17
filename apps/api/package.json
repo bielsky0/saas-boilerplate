@@ -17,6 +17,7 @@
     "@nestjs/core": "^11.1.6",
     "@nestjs/platform-express": "^11.1.6",
     "@react-email/render": "^2.1.0",
+    "@repo/billing": "workspace:*",
     "@repo/contracts": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/i18n-core": "workspace:*",
@@ -29,6 +30,7 @@
     "reflect-metadata": "^0.2.2",
     "resend": "^6.17.2",
     "rxjs": "^7.8.1",
+    "stripe": "^22.3.2",
     "zod": "^4.1.13"
   },
   "devDependencies": {

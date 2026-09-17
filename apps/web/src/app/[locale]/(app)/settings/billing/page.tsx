@@ -1,19 +1,31 @@
 import { getTranslations } from "next-intl/server";
 
-import { BillingPanel } from "@/features/billing/components/billing-panel";
-import { resolveBillingOwner } from "@/features/billing/context";
+import { ApiError } from "@repo/api-client";
+import { BillingPanel, type PanelSubscription } from "@/features/billing/components/billing-panel";
+import { api } from "@/lib/api";
 
 /**
  * Personal-account billing (spec 5.2 — a plan attaches to an organization OR a
  * personal account, B2B vs B2C).
  *
- * Reuses `resolveBillingOwner` with a null slug rather than resolving the account
- * inline, so the page and the checkout route agree on who is being billed by
- * construction. You own your own account, so there is no permission to check
- * beyond a valid session.
+ * No owner resolution here: the subscription endpoint resolves the personal
+ * account from the session itself (faza 2.5), so the page and the checkout
+ * route agree on who is being billed by construction. You own your own
+ * account, so there is no permission to check beyond a valid session (the
+ * proxy redirects anonymous visitors to login).
  */
 export default async function PersonalBillingPage() {
-  const [{ owner }, t] = await Promise.all([resolveBillingOwner(null), getTranslations("billing")]);
+  const t = await getTranslations("billing");
+
+  let subscription: PanelSubscription | null = null;
+  try {
+    const data = await api().get<{ subscription: PanelSubscription | null }>(
+      "/v1/billing/subscription",
+    );
+    subscription = data.subscription;
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401) throw error;
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -22,7 +34,7 @@ export default async function PersonalBillingPage() {
         <p className="text-muted-foreground text-sm">{t("personalSubtitle")}</p>
       </div>
 
-      <BillingPanel owner={owner} slug={null} />
+      <BillingPanel subscription={subscription} slug={null} />
     </div>
   );
 }

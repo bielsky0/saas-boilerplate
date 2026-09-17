@@ -1,8 +1,7 @@
+import { Logger } from "@nestjs/common";
 import Stripe from "stripe";
 import { z } from "zod";
 
-import { env } from "@/lib/env/server";
-import { createLogger } from "@/lib/logger";
 import type {
   BillingAdapter,
   BillingEvent,
@@ -13,20 +12,24 @@ import type {
   CreateCustomerResult,
   PortalSessionInput,
   VerifyWebhookResult,
-} from "./contract";
+} from "@repo/contracts";
 
 /**
  * Stripe billing adapter (spec 5.1 — the reference payments implementation).
  *
- * The ONLY file in the codebase that imports the Stripe SDK. Everything else
- * depends on `./contract`, so swapping providers is one file (spec 1.2).
+ * The ONLY file in the API that imports the Stripe SDK. Everything else
+ * depends on the `@repo/contracts` billing contract, so swapping providers is
+ * one file (spec 1.2). Ported 1:1 from the web adapter in faza 2.5 — the only
+ * differences are the import source of the contract types and the config
+ * source (explicit arguments instead of `env`, so the factory stays testable
+ * and never reads `process.env` itself).
  *
  * DEPLOYMENT NOTE: signature verification is an HMAC over the exact bytes Stripe
  * sent. Any proxy that buffers, re-encodes or rewrites the request body breaks
  * it — the raw body must reach this adapter untouched.
  */
 
-const PROVIDER = "stripe";
+export const PROVIDER = "stripe";
 
 /**
  * Pinned deliberately to the literal the installed SDK reports as latest, rather
@@ -182,16 +185,21 @@ function parseEvent(event: Stripe.Event): BillingEvent | null {
   }
 }
 
-export function createStripeBillingAdapter(): BillingAdapter {
-  if (!env.STRIPE_SECRET_KEY || !env.STRIPE_WEBHOOK_SECRET) {
+export interface StripeAdapterKeys {
+  secretKey?: string;
+  webhookSecret?: string;
+}
+
+export function createStripeBillingAdapter(keys: StripeAdapterKeys): BillingAdapter {
+  if (!keys.secretKey || !keys.webhookSecret) {
     throw new Error(
       "BILLING_PROVIDER=stripe requires STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET. " +
         "Set them or use BILLING_PROVIDER=none.",
     );
   }
-  const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: API_VERSION });
-  const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
-  const log = createLogger("billing.stripe");
+  const stripe = new Stripe(keys.secretKey, { apiVersion: API_VERSION });
+  const webhookSecret = keys.webhookSecret;
+  const log = new Logger("BillingStripe");
 
   /**
    * Collapse any SDK throw into the contract's coarse `PROVIDER_ERROR`.
@@ -202,7 +210,10 @@ export function createStripeBillingAdapter(): BillingAdapter {
    * failing is an operator problem — the user only ever sees a 502.
    */
   function providerError(operation: string, err: unknown): { ok: false; code: "PROVIDER_ERROR" } {
-    log.error("provider call failed", { operation, err });
+    log.error(
+      `provider call failed operation=${operation}`,
+      err instanceof Error ? err.stack : err,
+    );
     return { ok: false, code: "PROVIDER_ERROR" };
   }
 

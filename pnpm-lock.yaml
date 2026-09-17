@@ -47,6 +47,9 @@ importers:
       '@react-email/render':
         specifier: ^2.1.0
         version: 2.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@repo/billing':
+        specifier: workspace:*
+        version: link:../../packages/billing
       '@repo/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -83,6 +86,9 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      stripe:
+        specifier: ^22.3.2
+        version: 22.3.2(@types/node@20.19.43)
       zod:
         specifier: ^4.1.13
         version: 4.4.3
@@ -150,6 +156,9 @@ importers:
       '@repo/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@repo/billing':
+        specifier: workspace:*
+        version: link:../../packages/billing
       '@repo/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -279,6 +288,12 @@ importers:
         version: 5.9.3
 
   packages/api-client:
+    devDependencies:
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/billing:
     devDependencies:
       typescript:
         specifier: ^5

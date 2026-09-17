@@ -28,6 +28,7 @@ import { failFor, getOutbox, pendingFailures } from "../emails/log";
 import { JobsService } from "../jobs/jobs.service";
 import { isNotificationType } from "../notifications/types";
 import { NotificationsService } from "../notifications/notifications.service";
+import { BillingService } from "../billing/billing.service";
 import { RATE_LIMIT_MEMORY, RATE_LIMIT_POSTGRES } from "../rate-limit/rate-limit.module";
 import { OrganizationsService } from "../organizations/organizations.service";
 
@@ -61,6 +62,7 @@ export class DevController {
     private readonly orgs: OrganizationsService,
     private readonly jobs: JobsService,
     private readonly notifications: NotificationsService,
+    private readonly billing: BillingService,
   ) {}
 
   private assertDev(): void {
@@ -338,5 +340,32 @@ export class DevController {
     if (!u) notFound("user not found");
     await this.notifications.setPreference(u.id, body.type, body.inAppEnabled);
     return { ok: true };
+  }
+
+  /**
+   * Map a provider customer id onto a tenant owner (spec 14.1) — the Nest twin
+   * of web's `/api/dev/seed-billing-customer` (faza 2.5). Same contract
+   * (`{providerCustomerId, provider?, orgSlug? | userEmail?}`), so the webhook
+   * E2E specs call it through the thin web proxy unchanged.
+   */
+  @Post("seed-billing-customer")
+  async seedBillingCustomer(@Req() req: Request) {
+    this.assertDev();
+    return this.billing.seedBillingCustomer(req.body ?? {});
+  }
+
+  /**
+   * Billing state inspector (spec 14.1) — what the webhook wrote for one org.
+   * Same contract as web's `/api/dev/billing-state`
+   * (`?orgSlug=` → `{subscriptions, payments, webhookEvents, totalPaid}`).
+   */
+  @Get("billing-state")
+  async billingState(@Query() query: Record<string, unknown>) {
+    this.assertDev();
+    const orgSlug = query["orgSlug"];
+    if (typeof orgSlug !== "string" || orgSlug === "") {
+      throw new HttpException({ error: "orgSlug is required" }, HttpStatus.BAD_REQUEST);
+    }
+    return this.billing.getBillingState(orgSlug);
   }
 }

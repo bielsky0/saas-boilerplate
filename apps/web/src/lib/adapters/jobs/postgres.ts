@@ -70,9 +70,9 @@ type JobRow = typeof job.$inferSelect;
  * so the claim IS the reaper and no separate sweeper exists.
  *
  * `lte(job.runAt, now)` rather than a raw `sql` template, for the reason
- * `features/billing/webhooks.ts` documents on its watermark: a Date interpolated
- * into `sql` bypasses the column's type encoder and reaches the driver as a raw
- * Date, which it cannot serialize.
+ * `apps/api/src/billing/billing.service.ts` documents on its watermark: a Date
+ * interpolated into `sql` bypasses the column's type encoder and reaches the
+ * driver as a raw Date, which it cannot serialize.
  */
 async function claim(limit: number): Promise<JobRow[]> {
   const now = new Date();

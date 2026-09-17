@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { membership, personalAccount, subscription, user, type Db } from "@repo/db";
+import { LIVE_STATUSES } from "@repo/billing";
 import type { Locale } from "@repo/i18n-core";
 import { DB } from "../db/db.module";
 import { insertJob, type QueueWriter } from "../jobs/queue";
@@ -45,8 +46,14 @@ export function onboardingKeyPrefix(userId: string): string {
   return `onboarding:${userId}:`;
 }
 
-/** Statuses that mean "this user is paying". */
-const PAID_STATUSES = ["active", "trialing"] as const;
+/**
+ * Statuses that mean "this user is paying" — the shared `LIVE_STATUSES`, not a
+ * local copy. Deliberately NOT `ENTITLING_STATUSES`: a `past_due` tenant keeps
+ * access (entitled) yet is still a customer worth onboarding, so the interrupt
+ * stays narrower than the entitlement check. Same values as before, now
+ * single-sourced.
+ */
+const PAID_STATUSES = LIVE_STATUSES;
 
 export interface OnboardingUser {
   id: string;

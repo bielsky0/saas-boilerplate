@@ -192,6 +192,33 @@ visibility, url}` (public → stable URL, private → presigned GET);
   (object-first-then-row, per-org `retention.purge` audit rows); on a `none`
   deployment it dead-letters instead of silently passing.
 
+## Implemented: billing (faza 2.5)
+
+Plans are `@repo/billing` (`createCatalog` from each app's own price env, so
+the pricing table, checkout, the webhook mapping and the confirmation mail
+share one plan table); money moves only in the backend.
+
+- `POST /v1/billing/checkout` `{slug?, plan}` → `200 {url}`, `422` envelope,
+  unpurchasable plan → `404`, `NOT_CONFIGURED` → `404`, provider down → `502`.
+  Session-guarded, `billing.manage` in org context. The redirect confirms; the
+  webhook entitles — nothing here writes a subscription row. The customer
+  mapping persists BEFORE the checkout session (the ordering invariant).
+- `POST /v1/billing/portal` `{slug?}` → `200 {url}`; never-checked-out
+  (`NO_CUSTOMER`) → `404`, indistinguishable from unconfigured.
+- `POST /v1/billing/webhook` (raw body, no session — the HMAC is the auth;
+  Stripe points here directly, the web route is a byte relay) → `400` bad
+  signature / malformed, `404` unconfigured, `200 {received, status}` with
+  `status: processed | duplicate | unknown_customer | ignored`. Marker + upsert
+  - audit (`SYSTEM_ACTOR`) + `billing.notify` enqueue in ONE transaction; the
+    `lastEventAt` watermark drops stale events.
+- `GET /v1/billing/subscription?slug=` → `200 {subscription | null}` (the
+  entitling row under `ENTITLING_STATUSES`; membership-checked, never the
+  provider). `422` on malformed `slug`.
+- Conformance harness: `POST /v1/dev/seed-billing-customer`
+  `{providerCustomerId, provider?, orgSlug? | userEmail?}` (exactly one owner —
+  the `billing_customer` XOR); `GET /v1/dev/billing-state?orgSlug=` →
+  `{subscriptions, payments, webhookEvents, totalPaid}`.
+
 ## Auth formats a reimplementation must reproduce (the true lock-in)
 
 Endpoints are the easy half. A backend that does not reuse Better Auth must

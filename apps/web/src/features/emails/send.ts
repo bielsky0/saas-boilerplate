@@ -23,8 +23,8 @@ export type EnqueueEmailData<N extends TemplateName> = Omit<TemplateProps[N], "u
 export interface EnqueueEmailOptions {
   /**
    * Makes the send exactly-once for a given cause. Strongly recommended for
-   * anything whose trigger can fire twice — see the callers in features/billing
-   * and features/onboarding.
+   * anything whose trigger can fire twice — see the callers in
+   * `apps/api/src/billing-notify` and the web `features/onboarding` handler.
    */
   dedupeKey?: string;
   /** Schedule the send for later (the §10.3 sequence). */
@@ -36,7 +36,8 @@ export interface EnqueueEmailOptions {
  *
  * Pass a transaction as `writer` to make the send atomic with a business write:
  * if the transaction rolls back, the email is un-sent, because it was never more
- * than a row. That is the property `features/billing/webhooks.ts` depends on.
+ * than a row. That is the property `apps/api/src/billing/billing.service.ts`
+ * depends on for its webhook transaction.
  */
 export async function enqueueEmail<N extends TemplateName>(
   writer: JobWriter,

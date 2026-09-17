@@ -66,7 +66,7 @@ function anyRepoImports(pkg) {
 }
 
 // 1. Leaf packages: no @repo imports, of any kind.
-for (const leaf of ["api-client", "validation", "i18n-core"]) {
+for (const leaf of ["api-client", "validation", "i18n-core", "billing"]) {
   for (const hit of anyRepoImports(leaf)) {
     fail(`@repo/${leaf} imports another workspace package (must stay leaf): ${hit}`);
   }

@@ -35,4 +35,32 @@ export default defineConfig([
       ],
     },
   },
+  /**
+   * Billing vendor containment (spec 1.2 — backend-independence).
+   *
+   * The Stripe SDK may be imported ONLY from `src/billing/**` (the adapter:
+   * `stripe.ts` constructs, `adapter.ts` selects). Feature code injects
+   * `BILLING_ADAPTER` and depends on the `@repo/contracts` billing contract.
+   * Same deal as the auth rule above: swapping the payments provider means
+   * rewriting one directory, and this rule proves beforehand that nothing
+   * else would break.
+   */
+  {
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    ignores: ["src/billing/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["stripe", "stripe/*"],
+              message:
+                "Import the billing adapter (BILLING_ADAPTER) instead — the SDK lives only in src/billing (spec 1.2).",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);

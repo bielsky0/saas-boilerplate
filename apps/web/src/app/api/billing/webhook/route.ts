@@ -1,60 +1,43 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { processBillingEvent } from "@/features/billing/webhooks";
-import { kickDrain } from "@/features/jobs/runner";
-import { billing } from "@/lib/adapters/billing";
-import { requestLogger } from "@/lib/logger";
+import { env } from "@/lib/env/server";
 
 /**
- * Billing webhook endpoint (spec 5.4 — the source of truth for subscriptions).
+ * Billing webhook endpoint (spec 5.4) — thin byte relay since verification
+ * moved to Nest (`POST /v1/billing/webhook`, faza 2.5). Stripe points its
+ * dashboard at the API directly; this route exists so the E2E suite (and any
+ * previously configured dashboard URL) keeps speaking the web origin.
  *
- * Deliberately UNAUTHENTICATED: the provider has no session, so the request
- * SIGNATURE is the authentication. It is therefore exempted in `src/proxy.ts`;
- * without that exemption the route guard would answer 307 to /login, and
- * providers do not follow redirects.
- *
- * The body is read with `request.text()` because signatures are computed over
- * the exact bytes sent — re-serializing via `request.json()` would invalidate
- * them. App Router route handlers stream the body, so no bodyParser config is
- * needed (Next.js docs, Route Handlers → Webhooks).
- *
- * Responses are chosen by whether a retry could ever help, since the provider
- * retries on ANY non-2xx:
- *   400 bad signature / unparseable payload — not actionable, or a bug to fix
- *   404 no provider configured — this deployment has no billing endpoint
- *   200 accepted, duplicate, ignored, or not our customer — all final
- *   5xx (uncaught) infrastructure failure — retry is exactly right
+ * Forwards the RAW bytes, never a re-serialized object: the signature covers
+ * the exact bytes Stripe sent, so parsing here would invalidate it. Shape and
+ * status codes pass through untouched (`{ received, status }`, 400 on bad
+ * signature, 404 unconfigured). Deliberately unauthenticated and exempted in
+ * `src/proxy.ts` — the signature is the authentication, and providers do not
+ * follow redirects.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const rawBody = await request.text();
-  const result = await billing.verifyWebhook(rawBody, request.headers);
+  const target = `${env.API_BASE_URL.replace(/\/+$/, "")}/v1/billing/webhook`;
 
-  if (!result.ok) {
-    if (result.code === "NOT_CONFIGURED") {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
-    if (result.code === "MALFORMED_PAYLOAD") {
-      // Authentic but unrecognizable — usually provider API-version skew.
-      // Retries give us a window to deploy a fix and have them redelivered.
-      (await requestLogger("billing:webhook")).error("rejected malformed payload");
-      return NextResponse.json({ error: "Malformed payload" }, { status: 400 });
-    }
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+  const headers = new Headers();
+  const signature = request.headers.get("stripe-signature");
+  if (signature) headers.set("stripe-signature", signature);
+  const contentType = request.headers.get("content-type");
+  if (contentType) headers.set("content-type", contentType);
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, {
+      method: "POST",
+      headers,
+      body: Buffer.from(await request.arrayBuffer()),
+      redirect: "manual",
+    });
+  } catch {
+    return NextResponse.json({ error: "Billing service unavailable" }, { status: 502 });
   }
 
-  if (result.status === "ignored") {
-    // Most provider traffic. Never touches state, so no marker is written.
-    return NextResponse.json({ received: true, status: "ignored" });
-  }
-
-  // Infrastructure errors propagate to a 500 on purpose (see header).
-  const processed = await processBillingEvent(result.event);
-
-  // Any notification the event enqueued is committed by now; run it after the
-  // response so the provider's timeout never depends on our email provider. Only
-  // on "processed" — a duplicate enqueued nothing. Purely a latency win: cron
-  // would pick the job up regardless.
-  if (processed.status === "processed") kickDrain();
-
-  return NextResponse.json({ received: true, status: processed.status });
+  return new NextResponse(Buffer.from(await upstream.arrayBuffer()), {
+    status: upstream.status,
+    headers: { "content-type": "application/json" },
+  });
 }

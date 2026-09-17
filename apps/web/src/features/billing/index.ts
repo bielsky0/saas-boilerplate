@@ -6,12 +6,16 @@
  * rendering. Subscription state is always the result of processing a signed,
  * idempotent provider webhook — never guessed client-side.
  *
- * Talks to payment providers ONLY through `src/lib/adapters/billing`
- * (Stripe reference; Lemon Squeezy / Paddle / … pluggable) — spec 1.2, 5.1.
+ * Talks to payment providers ONLY through the Nest API (`POST
+ * /v1/billing/*`), which owns the single provider adapter behind the
+ * `@repo/contracts` billing contract (Stripe reference; Lemon Squeezy /
+ * Paddle / … pluggable) — spec 1.2, 5.1. Plan vocabulary is shared through
+ * `@repo/billing` (`./plans` builds the web instance from env).
  *
  * This barrel exports the isomorphic pieces only. Server-only modules
- * (`./data`, `./webhooks`) are imported by path so they never reach a client
- * bundle — the same split `features/organizations` uses.
+ * (`./plans` catalog instance, `./components/*` server components) are
+ * imported by path so they never reach a client bundle — the same split
+ * `features/organizations` uses.
  */
 
 export {

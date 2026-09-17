@@ -574,8 +574,9 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
   `retention.ts` records the hard blocker whoever builds it will hit —
   `organization.createdByUserId` is `onDelete: "restrict"`, so hard-deleting any
   user who ever created an org fails at the FK and needs its own migration.
-- **Take money (§5.3, §5.5):** reference: `src/features/billing/checkout.ts` +
-  `src/app/api/billing/{checkout,portal}/route.ts`. Four rules:
+- **Take money (§5.3, §5.5):** reference: `apps/api/src/billing/billing.service.ts`
+  (`startCheckout`/`openBillingPortal`) + `apps/api/src/billing/billing.controller.ts`,
+  reached through thin web proxies in `src/app/api/billing/{checkout,portal}/route.ts`. Four rules:
   1. **Persist the customer mapping BEFORE creating a checkout session.** The
      ordering is an invariant, documented on `schema/billing-customers.ts` and
      enforced in `ensureBillingCustomer`: it is what lets the webhook treat an
@@ -594,13 +595,17 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
      a checkout it cannot complete. Adapter errors stay coarse
      (`PROVIDER_ERROR`) so no caller branches on a vendor's error taxonomy.
 
-  Plans live in `src/features/billing/plans.ts` and are the SINGLE source for the
-  public pricing table, the checkout route and (from §5.6/5.7) quota and
-  entitlements. The landing page must never keep its own plan list — it used to,
+  Plans live in `@repo/billing` (`createCatalog` from each app's own price env)
+  and are the SINGLE source for the public pricing table, the checkout route
+  and (from §5.6/5.7) quota and entitlements; the web instance is built in
+  `src/features/billing/plans.ts`. The landing page must never keep its own plan list — it used to,
   and the two had already drifted to an `ent` plan the billing config never had.
 
 - **Receive a provider webhook (§5.4):** reference:
-  `src/app/api/billing/webhook/route.ts` + `src/features/billing/webhooks.ts`.
+  `apps/api/src/billing/billing.service.ts` (`processBillingEvent`) +
+  `apps/api/src/billing/billing.controller.ts`; the web route
+  (`src/app/api/billing/webhook/route.ts`) is a raw-byte relay, and Stripe
+  points at the API directly (ADR-0004).
   Four rules, in order of how badly they bite:
   1. **The signature is the authentication.** A webhook has no session, so the
      route must be exempted in `src/proxy.ts` (`isPublicPath`) — otherwise the

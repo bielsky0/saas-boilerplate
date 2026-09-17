@@ -3,18 +3,17 @@ import type {
   BillingRedirectResult,
   CreateCustomerResult,
   VerifyWebhookResult,
-} from "./contract";
+} from "@repo/contracts";
 
 /**
  * Null billing adapter (spec 5.1) — the default when no payment provider is
  * configured, mirroring how `EMAIL_PROVIDER=log` keeps email harmless by
  * default.
  *
- * It exists so the adapter factory can run at module load without a provider:
- * the boilerplate must build and boot with zero Stripe configuration, and a
- * default that threw would break `next build` for everyone. It never verifies
- * anything, so the webhook route answers 404 rather than advertising an endpoint
- * this deployment cannot honour.
+ * It exists so the adapter factory never throws for the default: the API must
+ * boot with zero Stripe configuration, and a default that threw would break
+ * boot for everyone. It never verifies anything, so the webhook route answers
+ * 404 rather than advertising an endpoint this deployment cannot honour.
  *
  * Every money-path operation answers NOT_CONFIGURED for the same reason: the
  * routes turn that into a 404, so an unconfigured deployment does not advertise a
