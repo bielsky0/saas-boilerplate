@@ -25,10 +25,10 @@ import type { RequestSession } from "../auth/auth-engine";
 import {
   ensurePersonalAccount,
   getPersonalAccountByUserId,
-  kickWebDrain,
   recipientLocale,
   storedLocaleForEmail,
 } from "../auth/auth-enqueue";
+import { kickDrain } from "../jobs/runner";
 import { hasPermission, isRole, type Permission, type Role } from "./rbac";
 import { changed, recordAudit, resolveActor, withImpersonation } from "./audit";
 import { enqueueInvitationEmail, enqueueInvitationNotification } from "./queue";
@@ -120,7 +120,7 @@ export class OrganizationsService {
   }
 
   private kickDrain(): void {
-    kickWebDrain(this.webURL(), this.config.CRON_SECRET);
+    kickDrain();
   }
 
   private async getOrgBySlug(slug: string) {

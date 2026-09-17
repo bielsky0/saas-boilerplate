@@ -115,6 +115,52 @@ methods — no `/invite`, `/revoke`, `/leave`, `/accept` RPC suffixes.
 - Compat alias: `POST /v1/orgs` → `308` to `/v1/organizations` for one phase,
   then deleted (no dual implementation).
 
+## Implemented: jobs + emails + onboarding + cron (faza 2.3)
+
+The drain moved into the backend. Same table, same row shapes as before —
+what changed is who executes them.
+
+- Queue: claim `FOR UPDATE SKIP LOCKED` (`pending`/`running` + `runAt` past
+  = due; `runAt` is the visibility timeout, the claim is the reaper),
+  handlers run OUTSIDE the claim transaction, backoff `30s·4^(n-1)` with full
+  jitter capped at 1h, dead-letter at `maxAttempts` (default 5), success
+  scrubs `payload` to `{}` (invitation links must not rest in the table).
+- `email.send` handler: transactional templates send as-is (no suppression,
+  no `List-Unsubscribe`); everything else passes the send-time suppression
+  guard (the enqueue-time check is only an optimization) and carries an
+  injected `unsubscribeUrl` + `List-Unsubscribe` / `List-Unsubscribe-Post`
+  headers. A suppressed send is a SUCCESSFUL no-op, never a retry.
+  Templates render via `@react-email/render` in the recipient's
+  enqueue-time `locale` (a plain string in the payload; missing/stale values
+  fall back to English, never fail the send).
+- `onboarding.step`: all three steps upfront (`welcome` day 0, `tips` day 3,
+  `features` day 7, each with `dedupeKey` `onboarding:{userId}:{step}`),
+  run-time interrupt on `hasPaidSubscription` (personal OR member of a paying
+  org), unknown step / missing recipient = success no-op. The handler
+  enqueues the `email.send` child (two hops, one delivery path).
+- `notification.create` handler: send-time in-app suppression check, then
+  exactly one owner set; suppressed = success no-op. Idempotent via the
+  job's per-recipient `dedupeKey`.
+- `billing.notify`: fan-out into per-recipient `email.send` +
+  `notification.create` children (per-child dedupe keys); re-reads the
+  current subscription row before confirming (watermark guard against
+  out-of-order events); no recipients = success, not failure.
+- `job.prune` / `storage.purge` / `ratelimit.prune`: cron-shaped; purge is
+  object-first-then-row with per-org `retention.purge` audit rows.
+- `GET /v1/cron/jobs` (bearer `CRON_SECRET`, timing-safe; no secret → `404`,
+  bad token → `401`): self-enqueues the daily/hourly housekeeping
+  (deduped by date/hour) and answers `{ claimed, succeeded, retried,
+deadLettered, queue }`.
+- `PUT /v1/notifications/preferences` `{preferences: {type: boolean}}`
+  (session-guarded; unknown/non-suppressible types ignored) → `{ok:true}`;
+  `GET /v1/notifications/preferences` → `{preferences}` (stored deviations
+  only; absent = enabled).
+- `POST /v1/unsubscribe?e=&c=&t=` (RFC 8058, HMAC, no session): genuine link
+  → suppress + `200 {unsubscribed:true}`; malformed/forged → `400`
+  `{error: INVALID...}` with one message for both (no oracle).
+- After every enqueue the backend kicks its OWN drain best-effort
+  (in-process, post-response); cron is the guarantee, the kick is latency.
+
 ## Auth formats a reimplementation must reproduce (the true lock-in)
 
 Endpoints are the easy half. A backend that does not reuse Better Auth must
@@ -134,7 +180,7 @@ reproduce these formats, or existing users cannot sign in:
 - **Super-admin flag**: the string `user.role` (`superadmin` member), never a
   second boolean column that could drift from the gate reading it.
 
-## Queue rows a backend must write (delivery stays shared until etap 2.3)
+## Queue rows a backend must write (delivery lives in the backend since 2.3)
 
 - `email.send` `{template, data, to, name?, locale}` — locale as a plain
   string, captured at enqueue time (the drain has no request to ask).
@@ -148,9 +194,8 @@ type, params, link?}` — exactly one owner set.
   `verify-email` notification deduped on the token URL); verification starts
   the onboarding sequence (safe to fire twice — the dedupe keys carry the
   guarantee); password-reset request enqueues `password-reset`.
-- After every enqueue the backend kicks the drain owner best-effort (today:
-  the web `/api/cron/jobs`; etap 2.3 moves the drain into the backend — the
-  kick is transitional). Cron is the guarantee; the kick is latency.
+- After every enqueue the backend kicks its own drain best-effort (cron is
+  the guarantee; the kick is latency).
 
 ## Conformance harness (test-only, non-production)
 
@@ -165,6 +210,19 @@ drives (all 404 in production):
 - `POST /v1/dev/rate-limit` `{provider, key, limit, windowMs, times, reset,
 prune}` — drives either store directly (sequential consumes + peek +
   prune report), bypassing policy on purpose.
+- `GET /v1/dev/emails?to=` → `{emails}` (the log-adapter outbox, latest
+  first; `url` + `headers` carried per message for link/header assertions).
+- `POST /v1/dev/emails/fail-next` `{to, times=1}` → `{to, pending}` (per
+  address outage simulator; missing `to` → `400`).
+- `GET /v1/dev/jobs?dedupeKeyPrefix=&to=&id=` → `{jobs, queue}` (job rows
+  with `payload` exposed so the success-path scrub is assertable).
+- `POST /v1/dev/jobs/run` `{dedupeKeyPrefix?, jobIds?, fastForward?}` →
+  `{fastForwarded, claimed, succeeded, retried, deadLettered}`
+  (`budgetMs: 20s`; `fastForward: true` requires a scope → else `400`).
+- `GET /v1/dev/notifications?email=` → `{notifications}` (across owners;
+  unknown user → `{notifications: []}`).
+- `POST /v1/dev/notification-preference` `{email, type, inAppEnabled}` →
+  `{ok:true}` (`400` on shape/unknown type, `404` on unknown user).
 
 ## For create-boilerplate-app (the selection matrix)
 

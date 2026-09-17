@@ -30,6 +30,4 @@ export {
 } from "./suppression";
 export type { UnsubscribeToken } from "./suppression";
 export { isSuppressed, suppress } from "./data";
-export { unsubscribeAction } from "./actions";
-export type { UnsubscribeState } from "./actions";
 export { UnsubscribeForm } from "./components/unsubscribe-form";

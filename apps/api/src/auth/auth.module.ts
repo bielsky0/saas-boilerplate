@@ -30,7 +30,6 @@ import { AuthService } from "./auth.service";
           baseURL: config.BETTER_AUTH_URL,
           webURL: config.NEXT_PUBLIC_APP_URL,
           trustedOrigins: [config.NEXT_PUBLIC_APP_URL],
-          cronSecret: config.CRON_SECRET ?? null,
         }),
       inject: [DB, API_CONFIG],
     },

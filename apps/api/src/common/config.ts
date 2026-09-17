@@ -33,12 +33,32 @@ const ApiEnvSchema = z.object({
   RATE_LIMIT_FORWARDED_DEPTH: z.coerce.number().int().min(0).default(1),
   RATE_LIMIT_LOGIN_ATTEMPTS: z.coerce.number().int().positive().default(5),
   RATE_LIMIT_LOGIN_WINDOW_S: z.coerce.number().int().positive().default(900),
-  // Shared secret for the web job-drain endpoint (spec 12). The auth module
-  // fire-and-forget kicks it after every enqueue so verification/reset mail
-  // keeps the immediacy web's `after()` kick gave it (faza 2.3 owns the general
-  // solution). Unset = no kick; the queue still drains via cron. Generate:
+  // Shared secret for the job-drain endpoint (spec 12) — guards
+  // `GET /v1/cron/jobs` (faza 2.3: the drain lives in the API now, so this
+  // secret guards the API endpoint; the web route forwards to it). Vercel Cron
+  // attaches it as `Authorization: Bearer $CRON_SECRET`; a Docker sidecar or
+  // external pinger sends the same header. Unset = no drain endpoint (404);
+  // the queue still fills, retries just never run. Generate:
   // openssl rand -base64 32.
   CRON_SECRET: z.string().min(1).optional(),
+  // Email delivery (spec 10.1) — faza 2.3 moves the drain into the API, so the
+  // provider selection moves with it. Same names as web, so one `.env` shape
+  // serves both apps. `log` renders + records into the in-process outbox the
+  // E2E suite reads via `/v1/dev/emails`; `resend` sends real mail.
+  EMAIL_PROVIDER: z.enum(["log", "resend"]).default("log"),
+  // From header for outgoing mail. Only read by the resend adapter.
+  EMAIL_FROM: z.string().default("SaaS Boilerplate <onboarding@example.com>"),
+  // Only required when EMAIL_PROVIDER=resend; the adapter throws a clear
+  // error at construction if selected without a key.
+  RESEND_API_KEY: z.string().optional(),
+  // Signs unsubscribe links (spec 10.3). Falls back to BETTER_AUTH_SECRET
+  // when unset — see the rotation-constraint comment in web's
+  // `src/lib/env/server.ts`. Generate: openssl rand -base64 32.
+  EMAIL_UNSUBSCRIBE_SECRET: z.string().min(32).optional(),
+  // Object-storage selection (spec 21.1). `none` = no bucket; the retention
+  // purge then dead-letters exactly like web's `none` adapter throws today.
+  // Full S3 wiring (vars + adapter) lands with the storage port in faza 2.4.
+  STORAGE_PROVIDER: z.enum(["none", "s3"]).default("none"),
 });
 
 export type ApiConfig = z.infer<typeof ApiEnvSchema>;

@@ -1,28 +1,13 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 
-import { failFor, pendingFailures } from "@/lib/adapters/email";
-import { env } from "@/lib/env/server";
+import { proxyDev } from "@/app/api/dev/proxy";
 
 /**
- * Test-only provider-outage simulator (spec 14.1). Makes the next `times` sends to
- * `to` throw, so E2E can prove the queue actually retries with backoff.
- *
- * Per-ADDRESS rather than a global switch, because playwright.config.ts boots one
- * server for the whole suite: a global "fail everything" flag would break every
- * concurrently-running test. Disabled in production.
+ * Test-only provider-outage simulator (spec 14.1) — forwards to Nest
+ * (`POST /v1/dev/emails/fail-next`), whose log adapter throws the next
+ * `times` sends to `to`. Per-address, because the suite boots one server.
+ * 404 in production.
  */
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  if (env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  const body = (await request.json()) as { to?: unknown; times?: unknown };
-  const to = typeof body.to === "string" ? body.to : null;
-  const times = typeof body.times === "number" ? body.times : 1;
-  if (!to) {
-    return NextResponse.json({ error: "`to` is required" }, { status: 400 });
-  }
-
-  failFor(to, times);
-  return NextResponse.json({ to, pending: pendingFailures(to) });
+export function POST(request: NextRequest) {
+  return proxyDev(request, "/v1/dev/emails/fail-next", "POST");
 }

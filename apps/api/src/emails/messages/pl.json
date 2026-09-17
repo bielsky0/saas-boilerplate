@@ -1,0 +1,79 @@
+{
+  "shared": {
+    "fallbackLink": "Albo wklej ten link do przeglądarki:",
+    "unsubscribeQuestion": "Nie chcesz tych wiadomości?",
+    "unsubscribeAction": "Wypisz się"
+  },
+  "verify-email": {
+    "subject": "Potwierdź swój adres e-mail",
+    "preview": "Potwierdź adres e-mail, aby dokończyć zakładanie konta.",
+    "heading": "Potwierdź swój e-mail",
+    "body": "{named, select, yes {Cześć {name}, dzięki za rejestrację. Potwierdź swój adres e-mail, aby dokończyć zakładanie konta.} other {Cześć, dzięki za rejestrację. Potwierdź swój adres e-mail, aby dokończyć zakładanie konta.}}",
+    "cta": "Potwierdź e-mail",
+    "note": "Ten link wygasa po 24 godzinach."
+  },
+  "password-reset": {
+    "subject": "Zresetuj hasło",
+    "preview": "Zresetuj swoje hasło.",
+    "heading": "Zresetuj hasło",
+    "body": "{named, select, yes {Cześć {name}, otrzymaliśmy prośbę o zresetowanie hasła. Ustaw nowe, korzystając z poniższego linku.} other {Cześć, otrzymaliśmy prośbę o zresetowanie hasła. Ustaw nowe, korzystając z poniższego linku.}}",
+    "cta": "Zresetuj hasło",
+    "note": "Ten link wygasa po godzinie i można go użyć tylko raz. Jeśli to nie Ty prosiłeś o reset, zignoruj tę wiadomość — hasło pozostanie bez zmian."
+  },
+  "invitation": {
+    "subject": "Zaproszenie do organizacji {orgName}",
+    "preview": "{inviterName} zaprasza Cię do organizacji {orgName}.",
+    "heading": "Dołącz do {orgName}",
+    "body": "{inviterName} zaprasza Cię do organizacji <b>{orgName}</b> w roli {role}.",
+    "cta": "Przyjmij zaproszenie",
+    "note": "To zaproszenie wygasa po 7 dniach. Jeśli się go nie spodziewałeś, zignoruj tę wiadomość."
+  },
+  "payment-failed": {
+    "subject": "Płatność nie powiodła się",
+    "preview": "Nie udało się przetworzyć płatności dla {orgName}.",
+    "heading": "Płatność nie powiodła się",
+    "body": "Nie udało się przetworzyć płatności {amount} dla <b>{orgName}</b>. Zwykle oznacza to, że karta wygasła lub została odrzucona.",
+    "action": "Zaktualizuj metodę płatności, aby zachować aktywną subskrypcję.",
+    "cta": "Zaktualizuj metodę płatności",
+    "note": "Spróbujemy ponownie w ciągu najbliższych dni. Jeśli płatność nadal nie będzie przechodzić, subskrypcja może zostać anulowana."
+  },
+  "subscription-confirmed": {
+    "subject": "Twoja subskrypcja jest aktywna",
+    "preview": "Plan {planName} jest już aktywny dla {orgName}.",
+    "heading": "Twoja subskrypcja jest aktywna",
+    "body": "Plan <b>{planName}</b> jest już aktywny dla <b>{orgName}</b>. Dziękujemy za subskrypcję.",
+    "manage": "W każdej chwili możesz zarządzać planem, metodą płatności i fakturami.",
+    "cta": "Zarządzaj subskrypcją"
+  },
+  "welcome": {
+    "subject": "Witamy na pokładzie",
+    "preview": "Twoje konto jest gotowe.",
+    "heading": "{named, select, yes {Witaj, {name}!} other {Witaj!}}",
+    "body": "Twój e-mail został potwierdzony, a konto jest gotowe do użycia.",
+    "next": "Zacznij od utworzenia organizacji i zaproszenia zespołu — to tam znajduje się wspólna przestrzeń robocza.",
+    "cta": "Otwórz panel"
+  },
+  "onboarding-tips": {
+    "subject": "Trzy rzeczy warte poznania",
+    "preview": "Kilka rzeczy, dzięki którym produkt nabiera sensu.",
+    "heading": "Jak wycisnąć z tego najwięcej",
+    "body": "{named, select, yes {Cześć {name}, oto kilka rzeczy, które zwykle szybko okazują się przydatne:} other {Cześć, oto kilka rzeczy, które zwykle szybko okazują się przydatne:}}",
+    "inviteTitle": "Zaproś zespół.",
+    "inviteText": "Największa wartość pojawia się, gdy w przestrzeni roboczej jest więcej niż jedna osoba.",
+    "rolesTitle": "Korzystaj z ról.",
+    "rolesText": "Właściciele zarządzają płatnościami, administratorzy ludźmi, a członkowie wykonują pracę.",
+    "contextTitle": "Przełączaj kontekst.",
+    "contextText": "Twoja przestrzeń osobista i każda organizacja trzymają swoje dane całkowicie oddzielnie.",
+    "cta": "Przejdź do panelu"
+  },
+  "onboarding-features": {
+    "subject": "Gotowy na więcej?",
+    "preview": "Funkcje, których jeszcze nie wypróbowałeś.",
+    "heading": "Gotowy na więcej?",
+    "body": "{named, select, yes {Cześć {name}, jesteś z nami już tydzień. Oto, co daje płatny plan:} other {Cześć, jesteś z nami już tydzień. Oto, co daje płatny plan:}}",
+    "seats": "Więcej miejsc dla Twojego zespołu",
+    "limits": "Wyższe limity na wszystko, z czego już korzystasz",
+    "support": "Priorytetowe wsparcie, gdy coś przestanie działać",
+    "cta": "Zobacz, co jest dostępne"
+  }
+}

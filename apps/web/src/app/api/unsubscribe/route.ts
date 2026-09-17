@@ -1,48 +1,41 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { suppress } from "@/features/emails/data";
-import { verifyUnsubscribeToken } from "@/features/emails/suppression";
-import { unsubscribeTokenSchema } from "@/features/emails/schema";
-import { apiError } from "@/lib/validation/http";
+import { env } from "@/lib/env/server";
 
 /**
- * RFC 8058 one-click unsubscribe (spec 10.3).
+ * RFC 8058 one-click unsubscribe (spec 10.3) — thin reverse proxy since the
+ * suppression ledger moved to Nest (`POST /v1/unsubscribe`, faza 2.3). The
+ * signed query (`?e=&c=&t=`) and the one-click body ride along untouched;
+ * Nest suppresses and answers 200 (`{ unsubscribed: true }`), or 400 on a
+ * malformed/forged link — relayed as-is, so mail clients see Nest's answer.
  *
- * The target of the `List-Unsubscribe` header. Mail clients (Gmail, Outlook) POST
- * `List-Unsubscribe=One-Click` here as form data when the user clicks the
- * unsubscribe affordance the CLIENT renders, next to the sender name — never
- * inside the message body.
- *
- * POST ONLY, and that is the specification's whole point: a GET is issued by
- * scanners and prefetchers and means nothing, whereas a POST from a mail
- * provider's servers is a deliberate act by the user. So this one suppresses
- * immediately with no confirmation page, unlike the in-body link at /unsubscribe.
- *
- * Unauthenticated by design — the HMAC in the query is the authentication, and the
- * recipient has no session. Exempted in src/proxy.ts for the same reason the
- * billing webhook is: a 307 to /login would make every one-click unsubscribe
- * silently fail while looking like a success.
- *
- * Always answers 200 on a well-formed request. Gmail reads a non-2xx as a broken
- * unsubscribe and holds it against sender reputation.
+ * POST ONLY (a GET from a scanner means nothing); unauthenticated by design
+ * (the HMAC is the auth), hence still exempted in `src/proxy.ts`. Unlike the
+ * `/api/dev/*` seams this route is PUBLIC in production — real inboxes hit
+ * it — so it forwards directly instead of via `proxyDev` (which 404s on prod).
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const { searchParams } = request.nextUrl;
+  const target = new URL(
+    `/v1/unsubscribe${request.nextUrl.search}`,
+    env.API_BASE_URL.replace(/\/+$/, ""),
+  );
 
-  // Shape first (§22.2), signature second. Both failures answer identically:
-  // a link that is missing a parameter and a link with a forged HMAC are the
-  // same event to anyone who should be here, and distinguishing them only
-  // helps someone probing the format.
-  const parsed = unsubscribeTokenSchema.safeParse({
-    e: searchParams.get("e"),
-    c: searchParams.get("c"),
-    t: searchParams.get("t"),
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, {
+      method: "POST",
+      headers: {
+        "content-type": request.headers.get("content-type") ?? "application/x-www-form-urlencoded",
+      },
+      body: Buffer.from(await request.arrayBuffer()),
+      redirect: "manual",
+    });
+  } catch {
+    return NextResponse.json({ error: "Unsubscribe unavailable" }, { status: 502 });
+  }
+
+  return new NextResponse(Buffer.from(await upstream.arrayBuffer()), {
+    status: upstream.status,
+    headers: { "content-type": "application/json" },
   });
-  if (!parsed.success) return apiError("Invalid unsubscribe link", 400);
-
-  const token = verifyUnsubscribeToken(parsed.data.e, parsed.data.c, parsed.data.t);
-  if (!token) return apiError("Invalid unsubscribe link", 400);
-
-  await suppress(token.email, token.category, "unsubscribe");
-  return NextResponse.json({ unsubscribed: true });
 }

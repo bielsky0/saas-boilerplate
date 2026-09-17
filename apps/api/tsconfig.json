@@ -2,7 +2,10 @@
   "extends": "../../packages/tsconfig/nodejs.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "baseUrl": "./"
+    "baseUrl": "./",
+    // Faza 2.3: email templates are tsx (React Email), rendered by
+    // `@react-email/render` on plain Node — the first React outside web.
+    "jsx": "react-jsx"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]

@@ -1,19 +1,25 @@
 "use client";
 
-import { useActionState } from "react";
+import { useState } from "react";
 
 import { Button, FormMessage } from "@/components/ui";
-import { unsubscribeAction, type UnsubscribeState } from "../actions";
 
-const initialState: UnsubscribeState = {};
+const INVALID = "This unsubscribe link is not valid." as const;
 
 /**
- * The confirm button behind the unsubscribe link (spec 10.3).
+ * The confirm button behind the unsubscribe link (spec 10.3) — confirms
+ * straight through the one-click route (faza 2.3: `POST /api/unsubscribe`
+ * forwards to Nest, which suppresses by HMAC).
  *
  * A BUTTON, not an automatic action on page load. Mail scanners, corporate
  * link-rewriters and Gmail's image proxy fetch every URL in a message, so an
- * unsubscribe that fired on GET would silently opt out people who never clicked —
- * and the only symptom would be a support ticket asking why the emails stopped.
+ * unsubscribe that fired on GET would silently opt out people who never
+ * clicked — and the only symptom would be a support ticket asking why the
+ * emails stopped.
+ *
+ * One message for every failure (malformed, forged, muted category alike):
+ * none is actionable by the recipient, and distinguishing them only helps
+ * someone probing the token format.
  */
 export function UnsubscribeForm({
   e,
@@ -26,7 +32,25 @@ export function UnsubscribeForm({
   t: string;
   label: string;
 }) {
-  const [state, formAction, pending] = useActionState(unsubscribeAction, initialState);
+  const [state, setState] = useState<{ error?: string; done?: boolean }>({});
+  const [pending, setPending] = useState(false);
+
+  async function confirm() {
+    setPending(true);
+    try {
+      const params = new URLSearchParams({ e, c, t });
+      const res = await fetch(`/api/unsubscribe?${params.toString()}`, { method: "POST" });
+      if (!res.ok) {
+        setState({ error: INVALID });
+        return;
+      }
+      setState({ done: true });
+    } catch {
+      setState({ error: INVALID });
+    } finally {
+      setPending(false);
+    }
+  }
 
   if (state.done) {
     return (
@@ -41,16 +65,12 @@ export function UnsubscribeForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      <input type="hidden" name="e" value={e} />
-      <input type="hidden" name="c" value={c} />
-      <input type="hidden" name="t" value={t} />
-
+    <div className="flex flex-col gap-4">
       {state.error ? <FormMessage>{state.error}</FormMessage> : null}
 
-      <Button type="submit" disabled={pending}>
+      <Button type="button" disabled={pending} onClick={confirm}>
         {pending ? "Unsubscribing…" : "Confirm unsubscribe"}
       </Button>
-    </form>
+    </div>
   );
 }

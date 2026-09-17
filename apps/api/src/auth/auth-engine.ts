@@ -12,11 +12,11 @@ import {
   enqueueNotificationJob,
   ensurePersonalAccount,
   getPersonalAccountByUserId,
-  kickWebDrain,
   recipientLocale,
   repairEngineUrl,
   startOnboardingJobs,
 } from "./auth-enqueue";
+import { kickDrain } from "../jobs/runner";
 
 /**
  * Better Auth engine for the API — full port of the web app's engine
@@ -50,11 +50,9 @@ export interface AuthEngineConfig {
   secret: string;
   /** API origin — emailed links are built from it. */
   baseURL: string;
-  /** Web origin — CORS, redirects, trusted callback URLs, drain kicks. */
+  /** Web origin — CORS, redirects, trusted callback URLs. */
   webURL: string;
   trustedOrigins: string[];
-  /** Lets the email hooks kick the web drain (spec 12). Unset = cron only. */
-  cronSecret?: string | null;
 }
 
 function headersOf(request: unknown): Headers | null {
@@ -114,7 +112,7 @@ export function createAuthEngine(db: Db, config: AuthEngineConfig) {
             locale: await recipientLocale(db, user.id, headersOf(request)),
           },
         );
-        kickWebDrain(config.webURL, config.cronSecret);
+        kickDrain();
       },
     },
     emailVerification: {
@@ -131,7 +129,7 @@ export function createAuthEngine(db: Db, config: AuthEngineConfig) {
           { url: repairedUrl, name: user.name },
           { to: user.email, locale: await recipientLocale(db, user.id, headers) },
         );
-        kickWebDrain(config.webURL, config.cronSecret);
+        kickDrain();
         // Second channel (spec 23): a bell item after the auto-sign-in lands
         // the new user on the dashboard. `db`, not a tx — the engine owns this
         // connection. Scoped to the personal account, ensured here in case
@@ -163,7 +161,7 @@ export function createAuthEngine(db: Db, config: AuthEngineConfig) {
        */
       afterEmailVerification: async (verified) => {
         await startOnboardingJobs(db, verified.id);
-        kickWebDrain(config.webURL, config.cronSecret);
+        kickDrain();
       },
     },
     databaseHooks: {

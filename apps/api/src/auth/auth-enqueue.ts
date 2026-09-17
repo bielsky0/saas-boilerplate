@@ -1,5 +1,4 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { Logger } from "@nestjs/common";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { job, personalAccount, user, type Db } from "@repo/db";
@@ -14,15 +13,12 @@ import {
 /**
  * Auth side effects — queue rows + locale reads (spec 2.1 / 10 / 12 / 16).
  *
- * The Nest twin of three web collaborators at once: `enqueueEmail` /
- * `enqueueNotification` / `startOnboardingSequence` (the INSERT half — the
- * drain, handlers and templates stay in web until etap 2.3) and
- * `storedLocaleForUser` / `recipientLocale`.
- *
- * Only EVER inserts job rows here. Delivery (retry, suppression, rendering,
- * the outbox E2E reads) runs in the web process, which is why this file must
- * stay row-shape-compatible with web's handlers: `email.send`
- * `{template,data,to,name?,locale}`, `notification.create`
+ * The Nest twin of web's `enqueueEmail` / `enqueueNotification` /
+ * `startOnboardingSequence` (the INSERT half) and `storedLocaleForUser` /
+ * `recipientLocale`. Delivery (retry, suppression, rendering, the outbox E2E
+ * reads) runs HERE now (faza 2.3: `src/emails`, `src/onboarding`, `src/jobs`),
+ * so this file must stay row-shape-compatible with those handlers:
+ * `email.send` `{template,data,to,name?,locale}`, `notification.create`
  * `{userId,organizationId,accountId,type,params,link?}`, `onboarding.step`
  * `{userId,step}` — all JSON primitives, `locale` a plain string.
  */
@@ -191,32 +187,6 @@ export function repairEngineUrl(engineUrl: string, webURL: string, fallbackPath:
   } catch {
     return engineUrl;
   }
-}
-
-// ─── Drain kick ──────────────────────────────────────────────────────────────
-
-const kickLog = new Logger("AuthDrainKick");
-
-/**
- * Fire-and-forget kick of the web drain after every enqueue (spec 12).
- *
- * The queue lives in the shared database but the DRAIN (handlers, templates,
- * the outbox E2E reads) runs in web until etap 2.3 — without a kick, mail
- * enqueued here would sit until cron. Called from the engine EMAIL HOOKS
- * (not the controllers), so every path that enqueues is covered uniformly:
- * the `/v1/*` contract, the legacy engine-HTTP paths, and the dev seeder.
- * Best-effort: a failed kick only delays mail (cron is the guarantee), never
- * loses it. Skipped entirely when no CRON_SECRET is configured.
- */
-export function kickWebDrain(webURL: string, cronSecret: string | null | undefined): void {
-  if (!cronSecret) return;
-  const url = `${webURL.replace(/\/+$/, "")}/api/cron/jobs`;
-  void fetch(url, {
-    headers: { authorization: `Bearer ${cronSecret}` },
-    signal: AbortSignal.timeout(10_000),
-  }).catch((err: unknown) => {
-    kickLog.warn(`drain kick failed, cron covers it: ${String(err)}`);
-  });
 }
 
 // ─── Personal account ────────────────────────────────────────────────────────

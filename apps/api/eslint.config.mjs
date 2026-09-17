@@ -17,7 +17,8 @@ export default defineConfig([
    * and this rule proves beforehand that nothing else would break.
    */
   {
-    files: ["src/**/*.ts"],
+    // Faza 2.3: email templates are tsx — the containment rule covers them too.
+    files: ["src/**/*.ts", "src/**/*.tsx"],
     ignores: ["src/auth/**", "src/main.ts"],
     rules: {
       "no-restricted-imports": [

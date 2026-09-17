@@ -1,0 +1,79 @@
+{
+  "shared": {
+    "fallbackLink": "Or paste this link into your browser:",
+    "unsubscribeQuestion": "Don't want these emails?",
+    "unsubscribeAction": "Unsubscribe"
+  },
+  "verify-email": {
+    "subject": "Verify your email address",
+    "preview": "Confirm your email address to finish setting up your account.",
+    "heading": "Confirm your email",
+    "body": "{named, select, yes {Hi {name}, thanks for signing up. Please confirm your email address to finish setting up your account.} other {Hi there, thanks for signing up. Please confirm your email address to finish setting up your account.}}",
+    "cta": "Verify email",
+    "note": "This link expires in 24 hours."
+  },
+  "password-reset": {
+    "subject": "Reset your password",
+    "preview": "Reset your password.",
+    "heading": "Reset your password",
+    "body": "{named, select, yes {Hi {name}, we received a request to reset your password. Choose a new one using the link below.} other {Hi there, we received a request to reset your password. Choose a new one using the link below.}}",
+    "cta": "Reset password",
+    "note": "This link expires in 1 hour and can be used once. If you didn't request a reset, you can safely ignore this email — your password will not change."
+  },
+  "invitation": {
+    "subject": "You've been invited to join {orgName}",
+    "preview": "{inviterName} invited you to join {orgName}.",
+    "heading": "Join {orgName}",
+    "body": "{inviterName} invited you to join <b>{orgName}</b> as {role}.",
+    "cta": "Accept invitation",
+    "note": "This invitation expires in 7 days. If you weren't expecting it, you can ignore this email."
+  },
+  "payment-failed": {
+    "subject": "Your payment didn't go through",
+    "preview": "We couldn't process the payment for {orgName}.",
+    "heading": "Your payment didn't go through",
+    "body": "We couldn't process the {amount} payment for <b>{orgName}</b>. This usually means the card expired or was declined.",
+    "action": "Update your payment method to keep your subscription active.",
+    "cta": "Update payment method",
+    "note": "We'll retry automatically over the next few days. If the payment keeps failing, your subscription may be cancelled."
+  },
+  "subscription-confirmed": {
+    "subject": "Your subscription is active",
+    "preview": "The {planName} plan is now active for {orgName}.",
+    "heading": "Your subscription is active",
+    "body": "The <b>{planName}</b> plan is now active for <b>{orgName}</b>. Thanks for subscribing.",
+    "manage": "You can manage your plan, payment method, and invoices any time.",
+    "cta": "Manage subscription"
+  },
+  "welcome": {
+    "subject": "Welcome aboard",
+    "preview": "Your account is ready.",
+    "heading": "{named, select, yes {Welcome, {name}!} other {Welcome!}}",
+    "body": "Your email is verified and your account is ready to use.",
+    "next": "Start by creating an organization and inviting your team — that's where the shared workspace lives.",
+    "cta": "Open your dashboard"
+  },
+  "onboarding-tips": {
+    "subject": "Three things worth knowing",
+    "preview": "A few things that make the product click.",
+    "heading": "Getting the most out of it",
+    "body": "{named, select, yes {Hi {name}, a few things that tend to click for people early on:} other {Hi there, a few things that tend to click for people early on:}}",
+    "inviteTitle": "Invite your team.",
+    "inviteText": "Most of the value shows up once more than one person is in the workspace.",
+    "rolesTitle": "Use roles.",
+    "rolesText": "Owners manage billing, admins manage people, members do the work.",
+    "contextTitle": "Switch context.",
+    "contextText": "Your personal space and each organization keep their data completely separate.",
+    "cta": "Go to your dashboard"
+  },
+  "onboarding-features": {
+    "subject": "Ready for more?",
+    "preview": "The features you haven't tried yet.",
+    "heading": "Ready for more?",
+    "body": "{named, select, yes {Hi {name}, you've been with us a week. Here's what a paid plan opens up:} other {Hi there, you've been with us a week. Here's what a paid plan opens up:}}",
+    "seats": "More seats for your team",
+    "limits": "Higher limits on everything you're already using",
+    "support": "Priority support when something breaks",
+    "cta": "See what's available"
+  }
+}

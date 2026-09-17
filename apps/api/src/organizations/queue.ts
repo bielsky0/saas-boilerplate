@@ -4,9 +4,9 @@ import type { Locale } from "@repo/i18n-core";
 /**
  * Queue INSERT helpers for the organizations module (spec 12 — the INSERT half).
  *
- * The drain, handlers and templates stay in web until etap 2.3, so this file
- * must stay row-shape-compatible with web's handlers: `email.send`
- * `{template,data,to,name?,locale}`, `notification.create`
+ * The drain, handlers and templates live in `src/jobs` + `src/emails` (faza
+ * 2.3), so this file must stay row-shape-compatible with those handlers:
+ * `email.send` `{template,data,to,name?,locale}`, `notification.create`
  * `{userId,organizationId,accountId,type,params,link?}` — all JSON primitives,
  * `locale` a plain string captured at enqueue time (the drain has no request).
  *

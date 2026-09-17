@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Patch, Query, Param, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Patch, Put, Query, Param, UseGuards } from "@nestjs/common";
 import { z } from "zod";
 
 import { idParam, optionalSlugParam } from "@repo/validation";
@@ -10,10 +10,12 @@ import { Session, SessionGuard } from "../auth/session.guard";
 import type { RequestSession } from "../auth/auth-engine";
 import { resolveNotificationOwner } from "../tenancy/owner";
 import { NotificationsService } from "./notifications.service";
+import { isNotificationType, isSuppressibleType } from "./types";
 
 /**
- * Notifications endpoints (spec 23.2 / 23.4) — the read + mark-read side of
- * the bell. The creation pipeline (jobs, preferences) moves in etap 2.
+ * Notifications endpoints (spec 23.2 / 23.3 / 23.4) — the read + mark-read
+ * side of the bell, plus the channel preferences. The creation pipeline runs
+ * as the `notification.create` job (see the service).
  *
  * Validation runs BEFORE owner resolution (§22.2: the trust boundary is
  * parsed first, authorization second). One deliberate difference from the web
@@ -23,6 +25,9 @@ import { NotificationsService } from "./notifications.service";
  */
 const slugQuerySchema = z.object({ slug: optionalSlugParam });
 const markReadParamsSchema = z.object({ id: idParam });
+const preferencesBodySchema = z.object({
+  preferences: z.record(z.string(), z.boolean()),
+});
 
 @UseGuards(SessionGuard)
 @Controller("v1/notifications")
@@ -85,6 +90,41 @@ export class NotificationsController {
       this.orgsEnabled(),
     );
     await this.notifications.markAllRead(userId, owner);
+    return { ok: true };
+  }
+
+  /**
+   * Save the in-app channel preferences (spec 23.3) — the Nest twin of web's
+   * `updateNotificationPreferencesAction`. One call, the whole map: for each
+   * SUPPRESSIBLE type the value is the channel state (absent key = untouched
+   * here, unlike the form's absent-checkbox-means-off — an endpoint is a
+   * contract, so partial updates are explicit). Non-suppressible types are
+   * never written: they cannot be muted, by construction.
+   */
+  /**
+   * Read the stored preferences (spec 23.3) — deviations from the default-on.
+   * Absent type = enabled. The settings page renders from this; the bell
+   * never reads it (the handler is the authority at delivery time).
+   */
+  @Get("preferences")
+  async listPreferences(@Session() session: RequestSession) {
+    const rows = await this.notifications.listPreferences(session.user.id);
+    return {
+      preferences: Object.fromEntries(rows.map((r) => [r.type, r.inAppEnabled])),
+    };
+  }
+
+  @Put("preferences")
+  async updatePreferences(
+    @Session() session: RequestSession,
+    @Body() body: Record<string, unknown>,
+  ) {
+    const parsed = preferencesBodySchema.safeParse(body);
+    if (!parsed.success) validationFailed(parsed.error);
+    for (const [type, enabled] of Object.entries(parsed.data.preferences)) {
+      if (!isNotificationType(type) || !isSuppressibleType(type)) continue;
+      await this.notifications.setPreference(session.user.id, type, enabled);
+    }
     return { ok: true };
   }
 }
