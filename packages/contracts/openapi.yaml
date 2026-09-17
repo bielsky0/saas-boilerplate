@@ -22,21 +22,21 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateOrganizationInput'
+              $ref: "#/components/schemas/CreateOrganizationInput"
       responses:
-        '201':
+        "201":
           description: Created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
-        '422':
-          $ref: '#/components/responses/ValidationFailed'
+                $ref: "#/components/schemas/Organization"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
     get:
       operationId: listOrganizations
       tags: [organizations]
       responses:
-        '200':
+        "200":
           description: Orgs of the caller
           content:
             application/json:
@@ -47,58 +47,58 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: '#/components/schemas/OrganizationWithRole'
+                      $ref: "#/components/schemas/OrganizationWithRole"
   /v1/organizations/{slug}:
     get:
       operationId: getOrganization
       tags: [organizations]
       parameters:
-        - $ref: '#/components/parameters/OrgSlug'
+        - $ref: "#/components/parameters/OrgSlug"
       responses:
-        '200':
+        "200":
           description: Single org with caller role
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrganizationWithRole'
-        '404':
-          $ref: '#/components/responses/NotFound'
+                $ref: "#/components/schemas/OrganizationWithRole"
+        "404":
+          $ref: "#/components/responses/NotFound"
     patch:
       operationId: updateOrganization
       tags: [organizations]
       parameters:
-        - $ref: '#/components/parameters/OrgSlug'
+        - $ref: "#/components/parameters/OrgSlug"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateOrganizationInput'
+              $ref: "#/components/schemas/UpdateOrganizationInput"
       responses:
-        '200':
+        "200":
           description: Updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Organization'
-        '409':
-          $ref: '#/components/responses/SlugTaken'
+                $ref: "#/components/schemas/Organization"
+        "409":
+          $ref: "#/components/responses/SlugTaken"
     delete:
       operationId: deleteOrganization
       tags: [organizations]
       parameters:
-        - $ref: '#/components/parameters/OrgSlug'
+        - $ref: "#/components/parameters/OrgSlug"
       responses:
-        '204':
+        "204":
           description: Soft-deleted
   /v1/organizations/{slug}/members:
     get:
       operationId: listMembers
       tags: [organizations]
       parameters:
-        - $ref: '#/components/parameters/OrgSlug'
+        - $ref: "#/components/parameters/OrgSlug"
       responses:
-        '200':
+        "200":
           description: Members newest first
           content:
             application/json:
@@ -109,13 +109,13 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Member'
+                      $ref: "#/components/schemas/Member"
   /v1/organizations/{slug}/members/{memberId}:
     patch:
       operationId: updateMemberRole
       tags: [organizations]
       parameters:
-        - $ref: '#/components/parameters/OrgSlug'
+        - $ref: "#/components/parameters/OrgSlug"
         - name: memberId
           in: path
           required: true
@@ -125,71 +125,71 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateMemberRoleInput'
+              $ref: "#/components/schemas/UpdateMemberRoleInput"
       responses:
-        '200':
+        "200":
           description: Role updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Member'
-        '409':
-          $ref: '#/components/responses/LastOwner'
+                $ref: "#/components/schemas/Member"
+        "409":
+          $ref: "#/components/responses/LastOwner"
     delete:
       operationId: removeMember
       tags: [organizations]
       parameters:
-        - $ref: '#/components/parameters/OrgSlug'
+        - $ref: "#/components/parameters/OrgSlug"
         - name: memberId
           in: path
           required: true
           schema: { type: string, minLength: 1 }
       responses:
-        '204':
+        "204":
           description: Removed
-        '409':
-          $ref: '#/components/responses/LastOwner'
+        "409":
+          $ref: "#/components/responses/LastOwner"
   /v1/organizations/{slug}/membership:
     delete:
       operationId: leaveOrganization
       tags: [organizations]
       description: Delete own membership (leave). Distinct from removeMember (actor = target, audit member.leave).
       parameters:
-        - $ref: '#/components/parameters/OrgSlug'
+        - $ref: "#/components/parameters/OrgSlug"
       responses:
-        '204':
+        "204":
           description: Left
-        '409':
-          $ref: '#/components/responses/LastOwner'
+        "409":
+          $ref: "#/components/responses/LastOwner"
   /v1/organizations/{slug}/invitations:
     post:
       operationId: createInvitation
       tags: [organizations]
       parameters:
-        - $ref: '#/components/parameters/OrgSlug'
+        - $ref: "#/components/parameters/OrgSlug"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateInvitationInput'
+              $ref: "#/components/schemas/CreateInvitationInput"
       responses:
-        '201':
+        "201":
           description: Invited (mail only enqueued — delivery in faza 2.3)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Invitation'
+                $ref: "#/components/schemas/Invitation"
     get:
       operationId: listInvitations
       tags: [organizations]
       parameters:
-        - $ref: '#/components/parameters/OrgSlug'
+        - $ref: "#/components/parameters/OrgSlug"
         - name: status
           in: query
           schema: { type: string, enum: [pending], default: pending }
       responses:
-        '200':
+        "200":
           description: Pending invitations newest first
           content:
             application/json:
@@ -200,19 +200,19 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Invitation'
+                      $ref: "#/components/schemas/Invitation"
   /v1/organizations/{slug}/invitations/{invitationId}:
     delete:
       operationId: revokeInvitation
       tags: [organizations]
       parameters:
-        - $ref: '#/components/parameters/OrgSlug'
+        - $ref: "#/components/parameters/OrgSlug"
         - name: invitationId
           in: path
           required: true
           schema: { type: string, minLength: 1 }
       responses:
-        '204':
+        "204":
           description: Revoked (idempotent — already-revoked also 204, no audit row)
   /v1/invitations/{token}/accept:
     post:
@@ -224,7 +224,7 @@ paths:
           required: true
           schema: { type: string, minLength: 1 }
       responses:
-        '200':
+        "200":
           description: Accepted
           content:
             application/json:
@@ -233,14 +233,14 @@ paths:
                 required: [slug]
                 properties:
                   slug: { type: string }
-        '400':
-          $ref: '#/components/responses/InvalidToken'
+        "400":
+          $ref: "#/components/responses/InvalidToken"
   /v1/organizations/{slug}/audit-logs:
     get:
       operationId: listOrgAuditLogs
       tags: [organizations]
       parameters:
-        - $ref: '#/components/parameters/OrgSlug'
+        - $ref: "#/components/parameters/OrgSlug"
         - name: q
           in: query
           schema: { type: string, maxLength: 200 }
@@ -254,7 +254,7 @@ paths:
           in: query
           schema: { type: integer, minimum: 0, maximum: 10000, default: 0 }
       responses:
-        '200':
+        "200":
           description: Tenant-scoped audit trail (spec 6.4)
           content:
             application/json:
@@ -265,7 +265,7 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: '#/components/schemas/OrgAuditRow'
+                      $ref: "#/components/schemas/OrgAuditRow"
                   page: { type: integer }
                   hasNext: { type: boolean }
 components:
@@ -276,7 +276,7 @@ components:
       required: true
       schema:
         type: string
-        pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+        pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
         minLength: 2
         maxLength: 48
   schemas:
@@ -289,7 +289,7 @@ components:
         slug: { type: string }
     OrganizationWithRole:
       allOf:
-        - $ref: '#/components/schemas/Organization'
+        - $ref: "#/components/schemas/Organization"
         - type: object
           required: [role]
           properties:
@@ -363,7 +363,7 @@ components:
         application/json:
           schema:
             allOf:
-              - $ref: '#/components/schemas/ErrorEnvelope'
+              - $ref: "#/components/schemas/ErrorEnvelope"
               - type: object
                 required: [issues]
     NotFound:
@@ -371,7 +371,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: "#/components/schemas/ErrorEnvelope"
     LastOwner:
       description: Demote/remove/leave of the last active owner
       content:
