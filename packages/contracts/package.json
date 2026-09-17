@@ -36,6 +36,10 @@
     "./rate-limit": {
       "types": "./dist/rate-limit.d.ts",
       "default": "./dist/rate-limit.js"
+    },
+    "./rbac": {
+      "types": "./dist/rbac.d.ts",
+      "default": "./dist/rbac.js"
     }
   },
   "scripts": {

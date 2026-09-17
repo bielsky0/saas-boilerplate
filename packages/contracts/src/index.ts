@@ -12,5 +12,6 @@ export * from "./cookies";
 export * from "./email";
 export * from "./jobs";
 export * from "./organizations";
+export * from "./rbac";
 export * from "./storage";
 export * from "./rate-limit";

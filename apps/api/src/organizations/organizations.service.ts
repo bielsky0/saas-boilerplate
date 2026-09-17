@@ -29,7 +29,7 @@ import {
   storedLocaleForEmail,
 } from "../auth/auth-enqueue";
 import { kickDrain } from "../jobs/runner";
-import { hasPermission, isRole, type Permission, type Role } from "./rbac";
+import { hasPermission, isRole, type Permission, type Role } from "@repo/contracts";
 import { changed, recordAudit, resolveActor, withImpersonation } from "./audit";
 import { enqueueInvitationEmail, enqueueInvitationNotification } from "./queue";
 import { resolveUniqueSlug } from "./slug";

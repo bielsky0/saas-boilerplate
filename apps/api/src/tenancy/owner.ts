@@ -4,7 +4,7 @@ import { membership, organization, personalAccount } from "@repo/db";
 import type { Db } from "@repo/db";
 import { forbidden, notFound } from "../common/http";
 import type { RequestSession } from "../auth/auth-engine";
-import { hasPermission, isRole, type Permission } from "../organizations/rbac";
+import { hasPermission, isRole, type Permission } from "@repo/contracts";
 
 /**
  * Tenant owner resolution — the Nest twin of the web app's
@@ -91,7 +91,7 @@ export async function resolveNotificationOwner(
  *
  * A request is ORG-scoped when it carries a `slug`, PERSONAL-scoped
  * otherwise. Org access runs through the shared RBAC map
- * (`organizations/rbac`, same `storage.upload` / `storage.delete`
+ * (`@repo/contracts`, same `storage.upload` / `storage.delete`
  * permissions as web), so authorization is enforced identically to every
  * other org action (§4.2). Personal files need only a valid session.
  * Pass `null` as `permission` for reads (membership is enough, e.g. the
