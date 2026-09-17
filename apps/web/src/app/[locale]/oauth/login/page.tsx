@@ -3,10 +3,11 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth";
 
 /**
- * OAuth login bridge (spec 26 — AI Agent).
+ * OAuth login bridge (spec 26 — AI Agent, faza 2.7).
  *
- * `mcp({ loginPage: "/oauth/login" })` sends an unauthenticated authorize request
- * HERE, carrying the OAuth query. This page owns one decision and holds no UI:
+ * The `mcp` plugin in the Nest engine (`apps/api`) sends an unauthenticated
+ * authorize request HERE, carrying the OAuth query (reached through the web
+ * `/api/auth/*` proxy). This page owns one decision and holds no UI:
  *
  *   - already signed in → hand straight back to the engine's authorize endpoint,
  *     which now sees a session and moves on to consent;

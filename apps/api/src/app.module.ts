@@ -9,6 +9,7 @@ import { DevModule } from "./dev/dev.module";
 import { EmailsModule } from "./emails/emails.module";
 import { HealthController } from "./health/health.controller";
 import { JobsModule } from "./jobs/jobs.module";
+import { McpModule } from "./mcp/mcp.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { OnboardingModule } from "./onboarding/onboarding.module";
 import { OrganizationsModule } from "./organizations/organizations.module";
@@ -29,6 +30,7 @@ import { StorageModule } from "./storage/storage.module";
     BillingNotifyModule,
     BillingModule,
     JobsModule,
+    McpModule,
     StorageModule,
   ],
   controllers: [HealthController],

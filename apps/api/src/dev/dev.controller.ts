@@ -30,6 +30,7 @@ import { isNotificationType } from "../notifications/types";
 import { NotificationsService } from "../notifications/notifications.service";
 import { AdminService } from "../admin/admin.service";
 import { BillingService } from "../billing/billing.service";
+import { McpService } from "../mcp/mcp.service";
 import { RATE_LIMIT_MEMORY, RATE_LIMIT_POSTGRES } from "../rate-limit/rate-limit.module";
 import { OrganizationsService } from "../organizations/organizations.service";
 
@@ -65,6 +66,7 @@ export class DevController {
     private readonly notifications: NotificationsService,
     private readonly billing: BillingService,
     private readonly admin: AdminService,
+    private readonly mcp: McpService,
   ) {}
 
   private assertDev(): void {
@@ -388,5 +390,88 @@ export class DevController {
       throw new HttpException({ error: "orgSlug is required" }, HttpStatus.BAD_REQUEST);
     }
     return this.billing.getBillingState(orgSlug);
+  }
+
+  /**
+   * Test-only MCP tool driver (spec 14.1 / 26, faza 2.7) — the Nest twin of
+   * web's `/api/dev/mcp`. Runs a tool's tenant/RBAC resolution + read the way
+   * the real tools do, but seeded from an email instead of an OAuth token —
+   * so an E2E test can assert the ISOLATION boundary without standing up a
+   * full OAuth client. It calls the very same `McpService` resolvers the real
+   * tools use, so it cannot pass while the real path is broken. Disabled in
+   * production.
+   *
+   * Body: { email, tool, slug?, limit? }. A `null` from the resolver surfaces
+   * as `{ denied: true }`, mirroring the `isError` a real tool returns.
+   */
+  @Post("mcp")
+  async mcpTools(@Req() req: Request) {
+    this.assertDev();
+    const body = (req.body ?? {}) as {
+      email?: unknown;
+      tool?: unknown;
+      slug?: unknown;
+      limit?: unknown;
+    };
+    if (typeof body.email !== "string" || body.email === "") {
+      throw new HttpException({ error: "email and tool are required" }, HttpStatus.BAD_REQUEST);
+    }
+    const tool = body.tool;
+    if (
+      tool !== "list_organizations" &&
+      tool !== "list_members" &&
+      tool !== "count_unread_notifications" &&
+      tool !== "list_recent_notifications"
+    ) {
+      if (typeof tool !== "string" || tool === "") {
+        throw new HttpException({ error: "email and tool are required" }, HttpStatus.BAD_REQUEST);
+      }
+      throw new HttpException({ error: `unknown tool ${tool}` }, HttpStatus.BAD_REQUEST);
+    }
+    const slug = typeof body.slug === "string" ? body.slug : null;
+
+    const [u] = await this.db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, body.email))
+      .limit(1);
+    if (!u) {
+      throw new HttpException({ error: `user ${body.email} not found` }, HttpStatus.BAD_REQUEST);
+    }
+    const userId = u.id;
+
+    switch (tool) {
+      case "list_organizations":
+        return { data: await this.mcp.listOrganizations(userId) };
+
+      case "list_members": {
+        if (!slug) {
+          throw new HttpException({ error: "slug required" }, HttpStatus.BAD_REQUEST);
+        }
+        const access = await this.mcp.resolveMcpOrg(userId, slug);
+        if (!access) return { denied: true };
+        return {
+          data: { org: access.org, members: await this.mcp.listMembers(access.org.id) },
+        };
+      }
+
+      case "count_unread_notifications": {
+        const resolved = await this.mcp.resolveMcpOwner(userId, slug);
+        if (!resolved) return { denied: true };
+        return { data: { unread: await this.mcp.countUnread(userId, resolved.owner) } };
+      }
+
+      case "list_recent_notifications": {
+        const resolved = await this.mcp.resolveMcpOwner(userId, slug);
+        if (!resolved) return { denied: true };
+        const limit =
+          typeof body.limit === "number" && Number.isInteger(body.limit)
+            ? Math.min(Math.max(body.limit, 1), 50)
+            : 20;
+        return {
+          data: { notifications: await this.mcp.listRecent(userId, resolved.owner, limit) },
+        };
+      }
+    }
   }
 }

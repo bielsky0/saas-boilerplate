@@ -34,7 +34,7 @@
  *     yet.
  *   - `payment_method.update`: `BillingEventType` has no `payment_method.*`
  *     event and there is no billing-portal action to trigger one.
- *   - AI-agent writes: features/mcp registers read-only tools only. The
+ *   - AI-agent writes: the API `mcp` module registers read-only tools only. The
  *     `AIAgent` actor plumbing IS built (`mcpActor` below) so the first write
  *     tool has nothing to invent.
  * Extension point for all five: add the name here, then call `recordAudit` in
@@ -109,7 +109,7 @@ export const SYSTEM_ACTOR: AuditActor = {
  * exactly that user's permissions, and `actorType` is the only thing that says a
  * machine drove it. §26.1 requires both facts to survive into the trail.
  *
- * Nothing calls this yet — features/mcp exposes read-only tools. It exists so the
+ * Nothing calls this yet — the API `mcp` module exposes read-only tools. It exists so the
  * first write tool has no reason to invent its own actor shape.
  */
 export function mcpActor(userId: string, email: string): AuditActor {

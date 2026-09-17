@@ -30,7 +30,9 @@ import type { ApiConfig } from "./common/config";
  * Engine HTTP paths served directly by Nest (faza 2.1) — an ALLOWLIST, never
  * a blocklist. These are the emailed-link hops (validate-then-redirect GETs)
  * plus the legacy forget-password POST the E2E suite drives through the web
- * `[...all]` proxy. Everything else under `/api/auth/*` — sign-in/up posts,
+ * `[...all]` proxy, plus the OAuth 2.0 / MCP dance (faza 2.7: authorize,
+ * token, dynamic registration, consent, discovery — all reached through the
+ * same web proxy). Everything else under `/api/auth/*` — sign-in/up posts,
  * `get-session`, and the whole `/admin/*` plugin surface — answers 404: the
  * versioned `/v1/*` contract (with its rate limiting) is the only way in for
  * those, and the admin plugin stays reachable solely through the audited
@@ -40,6 +42,20 @@ function isAllowedEnginePath(method: string, path: string): boolean {
   if (method === "GET" && path === "/verify-email") return true;
   if (method === "GET" && /^\/reset-password\/[^/]+$/.test(path)) return true;
   if (method === "POST" && path === "/request-password-reset") return true;
+  // OAuth 2.0 / MCP (spec 26): the web login bridge resumes here, the consent
+  // form POSTs here, and MCP clients register + exchange codes here.
+  if (method === "GET" && path === "/mcp/authorize") return true;
+  if (method === "POST" && path === "/mcp/register") return true;
+  if (method === "POST" && path === "/mcp/token") return true;
+  if (method === "GET" && path === "/mcp/get-session") return true;
+  if (method === "POST" && path === "/oauth2/consent") return true;
+  if (
+    method === "GET" &&
+    (path === "/.well-known/oauth-authorization-server" ||
+      path === "/.well-known/oauth-protected-resource")
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -51,6 +67,8 @@ async function bootstrap() {
   // so the API must accept the web origin with credentials. One explicit
   // origin, never `*` — credentials forbid it. `x-app-locale` is the one
   // custom header the forms send (the page's locale for signup stamping);
+  // `authorization` carries the OAuth 2.0 bearer token MCP clients send
+  // (spec 26 — a safelisted header, never reflected);
   // `x-e2e-rate-limit-bucket` is the E2E suite's per-test isolation header
   // (Playwright attaches it to EVERY context request, including fetch — a
   // preflight that rejects it fails the request with no other signal).
@@ -62,6 +80,7 @@ async function bootstrap() {
     origin: [config.NEXT_PUBLIC_APP_URL],
     credentials: true,
     allowedHeaders: [
+      "authorization",
       "content-type",
       "x-app-locale",
       ...(config.NODE_ENV === "production" ? [] : ["x-e2e-rate-limit-bucket"]),

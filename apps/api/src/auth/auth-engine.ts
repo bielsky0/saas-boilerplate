@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
+import { mcp } from "better-auth/plugins";
 import { admin } from "better-auth/plugins/admin";
 import { adminAc, userAc } from "better-auth/plugins/admin/access";
 
@@ -21,8 +22,7 @@ import { kickDrain } from "../jobs/runner";
 /**
  * Better Auth engine for the API — full port of the web app's engine
  * (`apps/web/src/lib/adapters/auth/better-auth.ts`), minus `nextCookies` (a
- * Nest controller relays `Set-Cookie` instead) and minus the `mcp` plugin
- * (moves with etap 2.7).
+ * Nest controller relays `Set-Cookie` instead).
  *
  * Same secret, same database, same user table + `additionalFields`
  * (`deletedAt`, `locale`), same hooks — so a session minted here reads
@@ -73,6 +73,12 @@ export function createAuthEngine(db: Db, config: AuthEngineConfig) {
         session: schema.session,
         account: schema.account,
         verification: schema.verification,
+        // OAuth 2.0 authorization-server tables for the MCP plugin (spec 26,
+        // faza 2.7) — same mapping the web engine had, so tokens minted
+        // before/after the port read identically.
+        oauthApplication: schema.oauthApplication,
+        oauthAccessToken: schema.oauthAccessToken,
+        oauthConsent: schema.oauthConsent,
       },
     }),
     user: {
@@ -211,6 +217,32 @@ export function createAuthEngine(db: Db, config: AuthEngineConfig) {
         defaultRole: DEFAULT_ROLE,
         impersonationSessionDuration: 30 * 60,
         // adminUserIds: DELIBERATELY UNSET — see the file header.
+      }),
+      /**
+       * MCP / OAuth 2.0 authorization server (spec 26 — AI Agent, faza 2.7).
+       *
+       * Port 1:1 of the web engine's `mcp()` block: the app is an OAuth
+       * provider so an MCP client obtains a per-USER access token and acts on
+       * that user's behalf. `withMcpAuth` (in `mcp/`) resolves that token to a
+       * `userId` on every `/api/mcp` call, which the MCP tools funnel through
+       * the SAME RBAC/tenant primitives the UI uses — the agent never has
+       * authority beyond the user it acts for.
+       *
+       * `loginPage` is the web's bridge (`/oauth/login`, stays in web): the
+       * engine redirects an unauthenticated authorize request there with the
+       * OAuth query, and the bridge resumes via `/api/auth/mcp/authorize`
+       * (proxied by web, allowlisted in `main.ts`).
+       */
+      mcp({
+        loginPage: "/oauth/login",
+        oidcConfig: {
+          // `loginPage` is required by the OIDCOptions type; the mcp plugin
+          // overrides it with the value above, so keep the two identical.
+          loginPage: "/oauth/login",
+          allowDynamicClientRegistration: true,
+          requirePKCE: true,
+          consentPage: "/oauth/consent",
+        },
       }),
     ],
   });
