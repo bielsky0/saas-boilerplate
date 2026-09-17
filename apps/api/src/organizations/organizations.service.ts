@@ -20,7 +20,7 @@ import {
 } from "@repo/db";
 import { API_CONFIG, DB } from "../db/db.module";
 import type { ApiConfig } from "../common/config";
-import { badRequest, conflict, forbidden, notFound, validationFailed } from "../common/http";
+import { badRequest, conflict, notFound, validationFailed } from "../common/http";
 import type { RequestSession } from "../auth/auth-engine";
 import {
   ensurePersonalAccount,
@@ -29,7 +29,8 @@ import {
   storedLocaleForEmail,
 } from "../auth/auth-enqueue";
 import { kickDrain } from "../jobs/runner";
-import { hasPermission, isRole, type Permission, type Role } from "@repo/contracts";
+import { type Permission, type Role } from "@repo/contracts";
+import { requireOrgMember } from "../tenancy/access";
 import { changed, recordAudit, resolveActor, withImpersonation } from "./audit";
 import { enqueueInvitationEmail, enqueueInvitationNotification } from "./queue";
 import { resolveUniqueSlug } from "./slug";
@@ -123,15 +124,6 @@ export class OrganizationsService {
     kickDrain();
   }
 
-  private async getOrgBySlug(slug: string) {
-    const [row] = await this.db
-      .select()
-      .from(organization)
-      .where(and(eq(organization.slug, slug), isNull(organization.deletedAt)))
-      .limit(1);
-    return row ?? null;
-  }
-
   private async isSlugTaken(slug: string): Promise<boolean> {
     // ALL orgs including soft-deleted ones — the unique constraint spans them.
     const [row] = await this.db
@@ -144,30 +136,17 @@ export class OrganizationsService {
 
   /**
    * The single backend chokepoint: resolves the active org from the slug and
-   * enforces membership + permission. 404 for unknown/disabled (never 403 —
-   * a 403 would admit the feature exists), 403 for non-members and missing
-   * permissions (spec 4.2).
+   * enforces membership + permission. Delegates to `tenancy/access` — the
+   * shared implementation every org-scoped flow uses (spec 4.2). 404 for
+   * unknown/disabled (never 403 — a 403 would admit the feature exists), 403
+   * for non-members and missing permissions.
    */
   private async requireOrgContext(
     session: RequestSession,
     slug: string,
     permission?: Permission,
   ): Promise<OrgContext> {
-    if (!this.orgsEnabled()) notFound("Organization not found");
-    const org = await this.getOrgBySlug(slug);
-    if (!org) notFound("Organization not found");
-    const [member] = await this.db
-      .select()
-      .from(membership)
-      .where(and(eq(membership.organizationId, org.id), eq(membership.userId, session.user.id)))
-      .limit(1);
-    if (!member || member.status !== "active" || !isRole(member.role)) {
-      forbidden("Not a member of this organization");
-    }
-    if (permission && !hasPermission(member.role, permission)) {
-      forbidden("Forbidden");
-    }
-    return { org, membership: member, role: member.role };
+    return requireOrgMember(this.db, session, slug, this.orgsEnabled(), permission);
   }
 
   /** Count active owners, locking those rows so concurrent demotions serialize. */
