@@ -11,17 +11,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LOCALES, type Locale } from "@/lib/i18n/config";
+import { LOCALE_COOKIE, LOCALES, type Locale } from "@/lib/i18n/config";
+import { clientEnv } from "@/lib/env/client";
 import { usePathname, useRouter } from "@/lib/i18n/navigation";
 
 /**
- * Language switcher (spec §16.1). The exact analogue of `ThemeToggle`: a global
- * control for a presentation preference the user owns.
+ * Language switcher (spec §16.1, faza 3.2). The exact analogue of `ThemeToggle`:
+ * a global control for a presentation preference the user owns.
  *
  * It does TWO things, and both are needed:
- *   - `PATCH /api/locale` persists the choice (cookie for the proxy, row in
- *     Nest for the durable store), so a later visit to an unprefixed URL (`/`)
- *     negotiates to the chosen language instead of the browser's.
+ *   - `PATCH {api}/v1/locale` persists the choice in Nest (the durable row a
+ *     day-7 cron mail reads), best-effort: anonymous callers get a 401, which
+ *     is the expected no-session case, not an error.
+ *   - `document.cookie app-locale` writes the request-time cache the proxy
+ *     negotiates from (same pattern as the sign-in form — deliberately NOT
+ *     httpOnly, so no web route is needed to write it).
  *   - `router.replace` moves to the same page under the new prefix, so the URL
  *     never disagrees with what is rendered.
  *
@@ -44,14 +48,17 @@ export function LocaleSwitcher() {
   function select(next: Locale) {
     if (next === active) return;
     startTransition(async () => {
-      // Persist through the same-origin web route (faza 2.8): it writes the
-      // row in Nest best-effort and sets the `app-locale` cookie the proxy
-      // negotiates from. Fire-and-forget — the navigation below must happen
-      // even if the persist failed, or a failed write strands the user in
-      // the old language with no recourse but retrying the click.
+      // Persist directly against the main API (faza 3.2): Nest writes the
+      // durable row best-effort, and the client owns its cookie — no web
+      // route involved. A 401 means "no session" (the anonymous case), not
+      // an error: the cookie below still applies. Fire-and-forget — the
+      // navigation below must happen even if the persist failed, or a failed
+      // write strands the user in the old language with no recourse but
+      // retrying the click.
       try {
-        await fetch("/api/locale", {
+        await fetch(`${clientEnv.NEXT_PUBLIC_API_BASE_URL.replace(/\/+$/, "")}/v1/locale`, {
           method: "PATCH",
+          credentials: "include",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ locale: next }),
         });
@@ -59,6 +66,7 @@ export function LocaleSwitcher() {
         // Offline/transient: the URL move below still applies the language
         // to THIS page; the cookie/row catch up on the next switch.
       }
+      document.cookie = `${LOCALE_COOKIE}=${next}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
       router.replace(pathname, { locale: next });
     });
   }

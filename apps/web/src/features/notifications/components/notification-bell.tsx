@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import { markAllNotificationsRead, markNotificationRead } from "../client";
+import { markAllNotificationsRead, markNotificationRead, fetchNotifications } from "../client";
 import { isNotificationType } from "../types";
 
 /**
@@ -53,17 +53,10 @@ export function NotificationBell() {
   const [unread, setUnread] = useState(0);
 
   const refresh = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `/api/notifications${slug ? `?slug=${encodeURIComponent(slug)}` : ""}`,
-      );
-      if (!res.ok) return;
-      const data: { unreadCount: number; items: Item[] } = await res.json();
-      setUnread(data.unreadCount);
-      setItems(data.items);
-    } catch {
-      // Transient network error — the next tick retries. Nothing user-facing.
-    }
+    const data = await fetchNotifications(slug);
+    if (!data) return;
+    setUnread(data.unreadCount);
+    setItems(data.items);
   }, [slug]);
 
   useEffect(() => {
