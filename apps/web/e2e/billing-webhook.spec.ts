@@ -7,7 +7,7 @@ import {
   subscriptionEvent,
   uniqueId,
 } from "./billing-fixtures";
-import { registerViaApi, seedOrg, uniqueEmail } from "./helpers";
+import { registerViaApi, seedOrg, uniqueEmail, apiUrl } from "./helpers";
 
 /**
  * Billing webhook E2E (spec 5.4). Runs fully offline: signature verification is
@@ -32,7 +32,7 @@ async function seedBillingOrg(request: APIRequestContext): Promise<Fixture> {
     slug: uniqueId("billing-co"),
   });
   const customerId = uniqueId("cus");
-  const res = await request.post("/api/dev/seed-billing-customer", {
+  const res = await request.post(apiUrl("/v1/dev/seed-billing-customer"), {
     data: { providerCustomerId: customerId, orgSlug },
   });
   expect(res.ok(), `seed-billing-customer failed: ${await res.text()}`).toBe(true);
@@ -40,7 +40,7 @@ async function seedBillingOrg(request: APIRequestContext): Promise<Fixture> {
 }
 
 async function billingState(request: APIRequestContext, orgSlug: string) {
-  const res = await request.get(`/api/dev/billing-state?orgSlug=${orgSlug}`);
+  const res = await request.get(apiUrl(`/v1/dev/billing-state?orgSlug=${orgSlug}`));
   expect(res.ok()).toBe(true);
   return (await res.json()) as {
     subscriptions: Array<{ providerSubscriptionId: string; status: string; planId: string | null }>;
@@ -61,7 +61,7 @@ test.describe("signature verification (spec 5.4)", () => {
     });
 
     const res = await request.post(
-      "/api/billing/webhook",
+      apiUrl("/v1/billing/webhook"),
       signedRequest(event, "whsec_theWrongSigningSecretEntirely"),
     );
 
@@ -81,7 +81,7 @@ test.describe("signature verification (spec 5.4)", () => {
       type: "customer.subscription.created",
     });
 
-    const res = await request.post("/api/billing/webhook", {
+    const res = await request.post(apiUrl("/v1/billing/webhook"), {
       headers: { "content-type": "application/json" },
       data: JSON.stringify(event),
     });
@@ -108,7 +108,7 @@ test.describe("signature verification (spec 5.4)", () => {
     const tampered = original.replace('"status":"active"', '"status":"trialing"');
     expect(tampered).not.toBe(original);
 
-    const res = await request.post("/api/billing/webhook", {
+    const res = await request.post(apiUrl("/v1/billing/webhook"), {
       headers: { "content-type": "application/json", "stripe-signature": signature },
       data: tampered,
     });
@@ -130,8 +130,8 @@ test.describe("idempotency (spec 5.4)", () => {
     });
     const signed = signedRequest(event);
 
-    const first = await request.post("/api/billing/webhook", signed);
-    const second = await request.post("/api/billing/webhook", signed);
+    const first = await request.post(apiUrl("/v1/billing/webhook"), signed);
+    const second = await request.post(apiUrl("/v1/billing/webhook"), signed);
 
     expect(first.status()).toBe(200);
     expect(second.status()).toBe(200);
@@ -159,8 +159,8 @@ test.describe("idempotency (spec 5.4)", () => {
     });
     const signed = signedRequest(event);
 
-    await request.post("/api/billing/webhook", signed);
-    await request.post("/api/billing/webhook", signed);
+    await request.post(apiUrl("/v1/billing/webhook"), signed);
+    await request.post(apiUrl("/v1/billing/webhook"), signed);
 
     const state = await billingState(request, orgSlug);
     expect(state.payments).toHaveLength(1);
@@ -181,8 +181,8 @@ test.describe("idempotency (spec 5.4)", () => {
     // Exercises the unique-index block: whichever transaction loses waits for
     // the winner to commit, then finds the conflict and skips.
     const [a, b] = await Promise.all([
-      request.post("/api/billing/webhook", signed),
-      request.post("/api/billing/webhook", signed),
+      request.post(apiUrl("/v1/billing/webhook"), signed),
+      request.post(apiUrl("/v1/billing/webhook"), signed),
     ]);
 
     const statuses = [(await a.json()).status, (await b.json()).status].sort();
@@ -201,7 +201,7 @@ test.describe("delivery ordering (spec 5.4)", () => {
 
     // The cancellation happened later...
     await request.post(
-      "/api/billing/webhook",
+      apiUrl("/v1/billing/webhook"),
       signedRequest(
         subscriptionEvent({
           eventId: uniqueId("evt"),
@@ -217,7 +217,7 @@ test.describe("delivery ordering (spec 5.4)", () => {
     // ...but an older "active" update is delivered after it (a retry landing
     // late is exactly this). It must not take effect.
     const stale = await request.post(
-      "/api/billing/webhook",
+      apiUrl("/v1/billing/webhook"),
       signedRequest(
         subscriptionEvent({
           eventId: uniqueId("evt"),
@@ -249,7 +249,7 @@ test.describe("unknown customer (spec 5.4)", () => {
       type: "customer.subscription.created",
     });
 
-    const res = await request.post("/api/billing/webhook", signedRequest(event));
+    const res = await request.post(apiUrl("/v1/billing/webhook"), signedRequest(event));
 
     expect(res.status()).toBe(200);
     expect((await res.json()).status).toBe("unknown_customer");

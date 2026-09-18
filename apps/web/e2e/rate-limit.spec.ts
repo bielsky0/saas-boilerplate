@@ -1,7 +1,7 @@
 import { type Page } from "@playwright/test";
 
 import { expect, test, RATE_LIMIT_BUCKET_HEADER, uniqueBucket } from "./rate-limit-fixtures";
-import { loginViaUi, registerViaApi, uniqueEmail } from "./helpers";
+import { loginViaUi, registerViaApi, uniqueEmail, apiUrl } from "./helpers";
 
 /**
  * Rate limiting (spec 2.1 — login attempts; spec 22.3 — API-wide).
@@ -126,9 +126,13 @@ test("the lockout message does not reveal whether the account exists", async ({
 /**
  * ACCEPTANCE CRITERION 2 — the 429 and its retry header.
  *
- * Driven against a `read`-tier endpoint. The last assertions are the important
- * ones structurally: a 429 is built by a THIRD response constructor in
- * src/proxy.ts, and the file's central claim is that no response can escape
+ * Driven against a `read`-tier path. Faza 3.3: the web serves no API routes, so
+ * this probes the (deleted) `/api/unsubscribe` path — the edge limiter counts
+ * BEFORE routing, which is exactly what this pins: the 429 fires even though
+ * nothing serves the path underneath. Faza 3.4 rewrites this spec against the
+ * main API's limiter and deletes the edge one. The last assertions are the
+ * important ones structurally: a 429 is built by a THIRD response constructor
+ * in src/proxy.ts, and the file's central claim is that no response can escape
  * without the CSP and the request id. This is what mechanises that claim, exactly
  * as security-headers.spec.ts does for pages.
  */
@@ -207,7 +211,7 @@ test("the postgres store counts, blocks, resets and prunes", async ({ request })
   const key = `e2e:${uniqueBucket("pg")}`;
   const rule = { limit: 3, windowMs: 60_000 };
 
-  const first = await request.post("/api/dev/rate-limit", {
+  const first = await request.post(apiUrl("/v1/dev/rate-limit"), {
     data: { provider: "postgres", key, ...rule, times: 4, reset: true },
   });
   expect(first.ok()).toBe(true);
@@ -220,7 +224,7 @@ test("the postgres store counts, blocks, resets and prunes", async ({ request })
   expect(body.decisions.map((d) => d.remaining)).toEqual([2, 1, 0, 0]);
 
   // A reset returns the key to a fresh window rather than merely decrementing.
-  const afterReset = await request.post("/api/dev/rate-limit", {
+  const afterReset = await request.post(apiUrl("/v1/dev/rate-limit"), {
     data: { provider: "postgres", key, ...rule, times: 1, reset: true, prune: true },
   });
   const resetBody = (await afterReset.json()) as {
@@ -232,7 +236,7 @@ test("the postgres store counts, blocks, resets and prunes", async ({ request })
   // Prune must not remove a LIVE counter — only expired ones.
   expect(resetBody.pruned).toBeGreaterThanOrEqual(0);
 
-  const stillCounted = await request.post("/api/dev/rate-limit", {
+  const stillCounted = await request.post(apiUrl("/v1/dev/rate-limit"), {
     data: { provider: "postgres", key, ...rule, times: 0 },
   });
   const peek = (await stillCounted.json()) as { peeked: { remaining: number } };
@@ -245,7 +249,7 @@ test("a counter resets once its window has passed", async ({ request }) => {
   // A 1s window, so expiry is observable without a slow test.
   const rule = { limit: 2, windowMs: 1_000 };
 
-  const exhaust = await request.post("/api/dev/rate-limit", {
+  const exhaust = await request.post(apiUrl("/v1/dev/rate-limit"), {
     data: { provider: "postgres", key, ...rule, times: 3, reset: true },
   });
   const exhausted = (await exhaust.json()) as { decisions: { allowed: boolean }[] };
@@ -253,7 +257,7 @@ test("a counter resets once its window has passed", async ({ request }) => {
 
   await new Promise((resolve) => setTimeout(resolve, 1_200));
 
-  const after = await request.post("/api/dev/rate-limit", {
+  const after = await request.post(apiUrl("/v1/dev/rate-limit"), {
     data: { provider: "postgres", key, ...rule, times: 1 },
   });
   const revived = (await after.json()) as { decisions: { allowed: boolean; remaining: number }[] };

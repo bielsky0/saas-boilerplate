@@ -8,8 +8,7 @@ import { EmailsService } from "./emails.service";
 import { verifyUnsubscribeToken } from "./suppression";
 
 /**
- * RFC 8058 one-click unsubscribe (spec 10.3) — the Nest twin of web's
- * `src/app/api/unsubscribe/route.ts`.
+ * RFC 8058 one-click unsubscribe (spec 10.3).
  *
  * The target of the `List-Unsubscribe` header. Mail clients POST
  * `List-Unsubscribe=One-Click` here when the user clicks the unsubscribe

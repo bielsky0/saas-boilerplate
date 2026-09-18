@@ -37,10 +37,7 @@ import { rateLimitHeaders, rateLimitKey, tierFor, TIERS } from "@/lib/security/r
  *
  * Because two systems cannot both own the response. next-intl's middleware wants
  * to rewrite/redirect for locale; this file must default-deny for auth. Composed
- * by hand, there is ONE ordering, written down, that both concerns read. Bolted
- * together, the interesting cases (a metadata image with no prefix, an /api route
- * that must not be prefixed, a login redirect that must keep one) land in
- * whichever ran first.
+ * by hand, there is ONE ordering, written down, that both concerns read.
  *
  * It also keeps `localePrefix: "always"` honest: this file only ever REDIRECTS,
  * never rewrites, so the pathname the guard evaluated is always the pathname the
@@ -78,49 +75,6 @@ import { rateLimitHeaders, rateLimitKey, tierFor, TIERS } from "@/lib/security/r
 
 /** Only used by RATE_LIMIT_MODE=report-only; the enforce path answers, it does not narrate. */
 const log = createLogger("rate-limit");
-
-/**
- * `/api/*` routes reachable without a session.
- *
- * Public PAGES are declared in `src/lib/public-routes.ts`, because that list has
- * two other consumers (sitemap.ts, robots.ts) and they must not drift apart.
- * These stay here: they are not pages, they are never sitemap candidates, and
- * each is authenticated by something other than a session.
- */
-function isPublicApiPath(pathname: string): boolean {
-  // Better Auth's HTTP surface (verification link, etc.) must stay open.
-  if (pathname.startsWith("/api/auth/")) return true;
-  // Test-only email inspector (guarded internally by NODE_ENV, dev/CI only).
-  if (pathname.startsWith("/api/dev/")) return true;
-  // Billing webhooks carry no session — the request SIGNATURE is the auth
-  // (spec 5.4), verified in the route. Payment providers do not follow
-  // redirects, so guarding this would look like a permanent delivery failure.
-  if (pathname.startsWith("/api/billing/webhook")) return true;
-  // Job drain (spec 12). Authenticated by the CRON_SECRET bearer token, not a
-  // session — the caller is a scheduler, not a person. Worse than the webhook
-  // case above: cron pingers DO follow redirects, so guarding this would answer
-  // 307, land on /login, and report a cheerful 200 while draining nothing.
-  if (pathname.startsWith("/api/cron/")) return true;
-  // RFC 8058 one-click unsubscribe (spec 10.3). The HMAC in the query is the auth;
-  // the sender is a mail provider's server, which has no session and reads any
-  // non-2xx as a broken unsubscribe.
-  if (pathname.startsWith("/api/unsubscribe")) return true;
-  // Explicit language choice (spec 16.1, faza 2.8). Anonymous visitors get the
-  // cookie and nothing else — there is no row to write, and the i18n E2E suite
-  // switches language without a session. The route persists best-effort when
-  // a session exists (Nest 401 = anonymous, still sets the cookie).
-  if (pathname === "/api/locale") return true;
-  // MCP endpoint (spec 26). Authenticated by an OAuth 2.0 bearer token inside
-  // Nest's handler (`withMcpAuth` in `apps/api`), not a session cookie — the
-  // caller is an AI agent, not a browser. The web route proxies to Nest, so
-  // guarding it here would 307 an API client to /login; instead Nest answers
-  // 401 with the WWW-Authenticate that starts the OAuth flow.
-  // (The OAuth authorization endpoints themselves live under /api/auth/, already
-  // exempt above; the root /.well-known/* metadata routes bypass this proxy via
-  // the matcher's `.*\..*` dot rule.)
-  if (pathname.startsWith("/api/mcp")) return true;
-  return false;
-}
 
 /**
  * Public pages, keyed by their BARE (locale-stripped) path.
@@ -321,16 +275,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   }
 
   /*
-   * Rate limiting (spec 22.3). ORDER IS THE DESIGN here too, and this step sits
-   * between two specific neighbours:
-   *
-   *   - AFTER the metadata-image escape above. An OG scraper has no session and
-   *     does not retry; a social network that gets a 429 caches the failure, so
-   *     one burst of shares would break every share card for as long as that
-   *     cache lives.
-   *   - BEFORE `isPublicApiPath`. That list is exactly the set of endpoints an
-   *     anonymous attacker can reach without a session, which makes it the set
-   *     most in need of counting — exempting it would invert the point.
+   * Rate limiting (spec 22.3). Runs before routing: the tier table
+   * (`src/lib/security/rate-limit.ts`) decides what is counted, and the guard
+   * below decides who sees a page. Faza 3.4 removes the edge limiter (and the
+   * guard) entirely, leaving counting to the main API.
    */
   let rateHeaders: Record<string, string> | undefined;
   if (env.RATE_LIMIT_MODE !== "off") {
@@ -349,11 +297,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Non-session-authenticated API routes: signature, bearer token or HMAC.
-  if (isPublicApiPath(pathname)) {
-    return forward(request, requestId, nonce, undefined, rateHeaders);
-  }
-
+  // Faza 3.3: the web serves no API routes — every unknown path, including
+  // anything under `/api/`, falls through to the locale + session guard below
+  // and stays default-denied.
   const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value ?? null;
   const acceptLanguage = request.headers.get("accept-language");
 
@@ -362,12 +308,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   if (pathname.startsWith("/api/")) {
     /*
-     * API routes are NOT locale-prefixed — they are not pages, and `/en/api/...`
-     * would be a second URL for one endpoint. They still negotiate a locale, so a
-     * route handler can answer in the caller's language.
-     *
-     * Note this branch does NOT short-circuit to `next()`. An unknown /api route
-     * must stay default-denied; only the locale STEP is skipped, never the guard.
+     * No API routes are served here anymore (faza 3.3) — this branch only keeps
+     * such paths from gaining a locale prefix on their way to the guard below,
+     * which default-denies them. They still negotiate a locale for the login
+     * redirect's sake, so a stray hit lands on a login page in the right
+     * language rather than a redirect loop.
      */
     locale = negotiateLocale({ cookieLocale, acceptLanguage });
     bare = pathname;
@@ -418,13 +363,11 @@ export const config = {
   /*
    * Run on everything except Next internals and static files.
    *
-   * `api/auth` USED TO BE EXCLUDED HERE and no longer is (spec 22.3): Better
-   * Auth's HTTP surface is the credential surface, so excluding it from the proxy
-   * excluded it from the limiter — the one endpoint group §2.1 is actually about.
-   * Nothing else changes for it: `isPublicApiPath` already returns true for
-   * `/api/auth/`, so it forwards without a locale redirect and without a session
-   * check, and `forward`'s header clone keeps its cookies intact. Those responses
-   * now also carry the CSP and the request id, which is a gain, not a regression.
+   * Faza 3.3: the web serves no data endpoints (the whole `app/api` tree is
+   * gone — the main API owns `/v1/*` and `/api/*` on its own origin), so every
+   * path that reaches this proxy is a page (or a 404 for one). The `/api/`
+   * branch in the flow below keeps such paths default-denied rather than
+   * locale-redirected.
    *
    * `.*\..*` still skips every path containing a dot (/robots.txt, /sitemap.xml,
    * /.well-known/*), which is why the four CONSTANT security headers live in

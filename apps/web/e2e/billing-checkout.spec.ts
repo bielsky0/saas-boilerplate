@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 import { signedRequest, subscriptionEvent, uniqueId, E2E_PRO_PRICE_ID } from "./billing-fixtures";
-import { loginViaUi, registerViaApi, seedOrg, TEST_PASSWORD, uniqueEmail } from "./helpers";
+import { loginViaUi, registerViaApi, seedOrg, TEST_PASSWORD, uniqueEmail, apiUrl } from "./helpers";
 
 /**
  * Checkout & customer portal E2E (spec 5.3, 5.5).
@@ -24,7 +24,7 @@ async function loginAs(page: Page, email: string): Promise<void> {
 }
 
 async function billingState(request: APIRequestContext, orgSlug: string) {
-  const res = await request.get(`/api/dev/billing-state?orgSlug=${orgSlug}`);
+  const res = await request.get(apiUrl(`/v1/dev/billing-state?orgSlug=${orgSlug}`));
   expect(res.ok()).toBe(true);
   return (await res.json()) as {
     subscriptions: Array<{ providerSubscriptionId: string; status: string; planId: string | null }>;
@@ -33,13 +33,12 @@ async function billingState(request: APIRequestContext, orgSlug: string) {
 
 test.describe("checkout boundary (spec 5.3)", () => {
   test("an anonymous request never reaches the provider", async ({ request }) => {
-    const res = await request.post("/api/billing/checkout", {
+    const res = await request.post(apiUrl("/v1/billing/checkout"), {
       data: { plan: "pro" },
-      maxRedirects: 0,
     });
-    // The proxy default-denies: no session cookie → redirected to login, not 200.
-    expect(res.status()).toBe(307);
-    expect(res.headers()["location"]).toContain("/login");
+    // No session cookie → the API answers 401, not a redirect: there is no
+    // web guard left to bounce to /login (faza 3.3).
+    expect(res.status()).toBe(401);
   });
 
   test("the free plan is not purchasable", async ({ page }) => {
@@ -50,7 +49,7 @@ test.describe("checkout boundary (spec 5.3)", () => {
     // Free has no price id by construction, so it falls out of `purchasablePlan`
     // before any provider call — a 404, because the request is well-formed and
     // the resource simply does not exist.
-    const res = await page.request.post("/api/billing/checkout", { data: { plan: "free" } });
+    const res = await page.request.post(apiUrl("/v1/billing/checkout"), { data: { plan: "free" } });
     expect(res.status()).toBe(404);
   });
 
@@ -61,7 +60,9 @@ test.describe("checkout boundary (spec 5.3)", () => {
 
     // Constrained by the zod enum at the boundary (spec 22.2) → 422, not 404:
     // this request is malformed, not pointing at a missing resource.
-    const res = await page.request.post("/api/billing/checkout", { data: { plan: "enterprise" } });
+    const res = await page.request.post(apiUrl("/v1/billing/checkout"), {
+      data: { plan: "enterprise" },
+    });
     expect(res.status()).toBe(422);
   });
 });
@@ -80,7 +81,9 @@ test.describe("checkout authorization (spec 4.2 → 5.3)", () => {
     });
 
     await loginAs(page, member);
-    const res = await page.request.post("/api/billing/checkout", { data: { slug, plan: "pro" } });
+    const res = await page.request.post(apiUrl("/v1/billing/checkout"), {
+      data: { slug, plan: "pro" },
+    });
     expect(res.status()).toBe(403);
   });
 
@@ -103,7 +106,9 @@ test.describe("checkout authorization (spec 4.2 → 5.3)", () => {
     });
 
     await loginAs(page, admin);
-    const res = await page.request.post("/api/billing/checkout", { data: { slug, plan: "pro" } });
+    const res = await page.request.post(apiUrl("/v1/billing/checkout"), {
+      data: { slug, plan: "pro" },
+    });
     expect(res.status()).toBe(403);
   });
 });
@@ -121,7 +126,7 @@ test.describe("customer portal (spec 5.5)", () => {
     await loginAs(page, owner);
     // Resolved from our own table before any provider call: no mapping → 404,
     // rather than creating a customer just to show an empty portal.
-    const res = await page.request.post("/api/billing/portal", { data: { slug } });
+    const res = await page.request.post(apiUrl("/v1/billing/portal"), { data: { slug } });
     expect(res.status()).toBe(404);
   });
 
@@ -138,7 +143,7 @@ test.describe("customer portal (spec 5.5)", () => {
     });
 
     await loginAs(page, member);
-    const res = await page.request.post("/api/billing/portal", { data: { slug } });
+    const res = await page.request.post(apiUrl("/v1/billing/portal"), { data: { slug } });
     // 403 before the "no customer" 404: authorization is decided first, so the
     // response cannot be used to probe whether the org has ever paid.
     expect(res.status()).toBe(403);
@@ -160,7 +165,7 @@ test("access follows the webhook, not the success redirect", async ({ page, requ
     slug: uniqueId("redirect-co"),
   });
   const customerId = uniqueId("cus");
-  const seeded = await request.post("/api/dev/seed-billing-customer", {
+  const seeded = await request.post(apiUrl("/v1/dev/seed-billing-customer"), {
     data: { providerCustomerId: customerId, orgSlug: slug },
   });
   expect(seeded.ok(), `seed-billing-customer failed: ${await seeded.text()}`).toBe(true);
@@ -184,7 +189,7 @@ test("access follows the webhook, not the success redirect", async ({ page, requ
   // Now the provider actually tells us it happened.
   const subscriptionId = uniqueId("sub");
   const res = await request.post(
-    "/api/billing/webhook",
+    apiUrl("/v1/billing/webhook"),
     signedRequest(
       subscriptionEvent({
         eventId: uniqueId("evt"),

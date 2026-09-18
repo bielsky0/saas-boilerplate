@@ -78,6 +78,7 @@ export class EmailsService {
       unsubscribeSecret: this.config.EMAIL_UNSUBSCRIBE_SECRET,
       authSecret: this.config.BETTER_AUTH_SECRET,
       webAppUrl: this.config.NEXT_PUBLIC_APP_URL,
+      apiUrl: this.config.BETTER_AUTH_URL,
     };
   }
 

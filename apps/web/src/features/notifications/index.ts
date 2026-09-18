@@ -5,8 +5,8 @@
  * notifications` + the `notification.create` job — the second delivery channel
  * next to email, §10). What stays here is the BELL surface the web still owns:
  * the type vocabulary both sides share (`types`) and the global bell +
- * preferences form, which talk to Nest through the thin `/api/notifications/*`
- * proxies (`client.ts` beside them).
+ * preferences form, which talk to the main API directly (`client.ts` beside
+ * them, faza 3.2).
  */
 
 export {

@@ -10,6 +10,7 @@ import {
   uniqueEmail,
   waitForEmail,
   waitForJobsSettled,
+  apiUrl,
 } from "./helpers";
 
 /**
@@ -79,11 +80,11 @@ async function subscribeOrg(request: APIRequestContext, ownerEmail: string): Pro
     slug: uniqueId("paying-co"),
   });
   const customerId = uniqueId("cus");
-  await request.post("/api/dev/seed-billing-customer", {
+  await request.post(apiUrl("/v1/dev/seed-billing-customer"), {
     data: { providerCustomerId: customerId, orgSlug },
   });
   const res = await request.post(
-    "/api/billing/webhook",
+    apiUrl("/v1/billing/webhook"),
     signedRequest(
       subscriptionEvent({
         eventId: uniqueId("evt"),

@@ -47,8 +47,10 @@ export interface UnsubscribeToken {
 export interface SuppressionConfig {
   unsubscribeSecret: string | undefined;
   authSecret: string;
-  /** Web origin — links land on pages, never on the API. */
+  /** Web origin — page links land on pages, never on the API. */
   webAppUrl: string;
+  /** API origin — machines (RFC 8058 one-click) hit the API, never the web. */
+  apiUrl: string;
 }
 
 /** Build the signed, session-free unsubscribe URL for one address + category. */
@@ -71,7 +73,17 @@ export function unsubscribePostUrl(
   category: SuppressibleCategory,
   config: SuppressionConfig,
 ): string {
-  return unsubscribeUrl(email, category, config).replace("/unsubscribe?", "/api/unsubscribe?");
+  // Split-host (faza 3.3, pełny split w 3.5): a HUMAN lands on the web page
+  // (`unsubscribeUrl` above), but the header is read by a MACHINE — the mail
+  // provider POSTs one-click unsubscribes straight at the API, which owns
+  // `/v1/unsubscribe`. The web serves no data endpoints, so pointing the
+  // header at the web origin would be a dead link.
+  const params = new URLSearchParams({
+    e: Buffer.from(email.toLowerCase()).toString("base64url"),
+    c: category,
+    t: mac(email, category, config.unsubscribeSecret, config.authSecret),
+  });
+  return `${config.apiUrl.replace(/\/+$/, "")}/v1/unsubscribe?${params.toString()}`;
 }
 
 /**

@@ -25,10 +25,10 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * Unsubscribe landing page (spec 10.3).
  *
- * VERIFIES BUT DOES NOT MUTATE. The confirm button posts a server action; see the
- * note in `unsubscribe-form.tsx` about link prefetchers. The RFC 8058 one-click
- * endpoint at `/api/unsubscribe` is the exception — a POST from a mail provider is
- * a deliberate signal, not a prefetch.
+ * VERIFIES BUT DOES NOT MUTATE. The confirm button posts directly to the main
+ * API; see the note in `unsubscribe-form.tsx` about link prefetchers. The
+ * RFC 8058 one-click endpoint at `{api}/v1/unsubscribe` is the exception — a
+ * POST from a mail provider is a deliberate signal, not a prefetch.
  *
  * Public by definition: reachable with no session (exempted in src/proxy.ts).
  */

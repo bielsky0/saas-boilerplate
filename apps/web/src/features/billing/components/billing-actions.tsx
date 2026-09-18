@@ -17,7 +17,7 @@ import type { PlanId } from "../plans";
  * page with no explanation. Here a non-2xx becomes a toast.
  *
  * Calls go DIRECTLY to the main API (`NEXT_PUBLIC_API_BASE_URL + /v1/billing/*`,
- * `credentials: "include"`) — same shape and status codes the thin `app/api`
+ * `credentials: "include"`) — same shape and status codes the pre-3.3 `app/api`
  * relays used to pass through, so error mapping below is unchanged. No web
  * route is involved: `window.location.assign` leaves the Next origin for the
  * provider anyway.

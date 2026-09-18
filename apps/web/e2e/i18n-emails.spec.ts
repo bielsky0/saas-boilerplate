@@ -12,10 +12,10 @@ import { drainJobs, registerAndVerify, registerViaApi, uniqueEmail, waitForEmail
  * at SEND time instead of enqueue time, every assertion here would still pass for
  * the day-0 mail and silently fail for day 3 and day 7.
  *
- * The registration path is `/api/dev/seed-user` with a locale COOKIE rather than
- * the signup form, and the cookie is the point: `/api/*` is exempt from locale
- * prefixing, so there is no `x-app-locale` header on that request and the cookie
- * is the only thing that can carry a preference. That is the same path a real
+ * The registration path is `/v1/dev/seed-user` with a locale COOKIE rather than
+ * the signup form, and the cookie is the point: the seeder carries no
+ * `x-app-locale` header on that request, so the cookie is the only thing that
+ * can carry a preference. That is the same path a real
  * user takes when they switch language and then register.
  */
 

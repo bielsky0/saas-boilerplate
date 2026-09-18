@@ -1,5 +1,5 @@
 import { expect, test } from "./rate-limit-fixtures";
-import { loginViaUi, registerViaApi, seedOrg, TEST_PASSWORD, uniqueEmail } from "./helpers";
+import { loginViaUi, registerViaApi, seedOrg, TEST_PASSWORD, uniqueEmail, apiUrl } from "./helpers";
 
 /**
  * Validation as a named layer (spec 22.2).
@@ -98,7 +98,7 @@ test("API schema failures answer with one envelope: 422 + per-field issues", asy
   // `confirm` used to answer a bare `{ error }` while `presign`, four files away,
   // answered `{ error, issues }` for the same class of failure. One envelope now.
   // A VALID slug here, so the only thing wrong is the missing `fileId`.
-  const confirm = await page.request.post("/api/storage/confirm", { data: { slug } });
+  const confirm = await page.request.post(apiUrl("/v1/storage/confirm"), { data: { slug } });
   expect(confirm.status()).toBe(422);
 
   const confirmBody = (await confirm.json()) as {
@@ -109,7 +109,7 @@ test("API schema failures answer with one envelope: 422 + per-field issues", asy
   expect(confirmBody.issues.fileId).toBeTruthy();
 
   // A tenant slug is held to a shape BEFORE the authorization guard sees it.
-  const presign = await page.request.post("/api/storage/presign", {
+  const presign = await page.request.post(apiUrl("/v1/storage/presign"), {
     data: {
       slug: "Not A Slug!!",
       filename: "pixel.png",
@@ -131,7 +131,7 @@ test("API schema failures answer with one envelope: 422 + per-field issues", asy
 test("the public unsubscribe endpoint rejects a malformed link", async ({ request }) => {
   // No `e`/`c`/`t` at all — the shape check, ahead of the HMAC check. Previously
   // three hand-rolled `typeof x === "string"` guards, which accept "".
-  const res = await request.post("/api/unsubscribe");
+  const res = await request.post(apiUrl("/v1/unsubscribe"));
   expect(res.status()).toBe(400);
 
   // Identical answer to a forged signature (asserted in emails-unsubscribe.spec.ts):

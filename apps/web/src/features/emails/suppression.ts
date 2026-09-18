@@ -55,11 +55,6 @@ export function unsubscribeUrl(email: string, category: SuppressibleCategory): s
   return `${clientEnv.NEXT_PUBLIC_APP_URL}/unsubscribe?${params.toString()}`;
 }
 
-/** The RFC 8058 one-click endpoint, used in the List-Unsubscribe header. */
-export function unsubscribePostUrl(email: string, category: SuppressibleCategory): string {
-  return unsubscribeUrl(email, category).replace("/unsubscribe?", "/api/unsubscribe?");
-}
-
 /**
  * Verify a link's parameters. Returns null for anything that does not check out —
  * callers must not distinguish "bad signature" from "malformed", since neither is
@@ -89,20 +84,4 @@ export function verifyUnsubscribeToken(
   if (!timingSafeEqual(expected, actual)) return null;
 
   return { email, category: c };
-}
-
-/**
- * The List-Unsubscribe headers (RFC 2369 + RFC 8058).
- *
- * Only for suppressible categories: on a password reset an unsubscribe
- * affordance is wrong, and Gmail will render one if the header is present.
- */
-export function unsubscribeHeaders(
-  email: string,
-  category: SuppressibleCategory,
-): Record<string, string> {
-  return {
-    "List-Unsubscribe": `<${unsubscribePostUrl(email, category)}>`,
-    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-  };
 }

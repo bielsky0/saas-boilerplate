@@ -5,8 +5,8 @@
  * emails`, `onboarding`, `jobs` — one delivery path, retry, suppression and
  * List-Unsubscribe in one place each). What stays here is the UNSUBSCRIBE
  * surface the web still owns: the opt-out vocabulary (`categories`), the
- * signed links and their verification (`suppression`), and the form posting
- * to the thin `/api/unsubscribe` proxy (`components/unsubscribe-form`).
+ * signed page links and their verification (`suppression`), and the form
+ * posting directly to the main API (`components/unsubscribe-form`).
  */
 
 export {
@@ -16,9 +16,4 @@ export {
   isSuppressibleCategory,
 } from "./categories";
 export type { EmailCategory, SuppressibleCategory } from "./categories";
-export {
-  unsubscribeHeaders,
-  unsubscribeUrl,
-  unsubscribePostUrl,
-  verifyUnsubscribeToken,
-} from "./suppression";
+export { unsubscribeUrl, verifyUnsubscribeToken } from "./suppression";

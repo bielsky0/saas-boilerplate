@@ -8,7 +8,7 @@ import { E2E_TENANCY_ENV, ORG_DEPENDENT_SPECS, TENANCY_MODE } from "./e2e/tenanc
 /**
  * Playwright E2E config (spec 14.1). Auth is critical, so these run on every PR
  * and block merge. The app boots with EMAIL_PROVIDER=log so tests read the
- * verification link from the in-memory outbox via /api/dev/emails — no SMTP.
+ * verification link from the in-memory outbox via /v1/dev/emails — no SMTP.
  *
  * The DB must be migrated before the web server starts (CI runs `pnpm db:migrate`;
  * locally run it once). The storage suite needs MinIO reachable at

@@ -11,16 +11,19 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui";
+import { clientEnv } from "@/lib/env/client";
 
 /**
  * Allow/Deny for an OAuth authorization request (spec 26 — AI Agent).
  *
- * POSTs the decision to the engine's consent endpoint, which returns the
- * `redirectURI` to send the browser back to the MCP client with (an
- * authorization code on Allow, an `access_denied` error on Deny). A single
- * source of truth: the token is only ever minted by the engine, never here.
+ * POSTs the decision directly to the engine's consent endpoint on the main
+ * API (faza 3.3, `credentials: "include"` — the session cookie belongs to the
+ * API origin), which returns the `redirectURI` to send the browser back to
+ * the MCP client with (an authorization code on Allow, an `access_denied`
+ * error on Deny). A single source of truth: the token is only ever minted by
+ * the engine, never here.
  */
-const CONSENT_ENDPOINT = "/api/auth/oauth2/consent";
+const CONSENT_ENDPOINT = `${clientEnv.NEXT_PUBLIC_API_BASE_URL.replace(/\/+$/, "")}/api/auth/oauth2/consent`;
 
 export function ConsentForm({
   consentCode,
@@ -40,6 +43,7 @@ export function ConsentForm({
     try {
       const res = await fetch(CONSENT_ENDPOINT, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accept, consent_code: consentCode }),
       });

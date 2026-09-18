@@ -23,11 +23,11 @@ import { test as base, expect } from "@playwright/test";
  *
  * The header is honoured only when NODE_ENV !== "production" (see `testBucket` in
  * src/lib/security/rate-limit.ts), so it cannot be used to escape a bucket in a
- * real deployment. Same guard style as the /api/dev routes.
+ * real deployment. Same guard style as the /v1/dev seams.
  *
  * ⚠️ Any spec that drives a login MUST import `test` from this file rather than
  * from `@playwright/test`, or it shares the default bucket with every other
- * worker. `/api/dev/*` is exempt from the limiter entirely, so pure seeding does
+ * worker. `/v1/dev/*` is exempt from the limiter entirely, so pure seeding does
  * not need it.
  *
  * Imported by playwright.config.ts, so the ENV export must stay free of any

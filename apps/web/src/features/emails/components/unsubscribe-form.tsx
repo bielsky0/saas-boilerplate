@@ -3,13 +3,14 @@
 import { useState } from "react";
 
 import { Button, FormMessage } from "@/components/ui";
+import { clientEnv } from "@/lib/env/client";
 
 const INVALID = "This unsubscribe link is not valid." as const;
 
 /**
  * The confirm button behind the unsubscribe link (spec 10.3) — confirms
- * straight through the one-click route (faza 2.3: `POST /api/unsubscribe`
- * forwards to Nest, which suppresses by HMAC).
+ * directly against the main API (faza 3.3: `POST {api}/v1/unsubscribe`,
+ * which suppresses by HMAC).
  *
  * A BUTTON, not an automatic action on page load. Mail scanners, corporate
  * link-rewriters and Gmail's image proxy fetch every URL in a message, so an
@@ -39,7 +40,10 @@ export function UnsubscribeForm({
     setPending(true);
     try {
       const params = new URLSearchParams({ e, c, t });
-      const res = await fetch(`/api/unsubscribe?${params.toString()}`, { method: "POST" });
+      const res = await fetch(
+        `${clientEnv.NEXT_PUBLIC_API_BASE_URL.replace(/\/+$/, "")}/v1/unsubscribe?${params.toString()}`,
+        { method: "POST" },
+      );
       if (!res.ok) {
         setState({ error: INVALID });
         return;

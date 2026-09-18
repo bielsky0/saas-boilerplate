@@ -1,24 +1,25 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
-import { registerViaApi, seedOrg, uniqueEmail } from "./helpers";
+import { registerViaApi, seedOrg, uniqueEmail, apiUrl } from "./helpers";
 
 /**
  * MCP / AI Agent E2E (spec 26) — the two acceptance criteria for 11a.4:
  *   1. a tool call for data OUTSIDE the acting user's context returns a denial,
  *      never another organization's rows (tenant isolation, §26.1/§26.2);
- *   2. the OAuth 2.0 boundary is in place — an unauthenticated `/api/mcp` call is
- *      rejected with the discovery pointer that starts the flow.
+ *   2. the OAuth 2.0 boundary is in place — an unauthenticated `/api/mcp` call
+ *      against the main API is rejected with the discovery pointer that starts
+ *      the flow.
  *
  * The full OAuth handshake (dynamic registration → login → consent → token) is a
  * browser/agent concern; here we assert the boundary directly and drive the tool
- * logic through the `/api/dev/mcp` seam, which calls the SAME `resolveMcp*`
+ * logic through the `/v1/dev/mcp` seam, which calls the SAME `resolveMcp*`
  * chokepoint the real tools use. Runs offline, no external services.
  */
 
 type ToolBody = { email: string; tool: string; slug?: string };
 
 async function callTool(request: APIRequestContext, body: ToolBody) {
-  const res = await request.post("/api/dev/mcp", { data: body });
+  const res = await request.post(apiUrl("/v1/dev/mcp"), { data: body });
   if (!res.ok()) throw new Error(`callTool failed (${res.status()}): ${await res.text()}`);
   return res.json() as Promise<{ data?: unknown; denied?: boolean }>;
 }
@@ -27,7 +28,7 @@ test.describe("MCP OAuth boundary", () => {
   test("unauthenticated /api/mcp is rejected with a resource-metadata pointer", async ({
     request,
   }) => {
-    const res = await request.post("/api/mcp", {
+    const res = await request.post(apiUrl("/api/mcp"), {
       data: { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} },
       headers: { "Content-Type": "application/json" },
     });

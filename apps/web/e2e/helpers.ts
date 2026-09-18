@@ -1,5 +1,23 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
+/**
+ * Main-API origin for harness calls (faza 3.3 — the web serves no data
+ * endpoints, so every seed/inspect/drain call goes straight at the API).
+ *
+ * Defaults to the same `:3001` the dual-server config boots the API on (local
+ * and CI alike set no explicit `API_BASE_URL`); overridable when the API
+ * listens elsewhere. Always build through this — never inline the origin —
+ * so the next topology change is one line.
+ */
+export function apiUrl(path: `/${string}`): string {
+  const base = (
+    process.env.E2E_API_BASE_URL ??
+    process.env.API_BASE_URL ??
+    "http://localhost:3001"
+  ).replace(/\/+$/, "");
+  return `${base}${path}`;
+}
+
 /** Unique address per call so tests never collide. */
 export function uniqueEmail(prefix = "e2e"): string {
   return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1e6)}@example.com`;
@@ -8,17 +26,16 @@ export function uniqueEmail(prefix = "e2e"): string {
 export const TEST_PASSWORD = "Password123";
 
 /**
- * Seed an account via the test-only in-process route (no UI, no browser
- * session). Uses the same adapter path as the sign-up server action.
+ * Seed an account via the test-only API seam (no UI, no browser
+ * session). Same engine path as the sign-up form.
  */
 export interface RegisterOptions {
   /**
    * Register as someone who has chosen this language (spec 16.1).
    *
-   * Sent as the locale COOKIE rather than a field, because that is the only signal
-   * that actually reaches this path: `/api/*` is exempt from locale prefixing, so
-   * there is no `x-app-locale` header on a seed request. It is the same thing a
-   * real user's browser carries after they use the language switcher.
+   * Sent as the locale COOKIE rather than a field — it is the same thing a
+   * real user's browser carries after they use the language switcher, and the
+   * seeder stamps it like the sign-up path does.
    */
   locale?: string;
 }
@@ -29,7 +46,7 @@ export async function registerViaApi(
   password = TEST_PASSWORD,
   options?: RegisterOptions,
 ): Promise<void> {
-  const res = await request.post("/api/dev/seed-user", {
+  const res = await request.post(apiUrl("/v1/dev/seed-user"), {
     data: { email, password, name: "E2E User" },
     ...(options?.locale ? { headers: { cookie: `app-locale=${options.locale}` } } : {}),
   });
@@ -54,7 +71,7 @@ export async function getEmails(
   request: APIRequestContext,
   email: string,
 ): Promise<CapturedEmail[]> {
-  const res = await request.get(`/api/dev/emails?to=${encodeURIComponent(email)}`);
+  const res = await request.get(apiUrl(`/v1/dev/emails?to=${encodeURIComponent(email)}`));
   const body = (await res.json()) as { emails: CapturedEmail[] };
   return body.emails;
 }
@@ -142,7 +159,7 @@ export async function drainJobs(
   retried: number;
   deadLettered: number;
 }> {
-  const res = await request.post("/api/dev/jobs/run", { data: opts ?? {} });
+  const res = await request.post(apiUrl("/v1/dev/jobs/run"), { data: opts ?? {} });
   if (!res.ok()) {
     throw new Error(`drainJobs failed (${res.status()}): ${await res.text()}`);
   }
@@ -165,7 +182,7 @@ export async function getJobs(
   if (opts?.to) qs.set("to", opts.to);
   if (opts?.id) qs.set("id", opts.id);
   const suffix = qs.toString() ? `?${qs}` : "";
-  const res = await request.get(`/api/dev/jobs${suffix}`);
+  const res = await request.get(apiUrl(`/v1/dev/jobs${suffix}`));
   const body = (await res.json()) as { jobs: JobView[] };
   return body.jobs;
 }
@@ -181,7 +198,7 @@ export async function getJob(request: APIRequestContext, id: string): Promise<Jo
  * Wait until one job reaches a terminal state (done or failed).
  *
  * Same reason as `waitForJobsSettled`: a drain is global, so a parallel spec's
- * `/api/dev/jobs/run` can claim this job and still be running it when we look —
+ * drain can claim this job and still be running it when we look —
  * `status: "running"` is a legitimate intermediate state, not a failure.
  */
 export async function waitForJobSettled(
@@ -202,7 +219,7 @@ export async function waitForJobSettled(
  * Wait until every job under `dedupeKeyPrefix` reaches a terminal state.
  *
  * Polls rather than reading once, because a drain is GLOBAL: another spec's
- * `/api/dev/jobs/run` can claim this test's jobs and still be executing them when
+ * drain can claim this test's jobs and still be executing them when
  * we look. They will finish — but "done by the time my own drain returned" is not
  * something the queue promises, and asserting it directly is a flake.
  */
@@ -239,7 +256,7 @@ export async function getNotifications(
   request: APIRequestContext,
   email: string,
 ): Promise<NotificationView[]> {
-  const res = await request.get(`/api/dev/notifications?email=${encodeURIComponent(email)}`);
+  const res = await request.get(apiUrl(`/v1/dev/notifications?email=${encodeURIComponent(email)}`));
   const body = (await res.json()) as { notifications: NotificationView[] };
   return body.notifications;
 }
@@ -271,7 +288,7 @@ export async function setNotificationPreference(
   type: string,
   inAppEnabled: boolean,
 ): Promise<void> {
-  const res = await request.post("/api/dev/notification-preference", {
+  const res = await request.post(apiUrl("/v1/dev/notification-preference"), {
     data: { email, type, inAppEnabled },
   });
   if (!res.ok()) {
@@ -285,7 +302,9 @@ export async function failNextEmails(
   email: string,
   times: number,
 ): Promise<void> {
-  const res = await request.post("/api/dev/emails/fail-next", { data: { to: email, times } });
+  const res = await request.post(apiUrl("/v1/dev/emails/fail-next"), {
+    data: { to: email, times },
+  });
   if (!res.ok()) {
     throw new Error(`failNextEmails failed (${res.status()}): ${await res.text()}`);
   }
@@ -304,7 +323,7 @@ export async function seedOrg(
     members?: Array<{ email: string; role: string }>;
   },
 ): Promise<string> {
-  const res = await request.post("/api/dev/seed-org", { data: opts });
+  const res = await request.post(apiUrl("/v1/dev/seed-org"), { data: opts });
   if (!res.ok()) {
     throw new Error(`seedOrg failed (${res.status()}): ${await res.text()}`);
   }
@@ -318,7 +337,7 @@ export async function seedOrg(
  * existing super admin — so this mirrors the documented production SQL.
  */
 export async function seedSuperAdmin(request: APIRequestContext, email: string): Promise<void> {
-  const res = await request.post("/api/dev/seed-super-admin", { data: { email } });
+  const res = await request.post(apiUrl("/v1/dev/seed-super-admin"), { data: { email } });
   if (!res.ok()) {
     throw new Error(`seedSuperAdmin failed (${res.status()}): ${await res.text()}`);
   }
@@ -326,7 +345,7 @@ export async function seedSuperAdmin(request: APIRequestContext, email: string):
 
 /** Look up a seeded user's id — needed to scope onboarding job keys per test. */
 export async function getUserId(request: APIRequestContext, email: string): Promise<string> {
-  const res = await request.get(`/api/dev/user?email=${encodeURIComponent(email)}`);
+  const res = await request.get(apiUrl(`/v1/dev/user?email=${encodeURIComponent(email)}`));
   if (!res.ok()) throw new Error(`getUserId failed for ${email} (${res.status()})`);
   const body = (await res.json()) as { id: string };
   return body.id;

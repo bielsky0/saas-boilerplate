@@ -1,7 +1,7 @@
 import { type APIRequestContext, type Page } from "@playwright/test";
 import { expect, test } from "./rate-limit-fixtures";
 
-import { loginViaUi, registerViaApi, seedOrg, TEST_PASSWORD, uniqueEmail } from "./helpers";
+import { loginViaUi, registerViaApi, seedOrg, TEST_PASSWORD, uniqueEmail, apiUrl } from "./helpers";
 
 /**
  * Spec §21 — Storage acceptance criteria, exercised against real MinIO:
@@ -28,7 +28,7 @@ async function uploadPng(
   slug: string,
   visibility: "public" | "private",
 ): Promise<{ fileId: string; bareUrl: string }> {
-  const presignRes = await request.post("/api/storage/presign", {
+  const presignRes = await request.post(apiUrl("/v1/storage/presign"), {
     data: {
       slug,
       filename: "pixel.png",
@@ -49,7 +49,7 @@ async function uploadPng(
   });
   expect(bucketRes.status(), await bucketRes.text()).toBeLessThan(300);
 
-  const confirmRes = await request.post("/api/storage/confirm", { data: { slug, fileId } });
+  const confirmRes = await request.post(apiUrl("/v1/storage/confirm"), { data: { slug, fileId } });
   expect(confirmRes.ok()).toBeTruthy();
 
   return { fileId, bareUrl: `${upload.url}/${upload.fields.key}` };
@@ -78,7 +78,7 @@ test("a private file's bare URL is denied; a public file's is served", async ({ 
 
   // The read endpoint hands back a URL that actually works for the private file.
   const readRes = await page.request.get(
-    `/api/storage/file/${priv.fileId}?slug=${encodeURIComponent(slug)}`,
+    apiUrl(`/v1/storage/files/${priv.fileId}?slug=${encodeURIComponent(slug)}`),
   );
   expect(readRes.ok()).toBeTruthy();
   const { url } = (await readRes.json()) as { url: string };
@@ -93,7 +93,7 @@ test("an oversized or disallowed-type upload is rejected before storage", async 
   await login(page, owner);
 
   // Disallowed MIME type.
-  const badType = await page.request.post("/api/storage/presign", {
+  const badType = await page.request.post(apiUrl("/v1/storage/presign"), {
     data: {
       slug,
       filename: "evil.exe",
@@ -106,7 +106,7 @@ test("an oversized or disallowed-type upload is rejected before storage", async 
   expect((await badType.json()).upload).toBeUndefined();
 
   // Oversized declaration (> MAX_UPLOAD_BYTES = 10 MiB).
-  const tooBig = await page.request.post("/api/storage/presign", {
+  const tooBig = await page.request.post(apiUrl("/v1/storage/presign"), {
     data: {
       slug,
       filename: "huge.png",
@@ -133,13 +133,13 @@ test("a file owned by org A is invisible from org B (tenant isolation)", async (
 
   // Same file id, org A context → visible.
   const inA = await page.request.get(
-    `/api/storage/file/${fileId}?slug=${encodeURIComponent(slugA)}`,
+    apiUrl(`/v1/storage/files/${fileId}?slug=${encodeURIComponent(slugA)}`),
   );
   expect(inA.status()).toBe(200);
 
   // Same file id, org B context → 404 (owner-scoped miss, not 403).
   const inB = await page.request.get(
-    `/api/storage/file/${fileId}?slug=${encodeURIComponent(slugB)}`,
+    apiUrl(`/v1/storage/files/${fileId}?slug=${encodeURIComponent(slugB)}`),
   );
   expect(inB.status()).toBe(404);
 });

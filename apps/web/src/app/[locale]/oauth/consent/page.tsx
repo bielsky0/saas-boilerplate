@@ -8,8 +8,8 @@ import { ConsentForm } from "./consent-form";
  * Reached only AFTER the engine has established a session (the authorize endpoint
  * redirects here with `consent_code`, `client_id` and `scope`), so it stays behind
  * the normal route guard — `requireSession` is defence in depth, not the boundary.
- * The user's Allow/Deny is POSTed by the client form to the engine's
- * `/api/auth/oauth2/consent` endpoint, which mints (or refuses) the access token.
+ * The user's Allow/Deny is POSTed by the client form directly to the engine's
+ * consent endpoint on the main API, which mints (or refuses) the access token.
  */
 export default async function OAuthConsentPage({
   searchParams,

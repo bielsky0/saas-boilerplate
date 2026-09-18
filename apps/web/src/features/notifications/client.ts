@@ -1,7 +1,7 @@
 /**
  * Browser-side notification calls (spec 23.2, faza 3.2) — direct fetches
  * against the main API (`NEXT_PUBLIC_API_BASE_URL + /v1/notifications*`,
- * `credentials: "include"`, CORS). Same shapes the thin `app/api` relays
+ * `credentials: "include"`, CORS). Same shapes the pre-3.3 `app/api` relays
  * used to pass through, so callers see no difference.
  *
  * Fire-and-forget like the server actions these replace: the bell updates

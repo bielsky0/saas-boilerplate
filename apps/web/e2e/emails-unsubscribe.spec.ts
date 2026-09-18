@@ -39,7 +39,12 @@ test("a GET on the unsubscribe link does NOT unsubscribe", async ({ request }) =
   // does to every URL in a message. It must change nothing — otherwise people get
   // silently unsubscribed without ever clicking, and the only symptom is a support
   // ticket asking why the emails stopped.
-  const res = await request.get(url.replace("/api/unsubscribe", "/unsubscribe"));
+  //
+  // The header points at the API one-click endpoint; the page lives on the web
+  // origin with the same signed query. Rebuild it rather than string-replacing
+  // the host: the two URLs share nothing but the query.
+  const headerUrl = new URL(url);
+  const res = await request.get(`/unsubscribe?${headerUrl.searchParams.toString()}`);
   expect(res.ok()).toBe(true);
 
   // The sequence continues, because nothing was suppressed.

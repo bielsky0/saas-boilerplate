@@ -7,6 +7,7 @@ import {
   seedSuperAdmin,
   TEST_PASSWORD,
   uniqueEmail,
+  apiUrl,
 } from "./helpers";
 
 /**
@@ -67,16 +68,18 @@ test("an anonymous request to the admin panel is redirected to login", async ({ 
 /**
  * The auth engine's admin plugin mounts /api/auth/admin/* — a second path to
  * ban/delete that would bypass our audited flows and therefore the
- * audit log (spec 6.3). It is closed in the catch-all route; this proves it stays
- * closed.
+ * audit log (spec 6.3). It is closed in the API's engine allowlist; this
+ * proves it stays closed.
  */
 test("the auth engine's admin HTTP surface is not exposed", async ({ request }) => {
-  const resp = await request.post("/api/auth/admin/ban-user", {
+  const resp = await request.post(apiUrl("/api/auth/admin/ban-user"), {
     data: { userId: "anything" },
     failOnStatusCode: false,
   });
   expect(resp.status()).toBe(404);
 
-  const listResp = await request.get("/api/auth/admin/list-users", { failOnStatusCode: false });
+  const listResp = await request.get(apiUrl("/api/auth/admin/list-users"), {
+    failOnStatusCode: false,
+  });
   expect(listResp.status()).toBe(404);
 });

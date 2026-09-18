@@ -13,6 +13,7 @@ import {
   waitForEmail,
   waitForJobsSettled,
   waitForNotification,
+  apiUrl,
 } from "./helpers";
 
 /**
@@ -38,7 +39,7 @@ async function seedBillingOrg(request: APIRequestContext): Promise<Fixture> {
     slug: uniqueId("notif-co"),
   });
   const customerId = uniqueId("cus");
-  const res = await request.post("/api/dev/seed-billing-customer", {
+  const res = await request.post(apiUrl("/v1/dev/seed-billing-customer"), {
     data: { providerCustomerId: customerId, orgSlug },
   });
   expect(res.ok(), `seed-billing-customer failed: ${await res.text()}`).toBe(true);
@@ -56,7 +57,7 @@ async function postPaymentFailed(request: APIRequestContext, customerId: string)
     type: "invoice.payment_failed",
     amount: 2900,
   });
-  const res = await request.post("/api/billing/webhook", signedRequest(event));
+  const res = await request.post(apiUrl("/v1/billing/webhook"), signedRequest(event));
   expect(res.status()).toBe(200);
   return eventId;
 }

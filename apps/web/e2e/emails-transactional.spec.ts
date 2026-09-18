@@ -12,6 +12,7 @@ import {
   seedOrg,
   uniqueEmail,
   waitForEmail,
+  apiUrl,
 } from "./helpers";
 
 /**
@@ -42,7 +43,7 @@ async function seedBillingOrg(
   });
 
   const customerId = uniqueId("cus");
-  const res = await request.post("/api/dev/seed-billing-customer", {
+  const res = await request.post(apiUrl("/v1/dev/seed-billing-customer"), {
     data: { providerCustomerId: customerId, orgSlug },
   });
   expect(res.ok(), `seed-billing-customer failed: ${await res.text()}`).toBe(true);
@@ -69,7 +70,7 @@ test("welcome sends after verification, as day 0 of the sequence", async ({ requ
   const mail = await waitForEmail(request, email, "welcome");
   expect(mail.subject).toMatch(/welcome/i);
   // Onboarding mail, unlike transactional, MUST be unsubscribable (spec 10.3).
-  expect(mail.headers?.["List-Unsubscribe"]).toContain("/api/unsubscribe");
+  expect(mail.headers?.["List-Unsubscribe"]).toContain("/v1/unsubscribe");
   expect(mail.headers?.["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
 });
 
@@ -160,7 +161,7 @@ test("password-reset invalidates the old session and the old password", async ({
   await page.getByRole("button", { name: /log in/i }).click();
   await expect(page).toHaveURL(/\/dashboard/);
 
-  await request.post("/api/auth/request-password-reset", {
+  await request.post(apiUrl("/api/auth/request-password-reset"), {
     data: { email, redirectTo: "/reset-password" },
   });
   const mail = await waitForEmail(request, email, "password-reset");
@@ -183,7 +184,7 @@ test("payment-failed reaches every active owner", async ({ request }) => {
   const { customerId, ownerEmail } = await seedBillingOrg(request, [secondOwner]);
 
   const res = await request.post(
-    "/api/billing/webhook",
+    apiUrl("/v1/billing/webhook"),
     signedRequest(
       invoiceEvent({
         eventId: uniqueId("evt"),
@@ -209,7 +210,7 @@ test("subscription-confirmed sends once a subscription is created", async ({ req
   const { customerId, ownerEmail } = await seedBillingOrg(request);
 
   const res = await request.post(
-    "/api/billing/webhook",
+    apiUrl("/v1/billing/webhook"),
     signedRequest(
       subscriptionEvent({
         eventId: uniqueId("evt"),
@@ -236,7 +237,7 @@ test("a cancelled subscription never gets a confirmation", async ({ request }) =
   // watermark drops the upsert; without the handler's re-read the notification
   // would still fire and announce an active subscription that is already dead.
   await request.post(
-    "/api/billing/webhook",
+    apiUrl("/v1/billing/webhook"),
     signedRequest(
       subscriptionEvent({
         eventId: uniqueId("evt"),
@@ -249,7 +250,7 @@ test("a cancelled subscription never gets a confirmation", async ({ request }) =
     ),
   );
   await request.post(
-    "/api/billing/webhook",
+    apiUrl("/v1/billing/webhook"),
     signedRequest(
       subscriptionEvent({
         eventId: uniqueId("evt"),

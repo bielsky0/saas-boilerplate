@@ -17,9 +17,9 @@ import { stripLocale } from "@/lib/i18n/config";
  * public route without answering the SEO question is a type error rather than a
  * page that quietly ends up in search results.
  *
- * Only PAGES live here. The `/api/*` exemptions stay in proxy.ts: they are not
- * pages, they are never sitemap candidates, and their rationale is about
- * webhook signatures and cron bearer tokens, which has nothing to do with SEO.
+ * Only PAGES live here. Faza 3.3: the web serves no `/api/*` routes at all
+ * (data lives on the main API's origin), so there is nothing page-adjacent
+ * left to exempt — this list is the whole public surface.
  */
 
 /** Sitemap hints for a page we want indexed; `false` = reachable but not indexed. */
