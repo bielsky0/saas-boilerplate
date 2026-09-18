@@ -277,6 +277,14 @@ Cel: web bez DB, bez actions, z proxy wołającym Nest o sesję.
 
 ## Faza 2.9 — zamknięcie etapu 2
 
+> Status: delivered jako wariant 1 (subdomeny `app.`/`api.` + `Domain`,
+> `SameSite=Lax` bez zmian). `CROSS_SUBDOMAIN_COOKIES`/`SESSION_COOKIE_DOMAIN`
+> w configu API (oba unset = host-only, zachowanie sprzed fazy bit w bit);
+> `unrelated domains` jawnie niewspierane (patrz ARCHITECTURE §6
+> i backend-contract „Split-host deployment"). Prod-URL-e i test na żywych
+> hostach to follow-up po podpięciu docelowej domeny — localhost (same-site)
+> tego nie dowodzi.
+
 - Docs: `ARCHITECTURE.md` + komentarze ścieżek (`src/lib/adapters/...` →
   pakiety/API) — jeden commit `docs:`.
 - API deploy: VPS + Docker Compose (zdecydowane) — Dockerfile API

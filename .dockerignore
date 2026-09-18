@@ -1,0 +1,15 @@
+# Kontekst buildów dockerowych liczonych z ROOT repo (patrz apps/api/Dockerfile).
+# Sekrety nigdy nie wchodzą do obrazu — produkcja dostaje env ze środowiska
+# (compose / VPS), a brak `.env` silnik ignoruje (patrz apps/api/src/main.ts).
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/playwright-report
+**/test-results
+.git
+.gitignore
+**/.env*
+**/*.log
+.turbo

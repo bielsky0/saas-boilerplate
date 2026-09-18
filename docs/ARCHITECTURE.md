@@ -165,6 +165,22 @@ value (it must count before any backend is involved). Neither is the
 boundary — the session is AUTHORITATIVELY verified in the render via
 `requireSession`, which degrades to logged-out when Nest is down.
 
+- Deployment topology is a REQUIREMENT, not tuning (faza 2.9, wariant 1):
+  web on `app.<domain>` (Vercel), API on `api.<domain>` (VPS + Compose —
+  `apps/api/Dockerfile`, service `api` in `docker-compose.yml`). Same
+  eTLD+1 is what makes the `Lax` cookie ride cross-subdomain fetch, so
+  unrelated domains are NOT a supported topology for cookie sessions (no
+  `Domain` trick crosses them — that would need `SameSite=None; Secure`,
+  which this codebase deliberately does not use). The session cookie
+  carries `Domain=.<domain>` when `CROSS_SUBDOMAIN_COOKIES=true` (explicit
+  `SESSION_COOKIE_DOMAIN` recommended, else derived from `BETTER_AUTH_URL`);
+  both unset = host-only cookies, i.e. byte-identical behaviour to before.
+  Prod env wiring: `BETTER_AUTH_URL` = public API origin (emailed links hit
+  Nest directly), `NEXT_PUBLIC_APP_URL` = public web origin (redirects +
+  CORS + `trustedOrigins`), `API_BASE_URL` / `NEXT_PUBLIC_API_BASE_URL` on
+  web = public API origin. Verify against the REAL hosts — two localhost
+  ports are same-site and prove nothing about production.
+
 ## Reference patterns (fill in as modules land)
 
 These are the canonical examples to copy. Each should have a real reference

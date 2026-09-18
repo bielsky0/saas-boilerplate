@@ -28,6 +28,28 @@ the "Implemented" section below), `@repo/contracts` (the types).
   explicit origin). The API never serves HTML to API clients; redirects exist
   only on the emailed-link hops, and always target absolute caller URLs.
 
+## Split-host deployment (faza 2.9, variant 1)
+
+Web on `app.<domain>` (Vercel), API on `api.<domain>` (VPS + Compose,
+`apps/api/Dockerfile`, service `api` in `docker-compose.yml`). Same eTLD+1
+is the load-bearing fact: the session cookie stays `SameSite=Lax`, and Lax
+rides cross-subdomain `fetch`. Unrelated domains are not a supported
+topology (that would need `SameSite=None; Secure` — deliberately unused).
+
+- Cookie names never change across topologies (`@repo/contracts/cookies.ts`
+  is still the single place); only the `Domain` attribute appears, when
+  `CROSS_SUBDOMAIN_COOKIES=true` (+ optional explicit
+  `SESSION_COOKIE_DOMAIN=.domain`, else derived from `BETTER_AUTH_URL`).
+  Both unset = host-only cookies (localhost/dev), identical to before.
+- Prod env: `BETTER_AUTH_URL` = public API origin (emailed links are built
+  from it, so they hit the backend directly); `NEXT_PUBLIC_APP_URL` =
+  public web origin (post-verification redirects land there, CORS allows
+  it, the engine trusts it for callback URLs); `API_BASE_URL` /
+  `NEXT_PUBLIC_API_BASE_URL` on the frontend = public API origin.
+- A reimplementation (FastAPI, other) reproduces the same cookie with the
+  same `Domain` — the conformance signal is the suite green against the
+  real hosts, not against two localhost ports (same-site, proves nothing).
+
 ## Implemented: auth (faza 2.1) + notifications-read + health
 
 - `POST /v1/auth/sign-up` `{email, password, name?}` → `200 {ok: true}`

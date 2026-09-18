@@ -1,7 +1,52 @@
-# Local development services (spec 11 Postgres + spec 21/25 MinIO object store).
-# `pnpm db:up` starts them, `pnpm db:down` stops them. The credentials below must
-# match DATABASE_URL and the S3_* block in your .env (see .env.example).
+# Local development services (spec 11 Postgres + spec 21/25 MinIO object store)
+# + faza 2.9: usługa `api` (Nest na :3001, obraz z `apps/api/Dockerfile`).
+# `pnpm db:up` starts them, `pnpm db:down` stops them.
+#
+# VPS (prod) jedzie na TYM SAMYM pliku: `docker compose up -d --build`, tylko
+# ze środowiskowymi nadpisami (nigdy commita z sekretami):
+#   BETTER_AUTH_URL=https://api.<domena>      # linki mailowe biją wprost w Nest
+#   NEXT_PUBLIC_APP_URL=https://app.<domena>  # redirecty + CORS + trustedOrigins
+#   CROSS_SUBDOMAIN_COOKIES=true + SESSION_COOKIE_DOMAIN=.<domena>
+#   DATABASE_URL=... (baza VPS-owa), BETTER_AUTH_SECRET / CRON_SECRET (prod),
+#   EMAIL_* (resend), S3_* (realny bucket) lub STORAGE_PROVIDER=none,
+#   BILLING_* (stripe live). Migracje: DATABASE_URL=<baza-VPS> pnpm db:migrate
+#   (z dowolnej maszyny z repo — `db:migrate` ma `cache: false`, turbo.json).
+# Web zostaje na Vercelu z API_BASE_URL=https://api.<domena>.
 services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: saas_boilerplate_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    # Sekrety z lokalnego `apps/api/.env` (gitignored); reszta to jawne
+    # defaulty dev — `environment` wygrywa z `env_file`.
+    env_file:
+      - apps/api/.env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # W sieci compose hostem bazy jest `postgres`, nie localhost.
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/saas_boilerplate
+      BETTER_AUTH_URL: http://localhost:3001
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    healthcheck:
+      # node:22-slim nie ma curl/wget — Node 22 ma wbudowany fetch.
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://localhost:3001/v1/health'').then((r)=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   postgres:
     image: postgres:16
     container_name: saas_boilerplate_postgres

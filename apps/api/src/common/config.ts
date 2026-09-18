@@ -33,6 +33,21 @@ const ApiEnvSchema = z.object({
   RATE_LIMIT_FORWARDED_DEPTH: z.coerce.number().int().min(0).default(1),
   RATE_LIMIT_LOGIN_ATTEMPTS: z.coerce.number().int().positive().default(5),
   RATE_LIMIT_LOGIN_WINDOW_S: z.coerce.number().int().positive().default(900),
+  // Cross-subdomain session cookies (faza 2.9, wariant 1: `app.<domena>`
+  // na Vercelu + `api.<domena>` na VPS-ie to ten sam site, więc cookie
+  // `SameSite=Lax` jedzie w cross-subdomenowym `fetch` bez wyjątków.
+  // `SESSION_COOKIE_DOMAIN` to jawny `Domain` (np. `.twoja.pl` — z kropką);
+  // gdy pusty, a flaga włączona, Better Auth wyprowadzi root-domenę z
+  // `BETTER_AUTH_URL`. Oba unset = host-only cookies (localhost/dev) —
+  // bitowo identyczne zachowanie jak przed fazą 2.9.
+  CROSS_SUBDOMAIN_COOKIES: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+  SESSION_COOKIE_DOMAIN: z
+    .string()
+    .startsWith(".", "musi zaczynać się od kropki, np. .twoja.pl")
+    .optional(),
   // Shared secret for the job-drain endpoint (spec 12) — guards
   // `GET /v1/cron/jobs` (faza 2.3: the drain lives in the API now, so this
   // secret guards the API endpoint; the web route forwards to it). Vercel Cron

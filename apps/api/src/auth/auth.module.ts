@@ -30,6 +30,10 @@ import { AuthService } from "./auth.service";
           baseURL: config.BETTER_AUTH_URL,
           webURL: config.NEXT_PUBLIC_APP_URL,
           trustedOrigins: [config.NEXT_PUBLIC_APP_URL],
+          crossSubDomainCookies: {
+            enabled: config.CROSS_SUBDOMAIN_COOKIES,
+            domain: config.SESSION_COOKIE_DOMAIN,
+          },
         }),
       inject: [DB, API_CONFIG],
     },

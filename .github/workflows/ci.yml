@@ -54,6 +54,47 @@ jobs:
       - name: Build
         run: pnpm build
 
+  api:
+    name: API (lint, typecheck, build & Docker)
+    runs-on: ubuntu-latest
+    env:
+      # Same dummy contract as `quality`: the API validates env fail-fast at
+      # import, so lint/typecheck/build need shaped (never real) values.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ci
+      BETTER_AUTH_SECRET: ci-dummy-secret-not-used-at-runtime
+      BILLING_PROVIDER: stripe
+      STRIPE_SECRET_KEY: sk_test_ciDummyKeyNotUsedAtRuntime
+      STRIPE_WEBHOOK_SECRET: whsec_ciDummySigningSecretNotReal
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (api)
+        run: pnpm --filter api lint
+
+      - name: Typecheck (api)
+        run: pnpm --filter api typecheck
+
+      - name: Build (api + workspace deps)
+        run: pnpm exec turbo build --filter=api...
+
+      # Faza 2.9: the deploy artifact itself is a conformance check — a
+      # Dockerfile that no longer builds is a broken deploy, not a stale file.
+      - name: Docker build (api)
+        run: docker build -f apps/api/Dockerfile -t saas-api:ci .
+
   e2e:
     name: E2E (Playwright, tenancy=${{ matrix.tenancy }})
     runs-on: ubuntu-latest

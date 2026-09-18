@@ -53,6 +53,13 @@ export interface AuthEngineConfig {
   /** Web origin — CORS, redirects, trusted callback URLs. */
   webURL: string;
   trustedOrigins: string[];
+  /**
+   * Cross-subdomain session cookies (faza 2.9, wariant 1). `SameSite=Lax`
+   * stays — to współdzielona domena-nadrzędna sprawia, że cookie Lax jedzie
+   * w cross-subdomenowym fetchu. `{ enabled: false }` = defaulty Better Auth
+   * (host-only cookies), czyli zachowanie sprzed fazy 2.9 bit w bit.
+   */
+  crossSubDomainCookies: { enabled: boolean; domain?: string };
 }
 
 function headersOf(request: unknown): Headers | null {
@@ -66,6 +73,16 @@ export function createAuthEngine(db: Db, config: AuthEngineConfig) {
     secret: config.secret,
     baseURL: config.baseURL,
     trustedOrigins: config.trustedOrigins,
+    advanced: {
+      crossSubDomainCookies: {
+        enabled: config.crossSubDomainCookies.enabled,
+        // Omitted when unset — the engine derives the root domain from
+        // `baseURL` (which is the public API origin in production).
+        ...(config.crossSubDomainCookies.domain
+          ? { domain: config.crossSubDomainCookies.domain }
+          : {}),
+      },
+    },
     database: drizzleAdapter(db, {
       provider: "pg",
       schema: {
