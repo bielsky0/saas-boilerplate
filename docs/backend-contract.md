@@ -115,6 +115,25 @@ methods — no `/invite`, `/revoke`, `/leave`, `/accept` RPC suffixes.
 - Compat alias: `POST /v1/orgs` → `308` to `/v1/organizations` for one phase,
   then deleted (no dual implementation).
 
+## Implemented: locale + invitation lookup (faza 2.8)
+
+The web app holds no database: locale persistence and the last server-rendered
+org reads moved behind these endpoints (OpenAPI: `packages/contracts/
+openapi.yaml` — `locale` tag, `lookupInvitation`).
+
+- `PATCH /v1/locale` `{locale: en|pl}` → `200 {ok:true}` (session-guarded;
+  the caller persists their OWN choice only); unknown locale → `422`
+  envelope (a write never launders a guess into a stored preference). The
+  `app-locale` cookie is set by the same-origin web route (`PATCH
+/api/locale`), never by Nest — each side owns its cookie.
+- `GET /v1/invitations/{token}` → `200 {valid, orgName, role}` — public by
+  design (the accept landing renders for anonymous visitors). `valid: false`
+  covers every dead end alike (unknown/used/expired token, missing org, orgs
+  disabled); malformed token → `422`.
+- `GET /v1/organizations/{slug}/invitations` items now carry `expiresAt`
+  (ISO string) alongside `id/email/role/status` — the members page renders
+  the expiry column from it.
+
 ## Implemented: jobs + emails + onboarding + cron (faza 2.3)
 
 The drain moved into the backend. Same table, same row shapes as before —

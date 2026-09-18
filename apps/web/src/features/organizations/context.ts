@@ -1,25 +1,27 @@
 import { forbidden, notFound } from "next/navigation";
 
+import { ApiError } from "@repo/api-client";
 import { requireSession } from "@/lib/auth";
+import { api } from "@/lib/api";
 import type { Session } from "@/lib/adapters/auth";
 import { hasPermission, isRole, type Permission, type Role } from "@/features/rbac";
 import { orgsEnabled } from "@/lib/tenancy";
-import { getMembership, getOrgBySlug } from "./data";
 
 /**
- * Active-org context resolution + authorization (spec 3.5 / 4.2).
+ * Active-org context resolution + authorization (spec 3.5 / 4.2, faza 2.8).
  *
- * The single backend chokepoint every org-scoped page and server action calls
- * first. The active tenant is derived from the URL slug (stateless, refresh-safe).
- * Authorization failures use Next's `forbidden()` → a real 403 (requires
- * `experimental.authInterrupts`), so an unauthorized *direct* call is rejected
- * regardless of what the UI showed (spec 4.2). This is the reference RBAC guard.
+ * The single backend chokepoint every org-scoped page calls first. The active
+ * tenant is derived from the URL slug (stateless, refresh-safe). Membership
+ * and role now resolve over HTTP (`GET /v1/organizations/{slug}` answers
+ * `{id, name, slug, role}` or 404/403) — the web holds no database since
+ * faza 2.8. Authorization failures use Next's `forbidden()` → a real 403
+ * (requires `experimental.authInterrupts`), so an unauthorized *direct* call
+ * is rejected regardless of what the UI showed (spec 4.2).
  */
 
 export type OrgContext = {
   session: Session;
-  org: NonNullable<Awaited<ReturnType<typeof getOrgBySlug>>>;
-  membership: NonNullable<Awaited<ReturnType<typeof getMembership>>>;
+  org: { id: string; name: string; slug: string };
   role: Role;
 };
 
@@ -46,31 +48,41 @@ export function requireOrgsEnabled(): void {
  * the user is not an active member.
  *
  * The `requireOrgsEnabled` call here is what covers every org page under
- * `/orgs/[slug]/*` AND every server action that funnels through
- * `requireOrgPermission` — one line, not one per call site. Only the two actions
- * that legitimately bypass this chokepoint (create / accept-invitation) guard
- * themselves, plus `orgs/layout.tsx` for `/orgs/new`.
+ * `/orgs/[slug]/*`. Only the two flows that legitimately bypass this chokepoint
+ * (create / accept-invitation) guard themselves, plus `orgs/layout.tsx` for
+ * `/orgs/new`.
  */
 export async function requireOrgAccess(slug: string): Promise<OrgContext> {
   requireOrgsEnabled();
   const session = await requireSession(`/orgs/${slug}`);
-  const org = await getOrgBySlug(slug);
-  if (!org) notFound();
-
-  const membership = await getMembership(org.id, session.user.id);
-  if (!membership || membership.status !== "active") {
+  let org: { id: string; name: string; slug: string; role: string };
+  try {
+    org = await api().get<{ id: string; name: string; slug: string; role: string }>(
+      `/v1/organizations/${encodeURIComponent(slug)}`,
+    );
+  } catch (error) {
+    // Nest speaks HTTP statuses; Next speaks interrupts. 404 = unknown slug
+    // (or disabled orgs — indistinguishable by design), 403 = non-member.
+    // 401 cannot happen after `requireSession` passed, but if it does the
+    // honest answer is "log in again", never a 403 that admits the org exists.
+    if (error instanceof ApiError) {
+      if (error.status === 404) notFound();
+      if (error.status === 403) forbidden();
+      if (error.status === 401) await requireSession(`/orgs/${slug}`);
+    }
+    throw error;
+  }
+  // The role travels as a plain string over the wire; an unknown value is a
+  // contract breach, and the fail-closed answer is 403, not a crash.
+  if (!isRole(org.role)) {
     forbidden();
   }
-  if (!isRole(membership.role)) {
-    forbidden();
-  }
-  return { session, org, membership, role: membership.role };
+  return { session, org: { id: org.id, name: org.name, slug: org.slug }, role: org.role };
 }
 
 /**
  * Require a specific permission in the org context. Resolves access first, then
  * checks the centralized role→permission map; 403s if the permission is missing.
- * Every data-changing org action MUST call this before mutating.
  */
 export async function requireOrgPermission(
   slug: string,

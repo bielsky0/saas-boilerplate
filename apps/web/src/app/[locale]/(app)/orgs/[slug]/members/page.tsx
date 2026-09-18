@@ -16,7 +16,7 @@ import {
 import { formatContentDate } from "@/features/content/format";
 import { hasPermission } from "@/features/rbac";
 import { requireOrgAccess } from "@/features/organizations/context";
-import { listMembers, listPendingInvitations } from "@/features/organizations/data";
+import { api } from "@/lib/api";
 import { InviteMemberForm } from "@/features/organizations/components/invite-member-form";
 import { MemberActions } from "@/features/organizations/components/member-actions";
 import { RevokeInviteButton } from "@/features/organizations/components/invitation-actions";
@@ -47,8 +47,35 @@ export default async function MembersPage({ params }: { params: Promise<{ slug: 
   const canRevoke = hasPermission(role, "invitations.revoke");
 
   const [members, pending] = await Promise.all([
-    listMembers(org.id),
-    canRevoke ? listPendingInvitations(org.id) : Promise.resolve([]),
+    api()
+      .get<{
+        items: {
+          id: string;
+          userId: string;
+          email: string;
+          name: string | null;
+          role: string;
+          status: string;
+          createdAt: string;
+        }[];
+      }>(`/v1/organizations/${encodeURIComponent(slug)}/members`)
+      .then((res) =>
+        res.items.map((m) => ({
+          membershipId: m.id,
+          userId: m.userId,
+          email: m.email,
+          name: m.name,
+          role: m.role,
+          status: m.status,
+        })),
+      ),
+    canRevoke
+      ? api()
+          .get<{
+            items: { id: string; email: string; role: string; status: string; expiresAt: string }[];
+          }>(`/v1/organizations/${encodeURIComponent(slug)}/invitations`)
+          .then((res) => res.items)
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -135,7 +162,7 @@ export default async function MembersPage({ params }: { params: Promise<{ slug: 
                     <Badge variant="outline">{roleLabel(inv.role)}</Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">
-                    {formatContentDate(inv.expiresAt.toISOString().slice(0, 10), locale)}
+                    {formatContentDate(inv.expiresAt.slice(0, 10), locale)}
                   </TableCell>
                   <TableCell className="text-right">
                     <RevokeInviteButton slug={slug} invitationId={inv.id} />

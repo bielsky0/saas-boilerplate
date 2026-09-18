@@ -139,6 +139,12 @@ export default defineConfig({
         ...E2E_TENANCY_ENV,
         // Sends the post-enqueue drain kick to web (faza 2.1).
         ...E2E_CRON_ENV,
+        // Faza 2.8: the webhook suite kept 404ing locally with
+        // `not_configured` while green in CI — CI exports BILLING_* as
+        // workflow env (both servers inherit it via process.env), but
+        // locally only the WEB server had it (see above). The API is the
+        // one verifying webhooks, so it needs the same dummy provider.
+        ...E2E_BILLING_ENV,
         // Faza 2.4: presign/read/purge run in Nest now, against the same
         // MinIO the web suite always used — without this the API boots with
         // STORAGE_PROVIDER=none and every presign answers 404.

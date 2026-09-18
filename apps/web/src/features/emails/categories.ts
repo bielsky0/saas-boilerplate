@@ -1,4 +1,4 @@
-import type { TemplateName } from "@/lib/adapters/email";
+import type { TemplateName } from "@repo/contracts/email";
 
 /**
  * Email categories and the template → category map (spec 10.3).

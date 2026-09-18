@@ -650,7 +650,9 @@ export class OrganizationsService {
   async listInvitations(
     session: RequestSession,
     slug: string,
-  ): Promise<{ items: { id: string; email: string; role: string; status: string }[] }> {
+  ): Promise<{
+    items: { id: string; email: string; role: string; status: string; expiresAt: string }[];
+  }> {
     const ctx = await this.requireOrgContext(session, slug, "invitations.revoke");
     const rows = await this.db
       .select({
@@ -658,11 +660,14 @@ export class OrganizationsService {
         email: invitation.email,
         role: invitation.role,
         status: invitation.status,
+        expiresAt: invitation.expiresAt,
       })
       .from(invitation)
       .where(and(eq(invitation.organizationId, ctx.org.id), eq(invitation.status, "pending")))
       .orderBy(desc(invitation.createdAt));
-    return { items: rows };
+    return {
+      items: rows.map((row) => ({ ...row, expiresAt: row.expiresAt.toISOString() })),
+    };
   }
 
   async revokeInvitation(
@@ -706,6 +711,40 @@ export class OrganizationsService {
         req,
       );
     });
+  }
+
+  /**
+   * Public invitation lookup for the accept landing (spec 3.3, faza 2.8) — the
+   * Nest twin of web's `getInvitationWithValidity` + `getOrgById`.
+   *
+   * No session: the page is public by design (it offers sign-in/sign-up to the
+   * anonymous visitor). `valid: false` covers every dead end — unknown token,
+   * non-pending, expired, missing org, orgs disabled — so the response cannot
+   * distinguish them (the token itself is unguessable; the page never reveals
+   * whether the invited email has an account).
+   */
+  async getInvitationByToken(
+    token: string,
+  ): Promise<{ valid: boolean; orgName: string | null; role: string | null }> {
+    const dead = { valid: false, orgName: null, role: null };
+    if (!this.orgsEnabled() || !token) return dead;
+
+    const [invite] = await this.db
+      .select()
+      .from(invitation)
+      .where(eq(invitation.tokenHash, hashToken(token)))
+      .limit(1);
+    if (!invite || invite.status !== "pending" || invite.expiresAt.getTime() < Date.now()) {
+      return dead;
+    }
+
+    const [org] = await this.db
+      .select({ name: organization.name })
+      .from(organization)
+      .where(and(eq(organization.id, invite.organizationId), isNull(organization.deletedAt)))
+      .limit(1);
+    if (!org) return dead;
+    return { valid: true, orgName: org.name, role: invite.role };
   }
 
   async acceptInvitation(

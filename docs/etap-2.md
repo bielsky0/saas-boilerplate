@@ -249,6 +249,14 @@ Cel: agent AI za API; strony mostka OAuth zostają w web.
 
 ## Faza 2.8 — i18n-locale + proxy.ts finał + brama lint
 
+> Status: delivered. Scope deltas vs the draft below (both required to port
+> the last server-rendered reads DB-free): `GET /v1/invitations/{token}`
+> (public validity read for the accept landing) and `expiresAt` on
+> `listInvitations` items (the members-page expiry column). The lint/⁠grep
+> gate exempts exactly one file — `src/lib/adapters/rate-limit/postgres.ts`
+> (the shared edge counter, which the draft keeps in the proxy by design);
+> everything else in `apps/web/src` is DB-free and `"use server"`-free.
+
 Cel: web bez DB, bez actions, z proxy wołającym Nest o sesję.
 
 - Nest: `PATCH /v1/locale` (zapis `user.locale`; cookie `app-locale` stawia web

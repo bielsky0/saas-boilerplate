@@ -5,25 +5,31 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { SignOutButton } from "@/features/auth";
 import { NotificationBell } from "@/features/notifications";
 import { AccountSwitcher } from "@/features/organizations";
-import { ensurePersonalAccount, listUserOrgs } from "@/features/organizations/data";
 import { requireSession } from "@/lib/auth";
+import { api } from "@/lib/api";
 import { orgsEnabled, orgsExposed } from "@/lib/tenancy";
 
 /**
  * Authenticated app shell (spec 7.4). Wraps both the personal dashboard and the
  * org context routes so they share one navbar + the global account switcher
- * (spec 3.5). `requireSession` is the authoritative guard; the switcher's data is
- * resolved here server-side. The personal account is ensured on entry as a
- * backfill for users created before the registration hook existed (spec 3.1) —
- * unconditionally in all three tenancy modes, because in `disabled` the personal
- * account IS the tenant, which makes it more load-bearing, not less.
+ * (spec 3.5). `requireSession` is the authoritative guard; the switcher's data
+ * resolves over HTTP (`GET /v1/organizations`) — the web holds no database
+ * since faza 2.8. No personal-account backfill here: Nest self-heals it on
+ * every personal-scoped request (`getOrCreatePersonalAccount`) and creates it
+ * at sign-up/verification/accept, so there is nothing left to ensure.
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const session = await requireSession("/dashboard");
-  await ensurePersonalAccount(session.user.id);
   // Skipping the query in `disabled` is not just an optimization: it is the
   // layout stating that the org table is not consulted at all in that mode (§1.4).
-  const orgs = orgsEnabled ? await listUserOrgs(session.user.id) : [];
+  // (Nest answers `{items: []}` there anyway — belt and suspenders.)
+  const orgs = orgsEnabled
+    ? (
+        await api().get<{ items: { id: string; name: string; slug: string; role: string }[] }>(
+          "/v1/organizations",
+        )
+      ).items
+    : [];
   // `optional` shows the switcher only to users who already have an org — orgs
   // work, but the main flow never advertises them.
   const showSwitcher = orgsEnabled && (orgsExposed || orgs.length > 0);

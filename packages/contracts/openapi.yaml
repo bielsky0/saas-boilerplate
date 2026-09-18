@@ -12,6 +12,8 @@ servers:
 tags:
   - name: organizations
     description: Multi-tenancy / orgs (spec 3, faza 2.2)
+  - name: locale
+    description: Explicit language choice (spec 16.1, faza 2.8)
   - name: admin
     description: Super-admin panel (spec 6, faza 2.6). Cross-tenant by design; SuperAdminGuard is the boundary.
 paths:
@@ -237,6 +239,59 @@ paths:
                   slug: { type: string }
         "400":
           $ref: "#/components/responses/InvalidToken"
+  /v1/invitations/{token}:
+    get:
+      operationId: lookupInvitation
+      tags: [organizations]
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: >-
+            Public validity read for the accept landing (spec 3.3, faza 2.8).
+            No session by design. `valid: false` covers every dead end
+            (unknown/used/expired token, missing org, orgs disabled) alike.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valid, orgName, role]
+                properties:
+                  valid: { type: boolean }
+                  orgName: { type: string, nullable: true }
+                  role: { type: string, nullable: true }
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /v1/locale:
+    patch:
+      operationId: setLocale
+      tags: [locale]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locale]
+              properties:
+                locale: { type: string, enum: [en, pl] }
+      responses:
+        "200":
+          description: Stored choice saved (the cookie half is the web route's)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        "401":
+          description: No valid session
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
   /v1/organizations/{slug}/audit-logs:
     get:
       operationId: listOrgAuditLogs
@@ -550,6 +605,7 @@ components:
         name: { type: string, nullable: true }
         role: { type: string }
         status: { type: string }
+        createdAt: { type: string, format: date-time }
     Invitation:
       type: object
       required: [id, email, role, status]
@@ -558,6 +614,7 @@ components:
         email: { type: string }
         role: { type: string }
         status: { type: string, enum: [pending, accepted, revoked, expired] }
+        expiresAt: { type: string, format: date-time }
     OrgAuditRow:
       type: object
       required: [id, action, actorType, actorEmail, targetType, targetLabel, createdAt]

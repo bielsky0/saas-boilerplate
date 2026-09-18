@@ -14,10 +14,10 @@ import {
  * effective limit is N x the configured limit; that is what `postgres` is for,
  * and it is documented at the RATE_LIMIT_PROVIDER env var rather than only here.
  *
- * Cached on `globalThis` for the same reason `src/lib/db/index.ts` caches its
- * client: without it, Next's hot reload discards every counter on each module
- * reload, and the limiter becomes untestable in `pnpm dev` — you would never
- * reach attempt 5, because the map keeps starting over.
+ * Cached on `globalThis` so Next's hot reload does not discard every counter
+ * on each module reload — without it the limiter becomes untestable in
+ * `pnpm dev`: you would never reach attempt 5, because the map keeps
+ * starting over.
  */
 
 interface Bucket {

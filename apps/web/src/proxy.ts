@@ -24,11 +24,14 @@ import { rateLimitHeaders, rateLimitKey, tierFor, TIERS } from "@/lib/security/r
  * (spec 15.3) + CSP nonce (spec 22.1). Next 16's `proxy` convention (formerly
  * `middleware`).
  *
- * The guard is an OPTIMISTIC check: it only tests for the presence of a signed
- * session cookie so it stays fast and edge-safe (no DB or crypto). It is a UX
- * convenience, NOT the security boundary — every protected server
- * component/action independently calls `requireSession` from `src/lib/auth`,
- * which fully validates the session server-side (spec 4.2).
+ * The guard verifies the session against Nest (`GET /v1/session`, faza 2.8)
+ * so a revoked or deleted session stops at the edge instead of rendering a
+ * page only to bounce — but it stays an OPTIMISTIC check and NOT the security
+ * boundary: every protected server component independently calls
+ * `requireSession` from `src/lib/auth`, which fully validates the session
+ * server-side (spec 4.2). When Nest is unreachable the guard degrades to the
+ * old presence check rather than locking everyone out; the render then
+ * decides (logged-out) with the API's actual answer.
  *
  * ─── Why locale routing lives HERE and not in next-intl's middleware ─────────
  *
@@ -102,6 +105,11 @@ function isPublicApiPath(pathname: string): boolean {
   // the sender is a mail provider's server, which has no session and reads any
   // non-2xx as a broken unsubscribe.
   if (pathname.startsWith("/api/unsubscribe")) return true;
+  // Explicit language choice (spec 16.1, faza 2.8). Anonymous visitors get the
+  // cookie and nothing else — there is no row to write, and the i18n E2E suite
+  // switches language without a session. The route persists best-effort when
+  // a session exists (Nest 401 = anonymous, still sets the cookie).
+  if (pathname === "/api/locale") return true;
   // MCP endpoint (spec 26). Authenticated by an OAuth 2.0 bearer token inside
   // Nest's handler (`withMcpAuth` in `apps/api`), not a session cookie — the
   // caller is an AI agent, not a browser. The web route proxies to Nest, so
@@ -233,6 +241,46 @@ function tooManyRequests(
 }
 
 /**
+ * Verify the session against Nest (faza 2.8 — the proxy finale).
+ *
+ * `GET /v1/session` with the browser's cookie forwarded: 200 = a live
+ * session, 401 = anonymous (unknown, expired, or soft-deleted account — Nest
+ * resolves all three to nothing). No cookie at all short-circuits to false
+ * without a fetch.
+ *
+ * On a fetch FAILURE (API unreachable) this falls back to the old
+ * presence check (`getSessionCookieValue`). Deliberately fail-OPEN: the proxy
+ * is UX convenience, NOT the security boundary — every protected render
+ * re-validates via `requireSession` (which degrades to logged-out when Nest
+ * is down), so a wrong `true` here costs one redirect, while a wrong `false`
+ * would lock every signed-in user out during an API blip. Same stance the
+ * rate-limit adapter takes on a failing store.
+ *
+ * Called once per proxy invocation — the "cache per-request" the plan asks
+ * for is structural: there is exactly one call site and one call per
+ * request, so there is nothing to memoize.
+ */
+async function hasVerifiedSession(request: NextRequest): Promise<boolean> {
+  const cookie = request.headers.get("cookie");
+  if (!cookie) return false;
+  try {
+    const res = await fetch(`${env.API_BASE_URL.replace(/\/+$/, "")}/v1/session`, {
+      headers: { cookie },
+    });
+    if (res.ok) return true;
+    if (res.status === 401) return false;
+    // Any other status is Nest being unhappy, not an answer — fall through
+    // to the presence fallback below rather than treating it as anonymous.
+  } catch {
+    // Unreachable API — fall through, same reason.
+  }
+  // Presence only (contract, never the SDK — the cookie NAME is the shared
+  // vocabulary with any backend). The optimistic answer for a degraded
+  // backend; the authoritative check still runs in the render.
+  return Boolean(getSessionCookieValue(cookie));
+}
+
+/**
  * Server actions POST to a PAGE url with a `Next-Action` header, so they never
  * match an /api rule. See the defence-in-depth warning in security/rate-limit.ts:
  * this header is an internal Next convention, and the §2.1 login guarantee
@@ -351,9 +399,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return forward(request, requestId, nonce, locale, rateHeaders);
   }
 
-  // Presence only (contract, never the SDK — the cookie NAME is the shared
-  // vocabulary with any backend; verification happens in `GET /v1/session`).
-  const hasSession = Boolean(getSessionCookieValue(request.headers.get("cookie")));
+  // Verified, not merely present (faza 2.8): the cookie existing says a
+  // login happened; Nest saying 200 says the session is still live. The
+  // guard stays UX-only — `requireSession` in the render is the authority.
+  const hasSession = await hasVerifiedSession(request);
   if (!hasSession) {
     // The login URL keeps the locale, and so does the callback — a Polish reader
     // who hits a guarded page signs in in Polish and returns to a Polish page.

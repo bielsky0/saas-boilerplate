@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 
-import { db } from "@/lib/db";
-import { rateLimit as rateLimitTable } from "@/lib/db/schema";
+import { createDb, rateLimit as rateLimitTable } from "@repo/db";
+import { env } from "@/lib/env/server";
 import { createLogger } from "@/lib/logger";
 import {
   allowOnError,
@@ -11,6 +11,23 @@ import {
   type RateLimitDecision,
   type RateLimitRule,
 } from "./contract";
+
+/**
+ * The web app's ONLY database touchpoint since faza 2.8 (spec 22.3) — the
+ * edge rate-limit counter shared across instances. Everything else reads
+ * through Nest over HTTP; this stays because the proxy counts BEFORE any
+ * backend is involved, and a per-process Map would give N instances N
+ * allowances. The `no-restricted-imports` gate exempts exactly this file.
+ */
+const globalForDb = globalThis as unknown as {
+  db: ReturnType<typeof createDb> | undefined;
+};
+
+const db = globalForDb.db ?? createDb(env.DATABASE_URL);
+
+if (env.NODE_ENV !== "production") {
+  globalForDb.db = db;
+}
 
 /**
  * Shared rate-limit store (spec 22.3) — the provider to select on any deploy that
@@ -35,8 +52,8 @@ import {
  * The entire reason this provider exists is that multiple app instances must
  * agree on one counter, and they can only agree if they also agree on the clock.
  * Interpolating `new Date()` would reintroduce per-instance skew into the one
- * component chosen specifically to eliminate it — and would hit the encoder
- * problem `adapters/jobs/postgres.ts` documents on its watermark.
+ * component chosen specifically to eliminate it — and a Date parameter would
+ * need driver-specific encoding where a SQL expression needs none.
  */
 
 const log = createLogger("rate-limit");

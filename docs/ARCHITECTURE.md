@@ -13,7 +13,11 @@ anything the comments say not to touch.
 - **Styling:** Tailwind CSS v4 + shadcn/ui-style primitives on Radix (`src/components/ui`),
   `@tailwindcss/typography` for long-form content
 - **Content:** MDX (`@next/mdx`) in the repo, one registry per collection (`src/content/`)
-- **Database:** PostgreSQL via Drizzle ORM, isolated behind `src/lib/db`
+- **Database:** PostgreSQL via Drizzle ORM. Schema, migrations and the client
+  factory live in `@repo/db`; since faza 2.8 the web app holds no `db` — it
+  reads through Nest over HTTP, and the single exception (the edge
+  rate-limit counter in `src/lib/adapters/rate-limit/`) is fenced by
+  `no-restricted-imports` in `eslint.config.mjs`.
 - **Env:** validated with `@t3-oss/env-nextjs` + Zod, fail-fast at startup
 - **Package manager:** pnpm
 
@@ -49,10 +53,11 @@ src/
     public-routes.ts       §2.5/§9.1 the public page surface (proxy + sitemap + robots)
     tenancy.ts             §1.4 MULTI_TENANCY_MODE — is the org layer offered at all?
     env/                   validated environment (server.ts / client.ts)
-    db/                    Drizzle client + schema/ + migrations/
     adapters/              provider adapters behind internal contracts (§1.2)
-      auth/ billing/ email/ jobs/ storage/
-    auth/                  server-side session + authorization helpers (§4.2)
+      rate-limit/          the edge counter (spec 22.3) — the web app's ONLY
+                           database touchpoint since faza 2.8 (see §6 below).
+                           Every other adapter moved to Nest with its feature.
+    auth/                  session resolution over HTTP + authorization helpers (§4.2)
     i18n/                  §16 translations & locale formatting
 ```
 
@@ -89,7 +94,8 @@ exports as modules are built.
      may map to no user and, behind a shared NAT, to several tenants at once.
      Per-tenant counters would hand an attacker a fresh allowance for every
      tenant they can name. Boundary: no feature code reads the table at all —
-     the only readers are `src/proxy.ts` and the sign-in action.
+     the only readers are `src/proxy.ts` (edge counting) and the Nest auth
+     service (§2.1 login bucket).
 
    `src/features/admin/data.ts` likewise queries **across** tenants by design,
    because §6.2 requires a global view; `requireSuperAdmin()` is what replaces the
@@ -138,47 +144,53 @@ exports as modules are built.
      `HttpOnly; Path=/; SameSite=Lax`;
    - the document (any framework) owns the locale cookie (`app-locale`,
      client-writable BY DESIGN — a preference, not a credential — seeded from
-     the `locale` field of the sign-in response, never backfilled from null).
-   - no server writes the other side's cookie. The one historical exception
-     (a web route seeding `app-locale` after sign-in) is gone: it assumed a
-     Next.js frontend, and a Vue SPA has no route to bounce through.
+     the `locale` field of the sign-in response, never backfilled from null;
+     the switcher persists through the same-origin `PATCH /api/locale` route,
+     which writes the row in Nest best-effort and sets this cookie, so no
+     client JS has to).
+   - no server writes the other side's cookie: Nest never sets `app-locale`,
+     the web route never touches the session. (The old sign-in bounce route
+     is gone for the same reason — a Vue SPA has no route to bounce through;
+     sign-in seeds client-side instead.)
 
-   Two consequences worth stating plainly:
-   - On localhost, ports are ignored in cookie domain matching, so `:3001`
-     setting a host-only `localhost` cookie that `:3000` reads proves NOTHING
-     about production. Split-host deploys (unrelated domains) cannot share
-     cookies at all — no `Domain` trick crosses unrelated domains — so a
-     same-host or shared-parent-domain topology (with `Domain` configured on
-     both engines) is a deployment REQUIREMENT, not a tuning option.
-   - Presence is not verification. The proxy guard and the rate-limit keying
-     read the cookie VALUE optimistically (fast, edge-safe); the session is
-     verified only in the backend's session resolver (`GET /v1/session`).
+Two consequences worth stating plainly: - On localhost, ports are ignored in cookie domain matching, so `:3001`
+setting a host-only `localhost` cookie that `:3000` reads proves NOTHING
+about production. Split-host deploys (unrelated domains) cannot share
+cookies at all — no `Domain` trick crosses unrelated domains — so a
+same-host or shared-parent-domain topology (with `Domain` configured on
+both engines) is a deployment REQUIREMENT, not a tuning option. - Verification, with an optimistic fallback. The proxy guard calls Nest
+`GET /v1/session` (faza 2.8) and only falls back to reading the cookie
+VALUE when the API is unreachable; rate-limit keying still reads the
+value (it must count before any backend is involved). Neither is the
+boundary — the session is AUTHORITATIVELY verified in the render via
+`requireSession`, which degrades to logged-out when Nest is down.
 
 ## Reference patterns (fill in as modules land)
 
 These are the canonical examples to copy. Each should have a real reference
 implementation in code once the corresponding module is built (spec §17.2):
 
-- **Add a provider adapter:** create `src/lib/adapters/<name>/` with a
-  `contract.ts` (interface) + a concrete implementation; expose it via `index.ts`.
-  Reference: `src/lib/adapters/auth/` (`contract.ts` → `AuthAdapter`,
-  `better-auth.ts` = the only file importing the SDK, `index.ts` = the barrel
-  exporting `authAdapter`). `src/lib/adapters/email/` is a second example, whose
-  `index.ts` picks the concrete provider from an env var.
-  `src/lib/adapters/billing/` is a third (`stripe.ts` = the only file importing
-  the Stripe SDK; `none.ts` is the do-nothing default). Note the shape both
-  `email` and `billing` share: the default provider must NEVER throw at
-  construction, because the factory runs at module load and would break
-  `next build` for anyone without that vendor configured — hence
+- **Add a provider adapter:** define the interface in `@repo/contracts`
+  (framework-free), implement it in the APP THAT OWNS THE VENDOR — since
+  faza 2.8 that is Nest (`apps/api/src/<feature>/`), not web. Web keeps
+  exactly one adapter (`src/lib/adapters/rate-limit/`, the edge counter);
+  everything else moved with its feature.
+  Reference: `apps/api/src/auth/` (the Better Auth engine + `AuthService`,
+  the only place importing the SDK) behind `@repo/contracts/auth`;
+  `apps/api/src/emails/` (`log.ts`/`resend.ts` picked by `EMAIL_PROVIDER`);
+  `apps/api/src/billing/adapter.ts` (Stripe; `none` is the do-nothing
+  default). Note the shape email and billing share: the default provider must
+  NEVER throw at construction, because the factory runs at module load and
+  would break the build for anyone without that vendor configured — hence
   `EMAIL_PROVIDER=log` and `BILLING_PROVIDER=none`.
-  `src/lib/adapters/jobs/` is a fourth, and shows what to do when an adapter's
+  The jobs queue (`apps/api/src/jobs/`) shows what to do when an adapter's
   operation must participate in the CALLER's transaction. `enqueue(writer, …)`
   always writes a row; the adapter is the thing that **drains** (the postgres one
   executes the handler; a hosted scheduler would forward the row instead). That
   transactional-outbox shape is what lets the contract demand a `writer` without
   lying — the tempting "simplification" of having a hosted adapter's `enqueue` call
   its own SDK silently destroys atomicity, because an HTTP call cannot roll back.
-  `AdminAuthAdapter` (same `contract.ts` as auth) is a fifth, and shows what to do
+  `AdminAuthAdapter` (same contract as auth) shows what to do
   when a vendor's shape does NOT match the spec's vocabulary. Three rules there:
   1. **One source of truth, translated at the boundary.** Better Auth's `admin`
      plugin stores the super-admin flag as a role string in `user.role`. The
@@ -196,9 +208,9 @@ implementation in code once the corresponding module is built (spec §17.2):
   3. **Reads do not belong in the adapter.** The engine's own user list cannot
      join our memberships/subscriptions or see our `deletedAt`. Only operations
      that need the identity ENGINE (minting/revoking sessions) are in the
-     contract; everything else is a Drizzle query in `features/admin/data.ts`.
+     contract; everything else is a Drizzle query in the Nest admin service.
 
-  `src/lib/adapters/rate-limit/` is a sixth, and shows what to do when an
+  `src/lib/adapters/rate-limit/` is the one adapter that stayed in web, and shows what to do when an
   adapter's operation must be **atomic** rather than transactional. A counter is
   the mirror image of the jobs case: two requests racing toward the last slot of
   a window must serialise against **each other**, not join some caller's
@@ -230,7 +242,7 @@ implementation in code once the corresponding module is built (spec §17.2):
      "Hi there" has no Polish equivalent (`Cześć {name},` with an empty name reads
      "Cześć ,"), and no choice of fallback WORD fixes that. Use an ICU `select` so
      each language writes its own variant — `greetingArgs()` in
-     `src/lib/adapters/email/templates/layout.tsx` is the reference. Same for
+     `apps/api/src/emails/templates/layout.tsx` is the reference. Same for
      emphasis inside prose: `t.rich(...)` with a `<b>` tag in the message, never
      `<strong>` hard-coded around an interpolation, because word order moves.
   4. **Never hard-code a locale into a path.** Use `Link`/`redirect`/`usePathname`
@@ -255,9 +267,11 @@ implementation in code once the corresponding module is built (spec §17.2):
 
 - **Log something (§15.3):** `createLogger("<namespace>")` from `src/lib/logger.ts`,
   then `log.info("message", { key: value })`. Never `console.*` — `no-console` in
-  `eslint.config.mjs` fails CI, with exactly two exemptions
-  (`src/lib/adapters/email/log.ts`, the dev outbox, whose console output IS the
-  feature; and `logger.ts` itself). Four rules:
+  `eslint.config.mjs` fails CI, with exactly one exemption
+  (`src/lib/logger.ts` itself — the one module allowed to reach the console).
+  The old second exemption (the email dev outbox) died with the web adapter in
+  faza 2.8: the outbox lives in Nest now (`apps/api/src/emails/log.ts`, read
+  via `GET /v1/dev/emails`). Four rules:
   1. **Message is a constant; everything variable is a field.** `log.warn("no
 recipients for payment-failed", { event: p.eventId })`, never a template
      literal — an interpolated message cannot be grouped or filtered by a
@@ -268,9 +282,11 @@ recipients for payment-failed", { event: p.eventId })`, never a template
      opened the log.
   3. **Pick the context by what the work IS, not by preference.** A request →
      `await requestLogger(ns)` (reads the proxy-minted `x-request-id` once). A job
-     → plain `createLogger(ns)`; `job`/`name`/`attempt` arrive on their own via the
-     ALS seeded in `src/lib/adapters/jobs/postgres.ts`'s claim loop. There is no
-     per-request hook to seed an ALS from in App Router — the proxy and the render
+     → the Nest logger with the row's identity inline (`job=… name=…
+attempt=…`, see `apps/api/src/jobs/jobs.service.ts`): the drain is one
+     long-lived process, not one invocation per request, so there is no
+     per-request hook to seed an ALS from — the fields travel explicitly.
+     There is no such hook in App Router either — the proxy and the render
      are separate invocations — which is why requests are explicit and jobs are not.
   4. **`requestId` ADDS a field, it never replaces one.** `event.id` (billing) and
      the job id are domain-scoped and stay authoritative; a line gains `requestId`
@@ -279,23 +295,23 @@ recipients for payment-failed", { event: p.eventId })`, never a template
   `LOG_FORMAT=pretty` (default) renders `[jobs] drain claimed=3 ok=3` for humans;
   `LOG_FORMAT=json` renders one object per line for a collector. **Set
   `LOG_FORMAT=json` in production** — same call sites, so a line cannot drift
-  between the two. Reference: `src/lib/adapters/jobs/postgres.ts` (ALS seam +
+  between the two. Reference: `apps/api/src/jobs/jobs.service.ts` (claim loop +
   dead-letter/retry lines), `src/app/api/cron/jobs/route.ts` (`requestLogger`).
   Deliberately NOT an adapter: a logger has no vendor to swap — stdout is the
   interface — so a contract there would abstract over exactly one thing.
 
 - **Add a background job (§12):** add the name to `JobName` and its payload to
-  `JobPayloads` in `src/lib/adapters/jobs/contract.ts`, write the handler in the
-  owning feature, and register it in `src/features/jobs/registry.ts` (`JobRegistry`
-  is `Record<JobName, _>`, so a name with no handler is a compile error). Enqueue
-  with `enqueueJob(writer, …)` from `src/features/jobs/enqueue.ts`. Four rules:
+  `JobPayloads` in `@repo/contracts/jobs`, write the handler in the owning
+  Nest module, and register it in `apps/api/src/jobs/jobs.module.ts` (the
+  registry is `Record<JobName, _>`, so a name with no handler is a compile
+  error). Enqueue with the queue helper in `apps/api/src/jobs/queue.ts`. Four rules:
   1. **Pass a `tx` as `writer` whenever the job accompanies a business write.**
      Enqueue is a plain INSERT, so it commits — or rolls back — atomically with
-     your change. Reference: `src/features/billing/webhooks.ts` enqueues the
+     your change. Reference: `apps/api/src/billing/billing.service.ts` enqueues the
      notification inside the same transaction as the idempotency marker, and
      inherits its exactly-once guarantee for free. Sending mail there instead would
      double-send on the rollback path, hold a pooled connection across an HTTP call
-     (deadlock — see `features/admin/audit.ts`), and make webhook latency depend on
+     (deadlock — see the audit module header), and make webhook latency depend on
      the email provider.
   2. **Handlers must be idempotent.** The queue is at-least-once, never
      exactly-once: `runAt` doubles as a visibility timeout, so a job still running
@@ -304,38 +320,40 @@ recipients for payment-failed", { event: p.eventId })`, never a template
   3. **Payloads are JSON primitives, and untrusted on the way out.** `payload` is
      jsonb: a `Date` goes in and an ISO string comes back with the type still
      claiming `Date`. Every handler zod-parses its payload first — see
-     `src/features/emails/handler.ts`.
+     `apps/api/src/emails/emails.service.ts`.
   4. **A no-op is success, not failure.** A suppressed email or an interrupted
      sequence step returns cleanly; retrying would never change the answer, and
      dead-lettering fills the queue with red rows recording correct behaviour.
 
-  Worked examples, in increasing order of subtlety: `src/features/jobs/handler.ts`
-  (`job.prune` — a cron-shaped task), `src/features/emails/handler.ts` (validation
-  - send-time policy), `src/features/onboarding/handler.ts` (a scheduled step with
-    a run-time guard), `src/features/billing/notify.ts` (fan-out into per-recipient
-    children, so a partial failure cannot re-mail anyone).
+  Worked examples, in increasing order of subtlety: `apps/api/src/jobs/prune.ts`
+  (`job.prune` — a cron-shaped task), `apps/api/src/emails/emails.service.ts`
+  (validation + send-time policy), `apps/api/src/onboarding/` (a scheduled step with
+  a run-time guard), `apps/api/src/billing-notify/` (fan-out into per-recipient
+  children, so a partial failure cannot re-mail anyone).
 
 - **Add an email template (§10.2):** add it to `TemplateName` and `TemplateProps`
-  in `src/lib/adapters/email/contract.ts`, write the component in
-  `src/lib/adapters/email/templates/`, register it in that folder's `index.ts`, and
-  classify it in `src/features/emails/categories.ts` (`Record<TemplateName, _>` —
-  forgetting is a compile error). Send with `enqueueEmail(writer, …)`; **never call
-  `email.send` directly** — the `email.send` handler is the one delivery path, which
+  in `@repo/contracts/email`, write the component in
+  `apps/api/src/emails/templates/`, register it in that folder's `index.ts`, and
+  classify it in `apps/api/src/emails/categories.ts` (`Record<TemplateName, _>` —
+  forgetting is a compile error). Enqueue via the queue helper; **never send
+  directly** — the `email.send` handler is the one delivery path, which
   is what keeps retry, suppression and List-Unsubscribe in one place each.
   Templates are plain JSX rendered by `@react-email/render`, which produces the HTML
   and the plain-text fallback from one component. Mail clients are not browsers:
   inline styles only, no flex/grid, no external assets.
-- **Add a tenant-isolated entity:** add a table in `src/lib/db/schema/<entity>.ts`
-  with an indexed owner column, re-export from `schema/index.ts`, run
+- **Add a tenant-isolated entity:** add a table in `packages/db/src/schema/<entity>.ts`
+  with an indexed owner column, re-export from the schema barrel, run
   `pnpm db:generate` then `pnpm db:migrate`. The auth tables in
-  `src/lib/db/schema/auth.ts` show the schema/migration mechanics (they are the
+  `packages/db/src/schema/auth.ts` show the schema/migration mechanics (they are the
   tenant-owner exception noted above). **Owner-scoped reference:** the two tenant
   owners are `personal_account` and `organization`; `membership`/`invitation`
-  carry an indexed `organizationId` and every read/write is scoped by it in the
-  feature's data layer `src/features/organizations/data.ts` — copy that layer's
+  carry an indexed `organizationId` and every read/write is scoped by it in
+  `apps/api/src/organizations/organizations.service.ts` — copy that layer's
   shape (never query a tenant table without its owner filter).
 - **Audit a state change (§6.4):** add the action name to `AUDIT_ACTIONS` in
-  `src/features/admin/audit.ts`, then call `recordAudit(tx, …)` **inside the same
+  `src/features/admin/audit.ts` (the shared vocabulary the tenant UI renders),
+  then call `recordAudit(tx, …)` in the Nest module owning the write
+  (`apps/api/src/organizations/audit.ts`) **inside the same
   transaction as the write** (Rule A — the module header explains when the other
   ordering, Rule B, applies instead). Three things that are not optional:
   `organizationId` is a **required** field, so a call site must state its tenant or
@@ -346,14 +364,14 @@ recipients for payment-failed", { event: p.eventId })`, never a template
   transaction holding the connection. Field-level before/after goes in
   `metadata.changes` via `changed(before, after, fields)`, which returns
   `undefined` when nothing differs — check it, so a no-op write logs nothing.
-  **Reference:** `updateMemberRoleAction` in
-  `src/features/organizations/actions.ts` (user actor, `FOR UPDATE` pre-image,
-  `tx` label lookup); `applySubscriptionEvent` in `src/features/billing/webhooks.ts`
+  **Reference:** `updateMemberRole` in
+  `apps/api/src/organizations/organizations.service.ts` (user actor, `FOR UPDATE` pre-image,
+  `tx` label lookup); `processBillingEvent` in `apps/api/src/billing/billing.service.ts`
   (`SYSTEM_ACTOR`, and `.returning()` as the "this event changed nothing" signal);
-  `src/features/storage/purge.ts` (system actor from a background job, one row per
+  `storage.purge` in `apps/api/src/jobs/` (system actor from a background job, one row per
   tenant rather than per record). Reading it back is tenant-scoped in
-  `src/features/organizations/audit-data.ts` and cross-tenant in
-  `src/features/admin/data.ts` — the two have deliberately opposite boundaries, so
+  `GET /v1/organizations/{slug}/audit-logs` and cross-tenant in
+  `GET /v1/admin/audit` — the two have deliberately opposite boundaries, so
   do not merge them into one function with a nullable owner argument.
 - **Add a UI primitive (design system, §7.1):** put it in `src/components/ui/<name>.tsx`
   and export it from `src/components/ui/index.ts`. Rules: style only with the
@@ -498,10 +516,13 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
   inline via `FormMessage` (they must persist and be assertable); transient
   **successes** fire a `toast(...)` from a `useEffect` keyed on the `useActionState`
   state. Reference: `invite-member-form.tsx` and `org-settings.tsx`.
-- **Add a protected endpoint / server action:** resolve the session via
-  `requireSession()` in `src/lib/auth/index.ts` before doing anything. Reference:
-  the `src/app/(app)/dashboard/page.tsx` server component and the sign-out server
-  action in `src/features/auth/actions.ts`.
+- **Add a protected server read:** resolve the session via
+  `requireSession()` in `src/lib/auth/index.ts` before doing anything (it
+  verifies against Nest `GET /v1/session`). Reference:
+  the `src/app/(app)/dashboard/page.tsx` server component. Mutations never
+  live in server actions since faza 2.8 (the lint gate forbids `"use server"`)
+  — the browser calls Nest directly, or through a thin `src/app/api/*` proxy
+  route (reference: `src/app/api/locale/route.ts`).
 - **Validate an input — spec 22.2.** Validation is a NAMED LAYER, not a habit:
   every value that crosses the trust boundary passes a zod schema **before** any
   business logic or authorization side effect. The shared parts live in
@@ -545,8 +566,9 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
   - `src/features/organizations/actions.ts` (org settings/slug update) — parses
     field-by-field via `createOrgSchema(tv).shape.name` instead of one object
     parse, so a partial form yields no coherent `fieldErrors`.
-  - `src/lib/i18n/actions.ts` — a hand-rolled `isLocale()` guard. Deliberate and
-    already documented there; listed only so the inventory is complete.
+  - `PATCH /v1/locale` + `PATCH /api/locale` (faza 2.8) — `z.enum(LOCALES)` on
+    both sides; the locale write is the one former `actions.ts` surface that
+    arrived validated rather than hand-rolled.
   - The `str()` helper duplicated in `admin/actions.ts` and
     `organizations/actions.ts` — a `typeof` guard doing a schema's job.
   - Every form except sign-up and reset-password still renders the single

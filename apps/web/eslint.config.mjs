@@ -73,24 +73,15 @@ const eslintConfig = defineConfig([
   /**
    * Auth vendor containment (spec 1.2 — backend-independence).
    *
-   * `better-auth` (SDK, plugins, cookie helpers) may be imported ONLY from
-   * `src/lib/adapters/auth/**` — the one directory that implements the
-   * contract. Everything else reads the session token through `@repo/contracts`
-   * (cookie names) or calls the engine through the adapter. This is what makes
-   * the backend swappable: dropping the vendor means deleting one directory,
-   * and this rule proves beforehand that nothing else would break.
-   *
-   * Deliberately SEPARATE from the super-admin block above: that one guards a
-   * privilege boundary, this one guards a vendor boundary. They fail for
-   * different reasons and must be fixable independently.
-   *
-   * Exempt: the adapter itself, plus the MCP/OAuth routes — they consume the
-   * engine's OAuth plugin directly and move to Nest with etap 2.7, which owns
-   * removing them from this list.
+   * `better-auth` (SDK, plugins, cookie helpers) may be imported from NOWHERE
+   * in web since faza 2.8 — the engine lives in Nest (`apps/api/src/auth`).
+   * The pattern stays as a tripwire: reintroducing the SDK here would fork
+   * sessions across two engines. Session vocabulary comes from
+   * `@/lib/adapters/auth` (a type-only barrel) or `@repo/contracts`.
    */
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/lib/adapters/auth/**", "src/app/api/mcp/**", "src/app/.well-known/**"],
+    ignores: ["src/lib/adapters/rate-limit/**"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -99,9 +90,45 @@ const eslintConfig = defineConfig([
             {
               group: ["better-auth", "better-auth/*"],
               message:
-                "Import the auth contract (@/lib/adapters/auth or @repo/contracts) instead — the SDK lives only in src/lib/adapters/auth (spec 1.2).",
+                "The auth engine lives in Nest since faza 2.8 — web never imports the SDK. Read the session via @/lib/auth (spec 1.2).",
+            },
+            {
+              group: ["@repo/db", "@repo/db/*"],
+              message:
+                "Web is a pure frontend since faza 2.8 — read through Nest (@/lib/api or a feature client), never the database. Only src/lib/adapters/rate-limit/postgres.ts may import it (the edge counter).",
+            },
+            {
+              group: ["drizzle-orm", "drizzle-orm/*"],
+              message: "No query builder in web since faza 2.8 — same rule as @repo/db above.",
+            },
+            {
+              group: ["postgres"],
+              message: "No SQL driver in web since faza 2.8 — same rule as @repo/db above.",
             },
           ],
+        },
+      ],
+    },
+  },
+  /**
+   * No server actions in web (faza 2.8).
+   *
+   * Mutations go browser → Nest directly (`credentials: "include"`, feature
+   * `client.ts` modules) or through thin same-origin proxy routes
+   * (`src/app/api/*`); server components read through `@/lib/api`. A
+   * `"use server"` directive would smuggle a mutation path back past the
+   * contract — and past the DB gate above, which it could import around.
+   * `"use client"` is unaffected (different directive, no selector match).
+   */
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: 'ExpressionStatement[directive="use server"]',
+          message:
+            'No "use server" in web since faza 2.8 — call Nest from the browser (feature client.ts) or a thin src/app/api/* proxy route.',
         },
       ],
     },

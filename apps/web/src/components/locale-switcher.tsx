@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LOCALES, type Locale } from "@/lib/i18n/config";
-import { setLocaleAction } from "@/lib/i18n/actions";
 import { usePathname, useRouter } from "@/lib/i18n/navigation";
 
 /**
@@ -20,8 +19,9 @@ import { usePathname, useRouter } from "@/lib/i18n/navigation";
  * control for a presentation preference the user owns.
  *
  * It does TWO things, and both are needed:
- *   - `setLocaleAction` persists the choice, so a later visit to an unprefixed
- *     URL (`/`) negotiates to the chosen language instead of the browser's.
+ *   - `PATCH /api/locale` persists the choice (cookie for the proxy, row in
+ *     Nest for the durable store), so a later visit to an unprefixed URL (`/`)
+ *     negotiates to the chosen language instead of the browser's.
  *   - `router.replace` moves to the same page under the new prefix, so the URL
  *     never disagrees with what is rendered.
  *
@@ -44,7 +44,21 @@ export function LocaleSwitcher() {
   function select(next: Locale) {
     if (next === active) return;
     startTransition(async () => {
-      await setLocaleAction(next);
+      // Persist through the same-origin web route (faza 2.8): it writes the
+      // row in Nest best-effort and sets the `app-locale` cookie the proxy
+      // negotiates from. Fire-and-forget — the navigation below must happen
+      // even if the persist failed, or a failed write strands the user in
+      // the old language with no recourse but retrying the click.
+      try {
+        await fetch("/api/locale", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ locale: next }),
+        });
+      } catch {
+        // Offline/transient: the URL move below still applies the language
+        // to THIS page; the cookie/row catch up on the next switch.
+      }
       router.replace(pathname, { locale: next });
     });
   }

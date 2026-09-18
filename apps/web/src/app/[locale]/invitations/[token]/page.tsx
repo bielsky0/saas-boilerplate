@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { createHash } from "node:crypto";
 
 import { Button } from "@/components/ui";
 import { AcceptInvitationForm } from "@/features/organizations/components/accept-invitation-form";
 import { requireOrgsEnabled } from "@/features/organizations/context";
-import { getInvitationWithValidity, getOrgById } from "@/features/organizations/data";
 import { getServerSession } from "@/lib/auth";
+import { api } from "@/lib/api";
 
 /**
  * Accept-invitation landing (spec 3.3) — a public route (see PUBLIC_PATHS).
@@ -14,11 +13,11 @@ import { getServerSession } from "@/lib/auth";
  * registers and returns here — both then see the Accept button. The page never
  * reveals whether the invited email already has an account (privacy, §3.3): the
  * signed-out state always offers both "sign in" and "create account".
+ *
+ * Validity resolves over HTTP (`GET /v1/invitations/{token}` — public by
+ * design, `valid: false` for every dead end alike) — the web holds no
+ * database since faza 2.8.
  */
-function hashToken(rawToken: string): string {
-  return createHash("sha256").update(rawToken).digest("hex");
-}
-
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-4 py-12">
@@ -36,9 +35,11 @@ export default async function AcceptInvitationPage({
   // itself. An invitation link already in flight 404s once orgs are disabled.
   requireOrgsEnabled();
   const { token } = await params;
-  const { invite, valid } = await getInvitationWithValidity(hashToken(token));
+  const lookup = await api().get<{ valid: boolean; orgName: string | null; role: string | null }>(
+    `/v1/invitations/${encodeURIComponent(token)}`,
+  );
 
-  if (!invite || !valid) {
+  if (!lookup.valid) {
     return (
       <Shell>
         <h1 className="text-2xl font-semibold">Invitation unavailable</h1>
@@ -54,8 +55,7 @@ export default async function AcceptInvitationPage({
     );
   }
 
-  const org = await getOrgById(invite.organizationId);
-  const orgName = org?.name ?? "an organization";
+  const orgName = lookup.orgName ?? "an organization";
   const session = await getServerSession();
   const returnTo = `/invitations/${token}`;
 
@@ -64,7 +64,7 @@ export default async function AcceptInvitationPage({
       <h1 className="text-2xl font-semibold">Join {orgName}</h1>
       <p className="text-muted-foreground text-sm">
         You&apos;ve been invited to join{" "}
-        <span className="text-foreground font-medium">{orgName}</span> as {invite.role}.
+        <span className="text-foreground font-medium">{orgName}</span> as {lookup.role}.
       </p>
 
       {session ? (
