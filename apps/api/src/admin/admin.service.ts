@@ -20,13 +20,8 @@ import {
 } from "@repo/db";
 import { DB } from "../db/db.module";
 import { badRequest, conflict, forbidden, notFound, validationFailed } from "../common/http";
-import {
-  AUTH_ENGINE,
-  engineErrorCode,
-  type AuthEngine,
-  type RequestSession,
-} from "../auth/auth-engine";
-import { recordAudit, resolveActor } from "../organizations/audit";
+import { AUTH_ENGINE, type AuthEngine, type RequestSession } from "../auth/auth-engine";
+import { recordAudit } from "../organizations/audit";
 
 /**
  * Super-admin flows (spec 6.1–6.3, 11.3) — the Nest twin of the web app's
@@ -34,21 +29,19 @@ import { recordAudit, resolveActor } from "../organizations/audit";
  *
  * Same rules, in the same order:
  * - `SuperAdminGuard` (not this service) is the boundary; every method below
- *   assumes it already ran — except `stopImpersonating`, which is reachable
- *   behind `SessionGuard` alone (the caller is the impersonated non-admin),
- *   and `seedSuperAdmin`, which is dev-only;
+ *   assumes it already ran — except `seedSuperAdmin`, which is dev-only;
  * - reads are cross-tenant BY DESIGN (§6.2 carve-out): the guard replaces the
  *   owner filter as the isolation boundary, exactly as the web module's header
  *   documents;
  * - Rule A (our effect: delete-user, delete-org) writes the audit row in the
- *   SAME transaction as the effect; Rule B (engine effect: impersonate, stop,
- *   suspend, unsuspend, set-role) writes the audit row FIRST, then calls the
- *   engine — a shared transaction is impossible (the engine runs on its own
- *   connection), so the log records authorized intent and over-logs rather
- *   than under-logs (see the web `features/admin/audit.ts` header);
- * - `resolveActor` is awaited BEFORE any transaction opens (a query inside
- *   would take a second pooled connection while `tx` holds the first);
- *   `targetLabel` lookups that belong inside use `tx`, never `db`;
+ *   SAME transaction as the effect; Rule B (engine effect: suspend, unsuspend,
+ *   set-role) writes the audit row FIRST, then calls the engine — a shared
+ *   transaction is impossible (the engine runs on its own connection), so the
+ *   log records authorized intent and over-logs rather than under-logs (see
+ *   the web `features/admin/audit.ts` header);
+ * - `targetLabel` lookups that belong inside a transaction use `tx`, never
+ *   `db` (a query inside would take a second pooled connection while `tx`
+ *   holds the first);
  * - a super admin is immune to panel actions until demoted (`TARGET_IS_ADMIN`);
  *   you cannot act on yourself (`CANNOT_ACT_ON_SELF`); the last super admin
  *   cannot be revoked (`LAST_ADMIN`, 409).
@@ -89,12 +82,10 @@ function assertNotSuperAdminTarget(target: { isSuperAdmin: boolean }): void {
 /**
  * The actor for a panel mutation: ALWAYS `Admin`, never resolved.
  *
- * `resolveActor` (tenant flows) returns `User` for a plain session and
- * `Admin` only under impersonation — but the panel is the super-admin
- * surface itself, and `SuperAdminGuard` already proved the caller is one.
- * The web `actions.ts` hardcoded the same; the E2E suite asserts the
- * `Admin` actor type on `impersonation.start/stop` rows. (`stop` is the one
- * exception: its session IS impersonated, so it keeps `resolveActor`.)
+ * The panel is the super-admin surface itself, and `SuperAdminGuard` already
+ * proved the caller is one — so every row the panel writes carries the
+ * `Admin` actor type. Tenant flows use `resolveActor` instead, which returns
+ * the `User` actor for the calling session.
  */
 function adminActor(session: RequestSession): {
   actorType: "Admin";
@@ -125,16 +116,6 @@ const auditListQuerySchema = z.object({
 /** Server-side English backstops (spec 22.2): rules mirror the web schemas. */
 const suspendBodySchema = z.object({
   reason: z.string().trim().max(500).optional(),
-});
-
-/**
- * Impersonation requires a REASON (spec 6.4): `min(10)` because a mandatory
- * field that accepts "x" is theatre, and this action reads another person's
- * account. The reason lands in the audit entry's metadata, where the target's
- * org can see it.
- */
-const impersonateBodySchema = z.object({
-  reason: z.string().trim().min(10).max(500),
 });
 
 const setSuperAdminBodySchema = z.object({
@@ -561,112 +542,6 @@ export class AdminService {
 
   private engineFailure(): never {
     throw new HttpException({ error: "UNKNOWN" }, HttpStatus.INTERNAL_SERVER_ERROR);
-  }
-
-  /**
-   * Impersonate a user (spec 6.2). Audit-first — Rule B: the effect swaps the
-   * session cookie, so auditing afterwards would leave a window with a swapped
-   * cookie and no row. Returns the `Set-Cookie` values for the controller to
-   * relay (the `nextCookies` replacement).
-   */
-  async impersonate(
-    session: RequestSession,
-    headers: Headers,
-    targetId: string,
-    body: unknown,
-    req: RequestInfo,
-  ): Promise<{ body: { ok: true }; setCookies: string[] }> {
-    const parsed = impersonateBodySchema.safeParse(body);
-    if (!parsed.success) validationFailed(parsed.error);
-
-    const target = await this.getUserDetail(targetId);
-    if (target.status === "deleted") badRequest("ALREADY_DELETED");
-    if (target.isSuperAdmin) forbidden("IMPERSONATION_FORBIDDEN");
-
-    // The actor is the admin, hardcoded BEFORE the audit write (never inside
-    // a transaction — and this flow holds none, Rule B writes with plain `db`).
-    const actor = adminActor(session);
-    await recordAudit(
-      this.db,
-      {
-        action: "impersonation.start",
-        actor,
-        organizationId: null,
-        targetType: "user",
-        targetId: target.id,
-        targetLabel: target.email,
-        metadata: { reason: parsed.data.reason },
-      },
-      req,
-    );
-
-    try {
-      const result = await this.engine.api.impersonateUser({
-        headers,
-        body: { userId: target.id },
-        returnHeaders: true,
-      });
-      return { body: { ok: true }, setCookies: result.headers.getSetCookie() };
-    } catch (error) {
-      const code = engineErrorCode(error);
-      if (
-        code === "YOU_ARE_NOT_ALLOWED_TO_IMPERSONATE_USERS" ||
-        code === "YOU_CANNOT_IMPERSONATE_ADMINS" ||
-        code === "YOU_ARE_NOT_ALLOWED_TO_BAN_USERS"
-      ) {
-        throw new HttpException({ error: "IMPERSONATION_FORBIDDEN" }, HttpStatus.FORBIDDEN);
-      }
-      if (code === "USER_NOT_FOUND") notFound("USER_NOT_FOUND");
-      this.engineFailure();
-    }
-  }
-
-  /**
-   * Leave admin mode (spec 6.2). Deliberately NOT guarded by `SuperAdminGuard`:
-   * the caller is the impersonated (non-admin) user, so that guard would 403
-   * exactly the person who needs to get out. The session's own
-   * `impersonatedBy` is the authorization.
-   *
-   * Everything the audit entry needs is resolved BEFORE the swap, and the entry
-   * is written before it too (Rule B): the actor is the admin who started this,
-   * and the only record of who that is lives on the session about to be
-   * destroyed. After the swap there is NO session read (stale-cookie).
-   */
-  async stopImpersonating(
-    session: RequestSession,
-    headers: Headers,
-    req: RequestInfo,
-  ): Promise<{ body: { ok: true; signedOut: boolean }; setCookies: string[] }> {
-    if (session.impersonatedBy === null) badRequest("NOT_IMPERSONATING");
-
-    // resolveActor, NOT adminActor: this session IS impersonated, so the actor
-    // is the admin in `impersonatedBy` (looked up for the email) — attributing
-    // to `session.user` here would name the victim as the actor.
-    const actor = await resolveActor(this.db, session);
-    await recordAudit(
-      this.db,
-      {
-        action: "impersonation.stop",
-        actor,
-        organizationId: null,
-        targetType: "user",
-        targetId: session.user.id,
-        targetLabel: session.user.email,
-      },
-      req,
-    );
-
-    try {
-      const result = await this.engine.api.stopImpersonating({ headers, returnHeaders: true });
-      return { body: { ok: true, signedOut: false }, setCookies: result.headers.getSetCookie() };
-    } catch {
-      // The engine 500s when the ADMIN'S OWN session expired during the
-      // impersonation — it has no session left to restore. Signing out is
-      // always safe and always available; without this fallback the admin
-      // stays trapped inside someone else's account.
-      const result = await this.engine.api.signOut({ headers, returnHeaders: true });
-      return { body: { ok: true, signedOut: true }, setCookies: result.headers.getSetCookie() };
-    }
   }
 
   /** Suspend an account (spec 6.2). Audit-first — Rule B. */

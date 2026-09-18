@@ -8,10 +8,9 @@ import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
  * match Better Auth's default schema exactly — do not rename without also
  * mapping them in the adapter config.
  *
- * Two groups of columns here come from the engine's `admin` plugin (spec 6),
+ * One group of columns here comes from the engine's `admin` plugin (spec 6),
  * whose shape is fixed by `better-auth/plugins/admin/schema.mjs`:
- *   - `user.role` / `user.banned` / `user.banReason` / `user.banExpires`
- *   - `session.impersonatedBy`
+ * `user.role` / `user.banned` / `user.banReason` / `user.banExpires`.
  * `user.role` is the SINGLE source of truth for the system-level super-admin
  * flag (spec 6.1). It is deliberately NOT a boolean `isSuperAdmin` column: the
  * plugin's own authorization gate reads this string, so a second column could
@@ -102,10 +101,6 @@ export const session = pgTable("session", {
   userId: text("userId")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
-  // Id of the admin who opened this session by impersonating `userId` (spec 6.2).
-  // No FK: the plugin's schema declares a plain string, and matching it exactly
-  // keeps the engine's own writes valid. A property of the SESSION, not the user.
-  impersonatedBy: text("impersonatedBy"),
 });
 
 export const account = pgTable("account", {

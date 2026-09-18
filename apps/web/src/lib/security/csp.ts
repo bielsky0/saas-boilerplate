@@ -23,9 +23,9 @@ import { env } from "@/lib/env/server";
  * ─── Why a nonce rather than 'unsafe-inline' or hashes ───────────────────────
  *
  * The usual objection to nonces is that they force dynamic rendering. That cost
- * is already paid here: `ImpersonationBanner` reads the session in the root
- * layout, so no page under `[locale]` is statically prerendered (confirmed
- * against .next/prerender-manifest.json). A strict policy is therefore free, and
+ * is already paid here: the root layout reads request headers (nonce), so no
+ * page under `[locale]` is statically prerendered (confirmed against
+ * .next/prerender-manifest.json). A strict policy is therefore free, and
  * `script-src 'unsafe-inline'` — which would defeat most of the point of having a
  * CSP at all — is not a trade we have to make.
  */

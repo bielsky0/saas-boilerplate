@@ -34,10 +34,10 @@ import { kickDrain } from "../jobs/runner";
  * `trustedOrigins` MUST contain the web origin: the engine validates absolute
  * callback URLs against it, and the emailed links carry absolute web URLs.
  *
- * `adminUserIds` stays UNSET, same reason as in web (it would silently grant
- * `user:impersonate-admins`). The plugin is registered for its ban/role
- * checks, not its HTTP surface — `/api/auth/admin/*` never reaches the engine
- * (see main.ts).
+ * `adminUserIds` stays UNSET (it would silently bypass every permission check
+ * for a listed user — see docs/ARCHITECTURE.md). The plugin is registered for
+ * its ban/role checks, not its HTTP surface — `/api/auth/admin/*` never
+ * reaches the engine (see main.ts).
  */
 const SUPER_ADMIN_ROLE = "superadmin";
 const DEFAULT_ROLE = "user";
@@ -232,7 +232,6 @@ export function createAuthEngine(db: Db, config: AuthEngineConfig) {
         roles: { [DEFAULT_ROLE]: userAc, [SUPER_ADMIN_ROLE]: adminAc },
         adminRoles: [SUPER_ADMIN_ROLE],
         defaultRole: DEFAULT_ROLE,
-        impersonationSessionDuration: 30 * 60,
         // adminUserIds: DELIBERATELY UNSET — see the file header.
       }),
       /**
@@ -280,7 +279,6 @@ export interface RequestSession {
     locale: string | null;
   };
   expiresAt: Date;
-  impersonatedBy: string | null;
 }
 
 /**
@@ -304,7 +302,6 @@ export async function getSessionFromHeaders(
       locale: result.user.locale ?? null,
     },
     expiresAt: new Date(result.session.expiresAt),
-    impersonatedBy: result.session.impersonatedBy ?? null,
   };
 }
 
@@ -328,7 +325,6 @@ export async function getFullSessionFromHeaders(
       locale: result.user.locale ?? null,
     },
     expiresAt: new Date(result.session.expiresAt),
-    impersonatedBy: result.session.impersonatedBy ?? null,
   };
 }
 

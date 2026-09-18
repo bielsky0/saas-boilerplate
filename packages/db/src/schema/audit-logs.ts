@@ -16,8 +16,8 @@ import { organization } from "./organizations";
  * specific. Everywhere else, an owner is a PRECONDITION of writing the row: you
  * cannot create a file or an invitation without knowing whose it is. Here the
  * tenant is a FACT ABOUT THE EVENT, and some events legitimately have no tenant
- * — impersonating a user who belongs to no organization, granting a system-level
- * super-admin flag. A NOT NULL column would force those writes to invent an
+ * — granting a system-level super-admin flag, deleting an organization with no
+ * surviving members. A NOT NULL column would force those writes to invent an
  * owner, which is worse than recording the truth that there isn't one.
  *
  * Consequently there are now TWO read boundaries, not one:

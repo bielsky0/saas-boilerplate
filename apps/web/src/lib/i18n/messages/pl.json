@@ -233,10 +233,6 @@
       "confirmLeaveAction": "Opuść organizację"
     },
     "auditActions": {
-      "impersonation": {
-        "start": "Rozpoczęto impersonację",
-        "stop": "Zakończono impersonację"
-      },
       "user": {
         "suspend": "Zawieszono użytkownika",
         "unsuspend": "Odblokowano użytkownika",

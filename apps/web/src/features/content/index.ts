@@ -13,8 +13,8 @@
  * else.
  *
  * Pages are server-rendered, NOT statically generated, and the distinction is
- * deliberate rather than an oversight: the root layout reads the session for the
- * impersonation banner, which opts every page into dynamic rendering. Next 16
+ * deliberate rather than an oversight: the root layout reads request headers
+ * (CSP nonce), which opts every page into dynamic rendering. Next 16
  * removed per-route PPR, so the only remaining door is the app-wide
  * `cacheComponents` flag — a whole-app migration, not a §8 decision. §9.1 permits
  * SSR *or* SSG and the body is in the HTML either way. sitemap.ts, robots.ts and

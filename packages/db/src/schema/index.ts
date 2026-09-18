@@ -45,10 +45,10 @@
  * with no owner at all; widening the ledger from super-admin actions to ordinary
  * tenant mutations ended that. Do not copy this shape. It is justified only
  * because an audit event's tenant is a fact ABOUT the event rather than a
- * precondition of writing it — some events (a system-role grant, impersonating a
- * user in no org) genuinely have no tenant, and forcing them to invent one would
- * corrupt the ledger. For every other table, not knowing the owner means you are
- * not ready to write the row.
+ * precondition of writing it — some events (a system-role grant, an org delete
+ * with no surviving members) genuinely have no tenant, and forcing them to
+ * invent one would corrupt the ledger. For every other table, not knowing the
+ * owner means you are not ready to write the row.
  */
 
 export * from "./auth";

@@ -21,7 +21,7 @@ A robust foundation for building B2B and B2C SaaS applications. The project is d
 | Multi-tenancy | Automatic personal accounts, organizations, invitations, member roles, and context switching. |
 | Authorization | Owner, Admin, and Member roles with backend-enforced atomic permissions. |
 | Billing | Plans and quotas, Stripe as the reference provider, checkout, customer portal, and idempotent webhooks. |
-| Super admin | Users and organizations, account suspension, impersonation, and audit logs. |
+| Super admin | Users and organizations, account suspension, and audit logs. |
 | Frontend | Design tokens, light/dark/system theme, responsive landing page, and dashboard. |
 | Content and SEO | Blog, documentation, changelog, SSR/SSG, sitemap, robots.txt, metadata, and JSON-LD. |
 | Operations | Transactional emails, background jobs, retry/backoff, observability, i18n, and E2E tests. |

@@ -31,7 +31,7 @@ import {
 import { kickDrain } from "../jobs/runner";
 import { type Permission, type Role } from "@repo/contracts";
 import { requireOrgMember } from "../tenancy/access";
-import { changed, recordAudit, resolveActor, withImpersonation } from "./audit";
+import { changed, recordAudit, resolveActor } from "./audit";
 import { enqueueInvitationEmail, enqueueInvitationNotification } from "./queue";
 import { resolveUniqueSlug } from "./slug";
 
@@ -45,10 +45,9 @@ import { resolveUniqueSlug } from "./slug";
  *   requests), `MULTI_TENANCY_MODE` + membership + RBAC second;
  * - "an org always keeps ≥1 Owner" enforced inside a transaction that locks
  *   the owner rows (`FOR UPDATE`), so concurrent demotions serialize;
- * - `resolveActor` awaited BEFORE the transaction opens (a query inside would
- *   take a second pooled connection while `tx` holds the first — the deadlock
- *   `features/admin/audit.ts` documents); `targetLabel` lookups that belong
- *   inside use `tx`, never `db`;
+ * - `targetLabel` lookups that belong inside a transaction use `tx`, never
+ *   `db` (a query inside would take a second pooled connection while `tx`
+ *   holds the first — the deadlock `features/admin/audit.ts` documents);
  * - invite enqueues `email.send` + `notification.create` INSIDE the same
  *   transaction (a rollback un-sends both); the drain kick afterwards is
  *   best-effort (cron is the guarantee).
@@ -180,7 +179,7 @@ export class OrganizationsService {
     const slug = await resolveUniqueSlug(parsed.data.slug ?? parsed.data.name, (s) =>
       this.isSlugTaken(s),
     );
-    const actor = await resolveActor(this.db, session);
+    const actor = resolveActor(session);
 
     const orgId = await this.db.transaction(async (tx) => {
       const [org] = await tx
@@ -203,7 +202,7 @@ export class OrganizationsService {
           targetType: "organization",
           targetId: org!.id,
           targetLabel: slug,
-          metadata: withImpersonation(session, { name: parsed.data.name }),
+          metadata: { name: parsed.data.name },
         },
         req,
       );
@@ -269,7 +268,7 @@ export class OrganizationsService {
       nextSlug = slugParsed.data;
     }
 
-    const actor = await resolveActor(this.db, session);
+    const actor = resolveActor(session);
 
     // Wrapped in a transaction purely so the audit row is atomic with the
     // update (Rule A) — and the changes diff is computed from live pre-images.
@@ -288,13 +287,13 @@ export class OrganizationsService {
           targetType: "organization",
           targetId: ctx.org.id,
           targetLabel: nextSlug,
-          metadata: withImpersonation(session, {
+          metadata: {
             changes: changed(
               { name: ctx.org.name, slug: ctx.org.slug },
               { name: nextName, slug: nextSlug },
               ["name", "slug"],
             ),
-          }),
+          },
         },
         req,
       );
@@ -305,7 +304,7 @@ export class OrganizationsService {
 
   async deleteOrganization(session: RequestSession, slug: string, req: RequestInfo): Promise<void> {
     const ctx = await this.requireOrgContext(session, slug, "organization.delete");
-    const actor = await resolveActor(this.db, session);
+    const actor = resolveActor(session);
 
     await this.db.transaction(async (tx) => {
       // Soft delete (spec 11.3) — the row is retained for the retention window.
@@ -326,7 +325,6 @@ export class OrganizationsService {
           targetType: "organization",
           targetId: ctx.org.id,
           targetLabel: ctx.org.slug,
-          metadata: withImpersonation(session),
         },
         req,
       );
@@ -387,7 +385,7 @@ export class OrganizationsService {
     const ctx = await this.requireOrgContext(session, slug, "members.update_role");
     const parsed = updateRoleBodySchema.safeParse(body);
     if (!parsed.success) validationFailed(parsed.error);
-    const actor = await resolveActor(this.db, session);
+    const actor = resolveActor(session);
 
     try {
       await this.db.transaction(async (tx) => {
@@ -423,11 +421,11 @@ export class OrganizationsService {
             targetType: "membership",
             targetId: target.userId,
             targetLabel: targetUser?.email ?? target.userId,
-            metadata: withImpersonation(session, {
+            metadata: {
               // `target` was SELECTed FOR UPDATE above, so `from` is the true
               // pre-image. §6.4's "stara wartość → nowa wartość".
               changes: changed({ role: target.role }, { role: parsed.data.role }, ["role"]),
-            }),
+            },
           },
           req,
         );
@@ -447,7 +445,7 @@ export class OrganizationsService {
     req: RequestInfo,
   ): Promise<void> {
     const ctx = await this.requireOrgContext(session, slug, "members.remove");
-    const actor = await resolveActor(this.db, session);
+    const actor = resolveActor(session);
 
     try {
       await this.db.transaction(async (tx) => {
@@ -481,7 +479,7 @@ export class OrganizationsService {
             targetType: "membership",
             targetId: target.userId,
             targetLabel: targetUser?.email ?? target.userId,
-            metadata: withImpersonation(session, { role: target.role }),
+            metadata: { role: target.role },
           },
           req,
         );
@@ -494,7 +492,7 @@ export class OrganizationsService {
 
   async leaveOrganization(session: RequestSession, slug: string, req: RequestInfo): Promise<void> {
     const ctx = await this.requireOrgContext(session, slug, "organization.leave");
-    const actor = await resolveActor(this.db, session);
+    const actor = resolveActor(session);
 
     try {
       await this.db.transaction(async (tx) => {
@@ -515,7 +513,7 @@ export class OrganizationsService {
             targetType: "membership",
             targetId: session.user.id,
             targetLabel: session.user.email,
-            metadata: withImpersonation(session, { role: ctx.membership.role }),
+            metadata: { role: ctx.membership.role },
           },
           req,
         );
@@ -549,7 +547,7 @@ export class OrganizationsService {
     const inviteeStored = await storedLocaleForEmail(this.db, parsed.data.email);
     const inviteeLocale =
       inviteeStored ?? (await recipientLocale(this.db, session.user.id, headers));
-    const actor = await resolveActor(this.db, session);
+    const actor = resolveActor(session);
 
     const invitationId = await this.db.transaction(async (tx) => {
       // Supersede prior pending invites so only one link is live.
@@ -586,7 +584,7 @@ export class OrganizationsService {
           targetId: row!.id,
           // The invitee's EMAIL, not the id: an auditor asks "who was invited".
           targetLabel: parsed.data.email,
-          metadata: withImpersonation(session, { role: parsed.data.role }),
+          metadata: { role: parsed.data.role },
         },
         req,
       );
@@ -677,7 +675,7 @@ export class OrganizationsService {
     req: RequestInfo,
   ): Promise<void> {
     const ctx = await this.requireOrgContext(session, slug, "invitations.revoke");
-    const actor = await resolveActor(this.db, session);
+    const actor = resolveActor(session);
 
     // The `.returning()` fixes the silent no-op this change surfaced in web:
     // revoking an already-revoked/accepted invitation updated ZERO rows and
@@ -706,7 +704,7 @@ export class OrganizationsService {
           targetType: "invitation",
           targetId: revoked.id,
           targetLabel: revoked.email,
-          metadata: withImpersonation(session, { role: revoked.role }),
+          metadata: { role: revoked.role },
         },
         req,
       );
@@ -773,7 +771,7 @@ export class OrganizationsService {
       .limit(1);
     if (!org) badRequest("INVALID_TOKEN");
 
-    const actor = await resolveActor(this.db, session);
+    const actor = resolveActor(session);
 
     await this.db.transaction(async (tx) => {
       // Bearer-token accept by the authenticated session holder.
@@ -804,7 +802,7 @@ export class OrganizationsService {
           targetType: "membership",
           targetId: session.user.id,
           targetLabel: session.user.email,
-          metadata: withImpersonation(session, { role: invite.role, invitationId: invite.id }),
+          metadata: { role: invite.role, invitationId: invite.id },
         },
         req,
       );

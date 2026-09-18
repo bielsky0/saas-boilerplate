@@ -39,16 +39,6 @@ export interface SessionUser {
 export interface Session {
   user: SessionUser;
   expiresAt: Date;
-  /**
-   * Id of the ADMIN who opened this session by impersonating `user` (spec 6.2);
-   * null for an ordinary session.
-   *
-   * Deliberately on the SESSION, not on `SessionUser`: being impersonated is a
-   * property of this one session, not of the person. The same user can have an
-   * impersonated session and their own real session open at the same time, and
-   * only one of them is admin-mode.
-   */
-  impersonatedBy: string | null;
 }
 
 /**
@@ -73,8 +63,6 @@ export type AuthErrorCode =
   | "INVALID_TOKEN"
   | "ACCOUNT_SUSPENDED"
   | "USER_NOT_FOUND"
-  | "IMPERSONATION_FORBIDDEN"
-  | "NOT_IMPERSONATING"
   | "UNKNOWN";
 
 export type AuthResult = { ok: true } | { ok: false; code: AuthErrorCode };
@@ -145,11 +133,11 @@ export interface AuthAdapter {
 }
 
 /**
- * Privileged identity/session operations for the super-admin panel (spec 6.1–6.2).
+ * Privileged identity operations for the super-admin panel (spec 6.1–6.2).
  *
  * SEPARATE from `AuthAdapter` on purpose, for three reasons:
  *   - it keeps the canonical reference adapter (above) small and easy to copy;
- *   - a provider with no impersonation support can still implement `AuthAdapter`
+ *   - a provider with no admin support can still implement `AuthAdapter`
  *     in full, and simply not offer this one;
  *   - it gives ESLint a physical import boundary to enforce "only features/admin
  *     may call these" — every call MUST be audit-logged (spec 6.3), and an
@@ -159,29 +147,10 @@ export interface AuthAdapter {
  * Drizzle query in `src/features/admin/data.ts`, not a provider call: a provider's
  * user list cannot join our memberships/subscriptions, cannot see our `deletedAt`,
  * and would return provider-shaped rows straight into our UI. Only operations that
- * genuinely need the identity ENGINE (minting sessions, revoking them) live here.
+ * genuinely need the identity ENGINE (banning, role changes, revoking sessions)
+ * live here.
  */
 export interface AdminAuthAdapter {
-  /**
-   * Open a session AS `userId`, preserving the caller's own session so
-   * `stopImpersonating` can restore it.
-   *
-   * MUTATES RESPONSE COOKIES — callable only from a server action or route
-   * handler, never during render.
-   *
-   * Fails with IMPERSONATION_FORBIDDEN when the caller is not a super admin, or
-   * when the TARGET is one (admins do not impersonate each other), and with
-   * USER_NOT_FOUND for an unknown target.
-   */
-  impersonate(userId: string, headers: Headers): Promise<AuthResult>;
-
-  /**
-   * Restore the impersonator's own session and end admin mode. Requires only a
-   * session, not admin rights — the impersonated (non-admin) user must always be
-   * able to get out. Fails with NOT_IMPERSONATING for an ordinary session.
-   */
-  stopImpersonating(headers: Headers): Promise<AuthResult>;
-
   /** Suspend an account (spec 6.2) and revoke its live sessions. */
   suspendUser(userId: string, reason: string | null, headers: Headers): Promise<AuthResult>;
 

@@ -33,7 +33,7 @@ const RELAYED_RESPONSE_HEADERS = ["content-type", "location"];
 
 /**
  * The `admin` plugin (spec 6) mounts /api/auth/admin/* — a SECOND path to
- * impersonate, ban and delete that bypasses the audited flows and therefore
+ * ban and delete that bypasses the audited flows and therefore
  * the audit log (spec 6.3). The surface stays closed here (and again in Nest's
  * allowlist), leaving the Nest `AdminService` — which writes the audit row
  * Rule A / Rule B behind `SuperAdminGuard` — as the only way in (faza 2.6).
@@ -83,7 +83,7 @@ async function proxy(request: NextRequest, method: string): Promise<NextResponse
     if (value) res.headers.set(name, value);
   }
   // Never merged: one `Set-Cookie` per header, or the browser keeps only one
-  // session and the others (remember-me, admin impersonation stack) vanish.
+  // session and the others (remember-me) vanish.
   const setCookies =
     typeof upstream.headers.getSetCookie === "function" ? upstream.headers.getSetCookie() : [];
   for (const cookie of setCookies) res.headers.append("set-cookie", cookie);

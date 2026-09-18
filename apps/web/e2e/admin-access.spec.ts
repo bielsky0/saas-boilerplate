@@ -66,12 +66,12 @@ test("an anonymous request to the admin panel is redirected to login", async ({ 
 
 /**
  * The auth engine's admin plugin mounts /api/auth/admin/* — a second path to
- * impersonate/ban/delete that would bypass our server actions and therefore the
+ * ban/delete that would bypass our audited flows and therefore the
  * audit log (spec 6.3). It is closed in the catch-all route; this proves it stays
  * closed.
  */
 test("the auth engine's admin HTTP surface is not exposed", async ({ request }) => {
-  const resp = await request.post("/api/auth/admin/impersonate-user", {
+  const resp = await request.post("/api/auth/admin/ban-user", {
     data: { userId: "anything" },
     failOnStatusCode: false,
   });

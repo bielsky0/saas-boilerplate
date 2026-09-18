@@ -1,6 +1,4 @@
-import { eq } from "drizzle-orm";
-
-import { auditLog, user, type Db } from "@repo/db";
+import { auditLog, type Db } from "@repo/db";
 import type { RequestSession } from "../auth/auth-engine";
 
 /**
@@ -12,21 +10,15 @@ import type { RequestSession } from "../auth/auth-engine";
  * - Rule B (engine effect): not needed in this module — every org mutation is
  *   ours, so every call site below is Rule A.
  *
- * Two deliberate differences from web:
+ * One deliberate difference from web:
  * - No `next/headers` ambient read: `recordAudit` takes `ipAddress`/`userAgent`
  *   explicitly (nullable). Callers pass what their request carries; jobs pass
  *   null. Evidence, never a control — a missing header never stops the action.
- * - `resolveActor` needs the `db` for the impersonated path (admin email
- *   lookup) and MUST be awaited BEFORE the transaction opens: inside, it would
- *   take a SECOND pooled connection while `tx` holds the first (the deadlock
- *   the web module documents).
  */
 
 export const AUDIT_ACTIONS = [
   // §6.3 — super-admin panel actions (written by the admin module, listed here
   // so the vocabulary stays in one place).
-  "impersonation.start",
-  "impersonation.stop",
   "user.suspend",
   "user.unsuspend",
   "user.delete",
@@ -75,39 +67,12 @@ export const SYSTEM_ACTOR: AuditActor = {
 };
 
 /**
- * The actor behind a request-scoped mutation. Under impersonation the actor is
- * the ADMIN, not the impersonated user — attribution follows AUTHORITY, so an
- * admin cannot launder an action through someone else's name (§6.2).
- *
- * The extra DB read fires only when `impersonatedBy !== null`. Await BEFORE
- * opening the transaction (see the module header).
+ * The actor behind a request-scoped mutation: the calling user, always.
+ * Pure function of the session — no DB read, so call sites need no
+ * transaction ordering around it.
  */
-export async function resolveActor(db: Db, session: RequestSession): Promise<AuditActor> {
-  if (session.impersonatedBy !== null) {
-    const [admin] = await db
-      .select({ email: user.email })
-      .from(user)
-      .where(eq(user.id, session.impersonatedBy))
-      .limit(1);
-    return {
-      actorType: "Admin",
-      actorId: session.impersonatedBy,
-      actorEmail: admin?.email ?? "(unknown admin)",
-    };
-  }
+export function resolveActor(session: RequestSession): AuditActor {
   return { actorType: "User", actorId: session.user.id, actorEmail: session.user.email };
-}
-
-/**
- * Merge the impersonated identity into metadata, so a row written under
- * impersonation names both halves. No-op when not impersonating.
- */
-export function withImpersonation(
-  session: RequestSession,
-  metadata?: Record<string, unknown>,
-): Record<string, unknown> | undefined {
-  if (session.impersonatedBy === null) return metadata;
-  return { ...metadata, onBehalfOf: session.user.email };
 }
 
 /** One field's before/after, as stored in `metadata.changes`. */

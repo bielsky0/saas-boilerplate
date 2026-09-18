@@ -89,12 +89,12 @@ export function DialogFooter({ className, ...props }: ComponentProps<"div">) {
  * work from inside the portal.
  *
  * `body` renders between the description and the footer, for the case where
- * confirming needs INPUT rather than just assent — impersonation's mandatory
- * reason (spec 6.4) is the motivating one. Fields passed here need the same
- * `form={id}` attribute as the confirm button, and for exactly the same reason:
- * the portal puts them outside the form too. Keep the server-side validation as
- * the real gate — a portaled input's native validation bubble has nothing to
- * anchor to once the dialog closes.
+ * confirming needs INPUT rather than just assent — e.g. a reason field the
+ * caller validates. Fields passed here need the same `form={id}` attribute as
+ * the confirm button, and for exactly the same reason: the portal puts them
+ * outside the form too. Keep the server-side validation as the real gate — a
+ * portaled input's native validation bubble has nothing to anchor to once the
+ * dialog closes.
  */
 export function ConfirmDialog({
   trigger,

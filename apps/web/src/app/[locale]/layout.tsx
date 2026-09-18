@@ -7,7 +7,6 @@ import "../globals.css";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui";
-import { ImpersonationBanner } from "@/features/admin";
 import { LOCALES, OG_LOCALE, isLocale } from "@/lib/i18n";
 import { getNonce } from "@/lib/security/nonce";
 import { site } from "@/lib/site";
@@ -72,7 +71,7 @@ export async function generateMetadata({ params }: LayoutProps<"/[locale]">): Pr
  * The locales this layout can render.
  *
  * Same status as the `generateStaticParams` on /blog/[slug]: it does NOT
- * prerender today, because this layout reads the session (see the banner note
+ * prerender today, because this layout reads request headers (see the nonce
  * below) and that opts every page into dynamic rendering. It is the line that
  * starts working the day someone enables `cacheComponents`.
  */
@@ -131,18 +130,6 @@ export default async function RootLayout({ children, params }: LayoutProps<"/[lo
             disableTransitionOnChange
             nonce={nonce}
           >
-            {/*
-              Impersonation disclosure (spec 6.2) lives at the ROOT so there is no
-              page — including 403s and the login screen — where an admin can be
-              acting as someone else with no banner and no way out.
-
-              Cost, accepted knowingly: it reads the session, so every route is
-              dynamic. For an anonymous visitor there is no cookie and therefore
-              no query. See docs/ARCHITECTURE.md — this is settled, not
-              outstanding: Next 16 removed the per-route PPR opt-in, so the only
-              remaining door is the app-wide `cacheComponents` flag.
-            */}
-            <ImpersonationBanner />
             {children}
             <Toaster />
           </ThemeProvider>

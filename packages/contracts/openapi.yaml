@@ -448,50 +448,6 @@ paths:
                       $ref: "#/components/schemas/AdminAuditRow"
                   page: { type: integer }
                   hasNext: { type: boolean }
-  /v1/admin/users/{id}/impersonate:
-    post:
-      operationId: impersonateUser
-      tags: [admin]
-      description: Open a session AS the user (30 min). Audit-first (Rule B); relays Set-Cookie. Reason is mandatory (spec 6.4).
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string, minLength: 1 }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ImpersonateInput"
-      responses:
-        "200":
-          description: Impersonating (session cookie swapped)
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [ok]
-                properties:
-                  ok: { type: boolean }
-        "403":
-          $ref: "#/components/responses/ImpersonationForbidden"
-  /v1/admin/impersonate/stop:
-    post:
-      operationId: stopImpersonating
-      tags: [admin]
-      description: Restore the admin session. SessionGuard alone (the caller is the impersonated non-admin); never read the session after.
-      responses:
-        "200":
-          description: Restored (or signed out when the admin session expired mid-impersonation)
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [ok, signedOut]
-                properties:
-                  ok: { type: boolean }
-                  signedOut: { type: boolean }
   /v1/admin/users/{id}/suspend:
     post:
       operationId: suspendUser
@@ -739,11 +695,6 @@ components:
         targetLabel: { type: string }
         metadata: { type: object, nullable: true }
         createdAt: { type: string, format: date-time }
-    ImpersonateInput:
-      type: object
-      required: [reason]
-      properties:
-        reason: { type: string, minLength: 10, maxLength: 500 }
     SuspendInput:
       type: object
       properties:
@@ -815,15 +766,6 @@ components:
             required: [error]
             properties:
               error: { type: string, enum: [USER_NOT_FOUND] }
-    ImpersonationForbidden:
-      description: Target is a super admin (or caller is not one)
-      content:
-        application/json:
-          schema:
-            type: object
-            required: [error]
-            properties:
-              error: { type: string, enum: [IMPERSONATION_FORBIDDEN] }
     LastAdmin:
       description: Revoking the last super admin
       content:

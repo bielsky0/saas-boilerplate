@@ -12,7 +12,6 @@
  * imported by full path so server code never reaches a client bundle.
  */
 
-export { ImpersonationBanner } from "./components/impersonation-banner";
 export {
   PAGE_SIZE,
   USER_STATUSES,

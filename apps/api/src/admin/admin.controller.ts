@@ -1,5 +1,5 @@
-import { Controller, Get, HttpCode, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
-import type { Request, Response } from "express";
+import { Controller, Get, HttpCode, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
+import type { Request } from "express";
 import { z } from "zod";
 
 import { idParam } from "@repo/validation";
@@ -14,16 +14,7 @@ import { SuperAdminGuard } from "./super-admin.guard";
  * Super-admin endpoints (spec 6, faza 2.6) — the panel, served by Nest.
  *
  * Reads are cross-tenant by design (§6.2 carve-out); `SuperAdminGuard` is the
- * boundary, applied at the controller level so no handler can forget it. The
- * two exceptions are deliberate and documented in the guard: `stop`
- * (the caller is the impersonated non-admin) carries `SessionGuard` alone.
- *
- * Cookie-swapping routes (`impersonate`, `stop`) relay the engine's
- * `Set-Cookie` onto the response (the `nextCookies` replacement — same helper
- * as the auth controller). The WEB relay (`POST /api/admin/impersonate*`)
- * copies these through to the browser; a direct browser→Nest call works too,
- * but cross-origin deployments (Vercel web + VPS API) cannot rely on
- * third-party cookies, so the same-origin relay is the supported path.
+ * boundary, applied per-handler so no handler can forget it.
  */
 
 const idParamsSchema = z.object({ id: idParam });
@@ -40,12 +31,6 @@ function requestInfo(req: Request): RequestInfo {
   };
 }
 
-/** Relay the engine's `Set-Cookie` onto the Express response. Never merged:
- * one `Set-Cookie` per header, or the browser keeps only one session. */
-function relaySetCookies(res: Response, setCookies: string[]): void {
-  if (setCookies.length > 0) res.setHeader("set-cookie", setCookies);
-}
-
 function targetId(params: Record<string, unknown>): string {
   const parsed = idParamsSchema.safeParse(params);
   if (!parsed.success) validationFailed(parsed.error);
@@ -54,9 +39,8 @@ function targetId(params: Record<string, unknown>): string {
 
 /**
  * Guards are per-handler, not class-level: every handler below carries
- * `SuperAdminGuard` EXCEPT `stop`, and a class-level decorator would combine
- * with (not yield to) the method-level one — silently 403ing the one caller
- * who must get through.
+ * `SuperAdminGuard`. A class-level decorator would combine with (not yield
+ * to) a method-level one, so per-handler is the explicit shape.
  */
 const AdminGuards = UseGuards(SessionGuard, SuperAdminGuard);
 
@@ -97,25 +81,6 @@ export class AdminController {
   @AdminGuards
   async listAudit(@Query() query: Record<string, unknown>) {
     return this.admin.listAuditEntries(query);
-  }
-
-  @Post("v1/admin/users/:id/impersonate")
-  @AdminGuards
-  async impersonate(
-    @Session() session: RequestSession,
-    @Param() params: Record<string, unknown>,
-    @Req() req: AuthenticatedRequest & Request,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<{ ok: true }> {
-    const { body, setCookies } = await this.admin.impersonate(
-      session,
-      forwardedHeaders(req),
-      targetId(params),
-      req.body,
-      requestInfo(req),
-    );
-    relaySetCookies(res, setCookies);
-    return body;
   }
 
   @Post("v1/admin/users/:id/suspend")
@@ -188,28 +153,5 @@ export class AdminController {
       req.body,
       requestInfo(req),
     );
-  }
-
-  /**
-   * Leave admin mode. `SessionGuard` ALONE — see the guard's header for why
-   * `SuperAdminGuard` must not run here. After the swap there is deliberately
-   * NO session read: the response cookies are the new truth, and re-reading
-   * would resolve the just-destroyed session.
-   */
-  @Post("v1/admin/impersonate/stop")
-  @HttpCode(200)
-  @UseGuards(SessionGuard)
-  async stopImpersonating(
-    @Session() session: RequestSession,
-    @Req() req: AuthenticatedRequest & Request,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<{ ok: true; signedOut: boolean }> {
-    const { body, setCookies } = await this.admin.stopImpersonating(
-      session,
-      forwardedHeaders(req),
-      requestInfo(req),
-    );
-    relaySetCookies(res, setCookies);
-    return body;
   }
 }

@@ -81,8 +81,6 @@ export interface AdminAuditResponse {
 export type AdminErrorCode =
   | "USER_NOT_FOUND"
   | "ORGANIZATION_NOT_FOUND"
-  | "IMPERSONATION_FORBIDDEN"
-  | "NOT_IMPERSONATING"
   | "TARGET_IS_ADMIN"
   | "CANNOT_ACT_ON_SELF"
   | "ALREADY_DELETED"

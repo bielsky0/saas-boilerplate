@@ -263,10 +263,12 @@ share one plan table); money moves only in the backend.
 ## Implemented: admin (faza 2.6)
 
 The panel reads and mutates across tenants by design (§6.2 carve-out);
-`SuperAdminGuard` (session + `impersonatedBy === null` + live `isSuperAdmin`,
-never a cookie claim) is the boundary, applied per-handler. Audit Rule A
-(our effect: same transaction) / Rule B (engine effect: audit-first, then
-the engine — the log over-logs rather than under-logs).
+`SuperAdminGuard` (live session + live `isSuperAdmin`, never a cookie claim)
+is the boundary, applied per-handler. Audit Rule A (our effect: same
+transaction) / Rule B (engine effect: audit-first, then the engine — the log
+over-logs rather than under-logs). Impersonation is not part of this
+template (faza 3.1): no impersonate endpoints exist, and the session carries
+no `impersonatedBy`.
 
 - `GET /v1/admin/users?q=&status=&from=&to=&page=` → `200 {rows, page,
 hasNext}`; `GET /v1/admin/users/:id` → detail + memberships +
@@ -278,16 +280,6 @@ hasNext}`; `GET /v1/admin/users/:id` → detail + memberships +
 - `GET /v1/admin/audit?q=&page=` → `200 {rows, page, hasNext}`, newest
   first (the `q` filter is load-bearing: the list is global, the E2E suite
   is parallel).
-- `POST /v1/admin/users/:id/impersonate` `{reason ≥10}` → `200 {ok:true}`
-  - swapped `Set-Cookie` (audit-first; target super admin →
-    `403 IMPERSONATION_FORBIDDEN`, deleted → `400 ALREADY_DELETED`). The
-    browser goes through the same-origin web relay
-    (`POST /api/admin/impersonate`), which copies `Set-Cookie` — never a
-    post-swap session read (stale-cookie).
-- `POST /v1/admin/impersonate/stop` (session-guarded ONLY — the caller is
-  the impersonated non-admin) → `200 {ok, signedOut}` + restored
-  `Set-Cookie`; `signedOut` when the admin session expired mid-impersonation
-  and the backend fell back to a plain sign-out (client lands on `/login`).
 - `POST /v1/admin/users/:id/suspend` `{reason?}` /
   `POST /v1/admin/users/:id/unsuspend` → `200 {ok:true}` (audit-first;
   suspending self → `403 CANNOT_ACT_ON_SELF`, super-admin target →

@@ -16,10 +16,9 @@ import { requireSession } from "@/lib/auth";
  *     (its own header: "no DB or crypto… NOT the security boundary"), and Next's
  *     docs say proxy "should not be used as a full session management or
  *     authorization solution".
- *  2. The only edge-available alternative — a claim cached in the cookie — would
- *     be actively WRONG under this very feature: impersonation swaps the session
- *     cookie, so a cached isSuperAdmin claim is stale exactly when it matters
- *     most. Same for a revoked flag. Authorization must read live state.
+ *  2. The only edge-available alternative — a claim cached in the cookie — is
+ *     stale exactly when it matters most: right after a revoke. Authorization
+ *     must read live state.
  *  3. §4.2 already settled this here: RBAC is enforced by requireOrgPermission +
  *     forbidden(), asserted by e2e/rbac-enforcement.spec.ts. Enforcing §6
  *     differently would contradict a documented, tested pattern for no gain.
@@ -44,14 +43,6 @@ export type AdminContext = {
 export async function requireSuperAdmin(callbackUrl = "/admin"): Promise<AdminContext> {
   const session = await requireSession(callbackUrl);
 
-  // An impersonated session NEVER carries admin authority, whoever it belongs to.
-  // Checked BEFORE the flag so this fails closed even if the engine's own role
-  // gate is misconfigured (see the adminUserIds warning in the auth adapter).
-  // Without this, an admin-mode session could re-enter the panel and act as the
-  // impersonated user, and the audit trail would name the wrong actor.
-  if (session.impersonatedBy !== null) {
-    forbidden();
-  }
   if (!session.user.isSuperAdmin) {
     forbidden();
   }

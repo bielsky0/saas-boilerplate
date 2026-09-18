@@ -106,9 +106,7 @@ export default async function AdminAuditPage({
                   </time>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={row.action.startsWith("impersonation") ? "warning" : "outline"}>
-                    {row.action}
-                  </Badge>
+                  <Badge variant="outline">{row.action}</Badge>
                 </TableCell>
                 <TableCell>
                   <span className="font-medium">{row.actorEmail}</span>

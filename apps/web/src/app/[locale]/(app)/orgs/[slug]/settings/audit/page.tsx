@@ -205,9 +205,7 @@ export default async function OrgAuditPage({
                   </time>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={row.action.startsWith("impersonation") ? "warning" : "outline"}>
-                    {actionLabel(row.action)}
-                  </Badge>
+                  <Badge variant="outline">{actionLabel(row.action)}</Badge>
                 </TableCell>
                 <TableCell>
                   <span className="font-medium">{row.actorEmail}</span>

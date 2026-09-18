@@ -181,12 +181,12 @@ Użytkownik może należeć do wielu organizacji jednocześnie i przełączać s
 - Lista wszystkich użytkowników systemu z wyszukiwaniem/filtrowaniem (e-mail, data rejestracji, status)
 - Lista wszystkich organizacji z podstawowymi metrykami (liczba członków, plan, MRR jeśli dotyczy)
 - Podgląd szczegółów konta użytkownika/organizacji
-- **Impersonacja:** możliwość zalogowania się „jako" wybrany użytkownik w celu debugowania/wsparcia — musi być jawnie oznaczona w UI (banner „jesteś zalogowany jako X w trybie admina") i logowana w audit logu (kto, kiedy, kogo impersonował)
+- **Impersonacja: out-of-scope templatki (faza 3.1).** Logowanie się „jako" wybrany użytkownik nie jest częścią tego boilerplate'u — panel nie oferuje tej funkcji, sesja nie niesie `impersonatedBy`, a guard panelu nie ma gałęzi dla sesji podszywających się. Produkt budowany na templatce, który jej potrzebuje, dokłada ją jako osobny moduł (endpointy + banner ujawnienia + wpisy audytu `impersonation.start/stop`), nie odkomentowuje.
 - Zawieszenie/odblokowanie konta użytkownika
 - Usunięcie konta użytkownika/organizacji — z potwierdzeniem i (jeśli wymaga tego produkt) miękkim usunięciem (soft delete) z okresem retencji przed trwałym usunięciem danych
 
 ### 6.3 Audit log
-- Rejestrowanie krytycznych akcji administracyjnych (impersonacja, zmiana roli, usunięcie konta, zmiana planu z poziomu admina) z timestampem, wykonawcą i celem akcji
+- Rejestrowanie krytycznych akcji administracyjnych (zmiana roli, usunięcie konta, zmiana planu z poziomu admina) z timestampem, wykonawcą i celem akcji
 
 ### 6.4 Pełny audit trail systemowy (rozszerzenie 6.3)
 **Cel:** rozszerzenie audytu z „akcje super admina" na „wszystkie istotne zmiany danych w systemie" — bezpośrednio wzmacnia wymogi RODO (kto zmienił dane klienta i kiedy) i daje podstawę do rozliczalności poza samym panelem admina.

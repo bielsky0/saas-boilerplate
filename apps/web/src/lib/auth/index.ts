@@ -24,7 +24,6 @@ interface SessionJSON {
     locale: string | null;
   };
   expiresAt: string;
-  impersonatedBy: string | null;
 }
 
 /** Resolve and fully validate the current session, or null. */
@@ -42,7 +41,6 @@ export async function getServerSession(): Promise<Session | null> {
   return {
     user: json.user,
     expiresAt: new Date(json.expiresAt),
-    impersonatedBy: json.impersonatedBy,
   };
 }
 
@@ -63,11 +61,11 @@ export async function requireSession(callbackUrl?: string): Promise<Session> {
 /**
  * Sign out the current session.
  *
- * Server-side fallback only (the admin panel's impersonation-exit path): the
- * expired cookie is set on the API response, which the browser never sees —
- * so this kills the session row but cannot clear the browser cookie. The
- * session resolves to null on its next use either way. Interactive sign-out
- * goes browser → Nest directly (see `SignOutButton`).
+ * Server-side fallback only: the expired cookie is set on the API response,
+ * which the browser never sees — so this kills the session row but cannot
+ * clear the browser cookie. The session resolves to null on its next use
+ * either way. Interactive sign-out goes browser → Nest directly
+ * (see `SignOutButton`).
  */
 export async function signOut(): Promise<void> {
   try {

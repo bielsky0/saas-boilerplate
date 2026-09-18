@@ -218,9 +218,10 @@ implementation in code once the corresponding module is built (spec §17.2):
      `membership.role` — a system role is not an org role.
   2. **`adminUserIds` must NEVER be set.** `has-permission.mjs` short-circuits
      `if (adminUserIds.includes(userId)) return true` _before_ any permission
-     check, which silently grants `user:impersonate-admins`. One super admin
-     could then impersonate another, and that session would pass
-     `requireSuperAdmin`. Bootstrap with SQL instead (see below).
+     check, which silently grants `user:impersonate-admins`. The impersonate
+     endpoints are removed from this template (faza 3.1), but a future caller
+     of the engine's impersonate API would inherit the hole. Bootstrap with
+     SQL instead (see below).
   3. **Reads do not belong in the adapter.** The engine's own user list cannot
      join our memberships/subscriptions or see our `deletedAt`. Only operations
      that need the identity ENGINE (minting/revoking sessions) are in the
@@ -374,8 +375,8 @@ attempt=…`, see `apps/api/src/jobs/jobs.service.ts`): the drain is one
   ordering, Rule B, applies instead). Three things that are not optional:
   `organizationId` is a **required** field, so a call site must state its tenant or
   explicitly write `null`; the actor comes from `resolveActor(session)` — never
-  build one by hand, because it is what attributes an impersonated action to the
-  ADMIN rather than the account they are wearing; and a `targetLabel` lookup that
+  build one by hand, so every audited write attributes the panel's `Admin`
+  actor or the tenant's `User` actor consistently; and a `targetLabel` lookup that
   needs a second query must use `tx`, not `db`, or it deadlocks against the
   transaction holding the connection. Field-level before/after goes in
   `metadata.changes` via `changed(before, after, fields)`, which returns
@@ -403,13 +404,12 @@ attempt=…`, see `apps/api/src/jobs/jobs.service.ts`): the drain is one
   in `@theme inline`. Dark mode is **class-based** (`@custom-variant dark`), driven
   by next-themes via `ThemeProvider` in the root layout — never reintroduce
   `prefers-color-scheme` in components, and never hard-code a color in a component.
-- **⚠️ The root layout reads the session, so every PAGE is dynamic — settled, not
-  outstanding.** The impersonation banner (§6.2) lives in `src/app/layout.tsx`
-  because it is a disclosure control: it must also cover `forbidden.tsx`,
-  `/login` and the `(admin)` group, so there is nowhere to be in admin mode with
-  no banner and no way out. `getServerSession()` calls `headers()`, which opts
-  every page into dynamic rendering. For an anonymous visitor there is no cookie
-  and therefore no query.
+- **⚠️ The root layout reads request headers, so every PAGE is dynamic — settled, not
+  outstanding.** `getNonce()` calls `headers()`, which opts
+  every page into dynamic rendering. (Until faza 3.1 this bullet blamed the
+  impersonation banner's session lookup; the banner is removed from this
+  template, but the nonce read keeps the same rendering cost.)
+  For an anonymous visitor there is no cookie and therefore no query.
 
   This bullet used to say "revisit when §8/§9 land static blog/docs pages". §8/§9
   have landed, and the answer is that they are **server-rendered, not statically
@@ -672,8 +672,8 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
   - **Why there is no super-admin middleware, despite §6.1's wording:** `proxy.ts`
     is edge-safe with no DB and Next's own docs say proxy "should not be used as
     a full session management or authorization solution". The only edge-available
-    alternative is a cookie claim, which impersonation actively invalidates — it
-    swaps the session cookie, so a cached flag is stale exactly when it matters.
+    alternative is a cookie claim, which is stale exactly when it matters —
+    right after a revoke.
     §4.2 already settled the pattern (`requireOrgPermission` + `forbidden()`, with
     `e2e/rbac-enforcement.spec.ts` asserting a real 403); §6 follows it. The proxy
     still does its job: default-deny already redirects anonymous `/admin` to
@@ -682,15 +682,9 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
     `src/features/admin/audit.ts`. Pick by asking who owns the DB connection:
     **Rule A** (the effect is ours, e.g. a soft delete) — write the audit row in
     the SAME transaction as the effect. **Rule B** (the effect is the auth
-    engine's, e.g. impersonate/suspend) — a shared transaction is impossible, so
+    engine's, e.g. suspend) — a shared transaction is impossible, so
     audit FIRST in its own transaction, then call the engine, and fail closed. The
     log records authorized intent: it over-logs rather than under-logs.
-  - **Never read the session after a cookie swap.** `headers()` returns the
-    REQUEST headers for the whole request; a `Set-Cookie` only lands on the
-    response. Calling `getSession()` after `impersonate`/`stopImpersonating`
-    re-reads a session the engine just deleted, and the engine answers by clearing
-    the cookie — silently logging the admin out. Resolve everything you need
-    (including audit attribution) BEFORE the swap.
   - **Bootstrap the first super admin with SQL** — there is deliberately no
     in-app path, because granting the flag requires an existing super admin:
     ```sql

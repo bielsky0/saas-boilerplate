@@ -233,10 +233,6 @@
       "confirmLeaveAction": "Leave organization"
     },
     "auditActions": {
-      "impersonation": {
-        "start": "Impersonation started",
-        "stop": "Impersonation ended"
-      },
       "user": {
         "suspend": "User suspended",
         "unsuspend": "User reactivated",

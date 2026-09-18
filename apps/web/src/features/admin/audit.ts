@@ -16,9 +16,8 @@
  * error/event string.
  *
  * NAMING: lowercase dotted, not SCREAMING_CASE. These values are user-visible
- * (both audit pages render `action` raw) and are asserted on literally in
- * e2e/admin-impersonation.spec.ts; renaming would also require rewriting live
- * rows for no benefit.
+ * (both audit pages render `action` raw); renaming would also require rewriting
+ * live rows for no benefit.
  *
  * On §6.3's "zmiana roli": BOTH halves exist. superadmin.grant/revoke is the
  * SYSTEM role change (§6.1); member.role_change is the tenant one (§3/§4).
@@ -42,8 +41,6 @@
  */
 export const AUDIT_ACTIONS = [
   // §6.3 — super-admin panel actions (written by the API admin module).
-  "impersonation.start",
-  "impersonation.stop",
   "user.suspend",
   "user.unsuspend",
   "user.delete",
@@ -76,8 +73,8 @@ export type AuditTargetType =
  * WHO acted, as a kind — §6.4's actor model. A different question from WHICH
  * actor, and the one an auditor asks first ("did a human do this, or a job?").
  *
- * `Admin` specifically means "a super admin acting through impersonation", not
- * "a super admin". A super admin using the panel normally is also `Admin`; the
+ * `Admin` means "a super admin acting through the panel". A super admin using
+ * the panel is `Admin`; a tenant member acting in an org is `User`. The
  * distinction that matters is authority, not surface.
  */
 export type ActorType = "User" | "System" | "AIAgent" | "Admin";
