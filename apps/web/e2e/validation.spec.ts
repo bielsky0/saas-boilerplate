@@ -72,8 +72,8 @@ test("sign-in does NOT gain field errors — the anti-enumeration exception hold
  * Both API assertions share ONE signed-in user, deliberately.
  *
  * `registerViaApi` sends a verification email, which puts an `email.send` row in
- * the shared queue and kicks an `after()` drain that can CLAIM another spec's
- * pending job mid-assertion. Splitting this into two tests doubled that traffic
+ * the shared queue and kicks an in-process drain (faza 3.6: `kickDrain()` in
+ * the API, no web relay) that can CLAIM another spec's pending job mid-assertion. Splitting this into two tests doubled that traffic
  * and was enough to make `emails-retry` and `onboarding-sequence` flake when run
  * with multiple local workers. The setup is identical for both assertions
  * anyway, so one account is not a compromise, it is the correct factoring.

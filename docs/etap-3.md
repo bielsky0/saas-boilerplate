@@ -212,6 +212,20 @@ schedulery i klienci MCP wskazują wprost na nie, nie na web.
 
 ## Faza 3.6 — E2E na direct
 
+> Status: delivered. Kodowo: jedno realne przepięcie
+> (`emails-transactional` reset-sesji z engine-legacy
+> `/api/auth/request-password-reset` na kontraktowy
+> `POST /v1/auth/password-reset/request`) + `apiBaseURL` w
+> `playwright.config.ts` (jedno źródło originu API, spójne
+> z `apiUrl()` w `helpers.ts`) + komentarze po fazach 2.1/3.4/3.5.
+> `/api/mcp` i `/api/auth/admin/*` w suicie ZOSTAJĄ — to ścieżki
+> API-originu z kontraktu (transport MCP, allowlista engine'a),
+> nie web-relaye; brama to zero web-origin `/api/` plus allowlista.
+> Suita: 119 passed w `required` (2(storage) failują wyłącznie na
+> obcym MinIO na :9000 — `SignatureDoesNotMatch`, brak projektowego
+> `saas_boilerplate_minio`; w CI z własnym MinIO zielone) oraz
+> 16/16 w `disabled` na specach fazy.
+
 Cel: suita mówi wyłącznie HTTP do dwóch originów we właściwych rolach —
 strony do weba, dane i harness do API. Zero `/api/` w `e2e/`.
 

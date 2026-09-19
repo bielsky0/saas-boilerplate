@@ -70,8 +70,10 @@ test("an anonymous request to the admin panel is redirected to login", async ({ 
 /**
  * The auth engine's admin plugin mounts /api/auth/admin/* — a second path to
  * ban/delete that would bypass our audited flows and therefore the
- * audit log (spec 6.3). It is closed in the API's engine allowlist; this
- * proves it stays closed.
+ * audit log (spec 6.3). It is closed in the API's engine allowlist
+ * (apps/api/src/main.ts — everything outside the emailed-link/OAuth hops
+ * answers 404); this proves it stays closed. Faza 3.6: the paths below are
+ * the engine surface on the API origin, not web relays — they stay.
  */
 test("the auth engine's admin HTTP surface is not exposed", async ({ request }) => {
   const resp = await request.post(apiUrl("/api/auth/admin/ban-user"), {

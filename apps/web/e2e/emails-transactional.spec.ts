@@ -167,7 +167,9 @@ test("password-reset invalidates the old session and the old password", async ({
   await page.getByRole("button", { name: /log in/i }).click();
   await expect(page).toHaveURL(/\/dashboard/);
 
-  await request.post(apiUrl("/api/auth/request-password-reset"), {
+  // Faza 3.6: kontraktowy endpoint zamiast engine-legacy
+  // `/api/auth/request-password-reset` (allowlista w apps/api/src/main.ts).
+  await request.post(apiUrl("/v1/auth/password-reset/request"), {
     data: { email, redirectTo: "/reset-password" },
   });
   const mail = await waitForEmail(request, email, "password-reset");

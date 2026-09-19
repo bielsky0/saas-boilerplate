@@ -6,13 +6,15 @@ import { registerViaApi, seedOrg, uniqueEmail, apiUrl } from "./helpers";
  * MCP / AI Agent E2E (spec 26) — the two acceptance criteria for 11a.4:
  *   1. a tool call for data OUTSIDE the acting user's context returns a denial,
  *      never another organization's rows (tenant isolation, §26.1/§26.2);
- *   2. the OAuth 2.0 boundary is in place — an unauthenticated `/api/mcp` call
- *      against the main API is rejected with the discovery pointer that starts
+ *   2. the OAuth 2.0 boundary is in place — an unauthenticated transport call
+ *      at the API origin is rejected with the discovery pointer that starts
  *      the flow.
  *
  * Faza 3.5: MCP clients talk straight at the main API (discovery + bearer, no
- * web relay — the web `/.well-known/*` proxies are gone). Every assertion
- * below drives the API origin via `apiUrl()`.
+ * web relay — the web `/.well-known/*` proxies are gone). Faza 3.6: every
+ * assertion below drives the API origin via `apiUrl()` — pages would go to
+ * the web origin, data and harness go here. `/api/mcp` below is the API's
+ * own transport path (not a web relay), same for `/.well-known/*`.
  *
  * The full OAuth handshake (dynamic registration → login → consent → token) is a
  * browser/agent concern; here we assert the boundary directly and drive the tool
@@ -29,7 +31,7 @@ async function callTool(request: APIRequestContext, body: ToolBody) {
 }
 
 test.describe("MCP OAuth boundary", () => {
-  test("unauthenticated /api/mcp is rejected with a resource-metadata pointer", async ({
+  test("unauthenticated transport at the API origin is rejected with a resource-metadata pointer", async ({
     request,
   }) => {
     const res = await request.post(apiUrl("/api/mcp"), {

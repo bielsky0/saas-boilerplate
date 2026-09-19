@@ -12,10 +12,12 @@ import { apiUrl } from "./helpers";
  * with retries silently never running. Asserting 401/404 rather than "not 200"
  * is what pins that down.
  *
- * CRON_SECRET is unset in the E2E env, so the route answers 404 here — the
- * BILLING_PROVIDER=none precedent. That still proves no guard interferes:
- * without the bearer-token check answering for itself, this would be a 401
- * at best and a redirect at worst.
+ * CRON_SECRET is a dummy value in the E2E env (playwright.config.ts), so an
+ * unauthenticated drain answers 401 here — the BILLING_PROVIDER=none
+ * precedent. The 404 leg is accepted too (a boot without the secret, where
+ * the route declares itself absent). Either way this proves no guard
+ * interferes: without the bearer-token check answering for itself, this
+ * would be a 401 at best and a redirect at worst.
  */
 
 test("the drain endpoint is not behind the session guard", async ({ request }) => {

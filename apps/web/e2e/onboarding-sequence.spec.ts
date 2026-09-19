@@ -42,7 +42,7 @@ test("all three steps are queued upfront, and run in order", async ({ request })
   // claim's visibility timeout, so a job that has already run also carries a
   // future `runAt` (now + CLAIM_TIMEOUT). Filtering on `runAt` alone would count
   // the already-delivered welcome as "scheduled" — and day 0's job may well have
-  // been drained by `kickDrain()` before this line runs.
+  // been drained by the API's in-process `kickDrain()` before this line runs.
   const scheduled = queued.filter(
     (j) => j.status === "pending" && new Date(j.runAt).getTime() > Date.now(),
   );

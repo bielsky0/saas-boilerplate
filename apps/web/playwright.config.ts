@@ -20,10 +20,14 @@ import { E2E_TENANCY_ENV, ORG_DEPENDENT_SPECS, TENANCY_MODE } from "./e2e/tenanc
 const PORT = 3000;
 const baseURL = process.env.NEXT_PUBLIC_APP_URL ?? `http://localhost:${PORT}`;
 
-// Faza 2.0 — dual-server E2E: każdy slice od tej fazy testujemy przeciw web+api.
-// API słucha na :3001 (domyślny PORT z apps/api/src/common/config.ts).
+// Faza 2.0 — dual-server E2E: każdy slice testujemy przeciw web+api.
+// Faza 3.6 — jedno źródło originu API: `apiBaseURL` (web = `baseURL`, dane
+// i harness = `apiBaseURL`; por. `apiUrl()` w e2e/helpers.ts, który czyta
+// ten sam `E2E_API_BASE_URL`). Domyślny PORT z apps/api/src/common/config.ts.
 const API_PORT = 3001;
-const apiHealthURL = `http://localhost:${API_PORT}/v1/health`;
+export const apiBaseURL =
+  process.env.E2E_API_BASE_URL ?? process.env.API_BASE_URL ?? `http://localhost:${API_PORT}`;
+const apiHealthURL = `${apiBaseURL.replace(/\/+$/, "")}/v1/health`;
 
 /**
  * Forward DB + auth secret do obu serwerów (faza 2.0: "ten sam DATABASE_URL
@@ -44,10 +48,10 @@ const E2E_AUTH_ENV: Record<string, string> =
     : {};
 
 /**
- * Faza 2.1 — the auth module enqueues mail from Nest and kicks the web drain
- * afterwards, so the drain endpoint must accept the kick here. A dummy secret
- * (never a real one): `cron-drain.spec.ts` accepts either 401 or 404, so the
- * guard assertions hold either way.
+ * Faza 2.1 — the auth module enqueues mail from Nest and kicks its OWN
+ * in-process drain afterwards (faza 3.6: `kickDrain()` w API, nie relay
+ * do weba). A dummy secret (never a real one): `cron-drain.spec.ts`
+ * accepts either 401 or 404, so the guard assertions hold either way.
  */
 const E2E_CRON_ENV = {
   CRON_SECRET: "e2e-cron-secret-not-a-real-secret",
@@ -106,7 +110,8 @@ export default defineConfig({
         EMAIL_PROVIDER: "log",
         ...E2E_DB_ENV,
         ...E2E_AUTH_ENV,
-        // Accepts the post-enqueue drain kick from Nest (faza 2.1).
+        // The cron-drain guard assertion needs a secret to answer against
+        // (faza 3.6: the drain lives in the API — in-process kick, cron guarantee).
         ...E2E_CRON_ENV,
         // Selects the Stripe adapter and shares the signing secret with the tests
         // that sign fixtures. Verification is a local HMAC, so these dummy values
@@ -119,10 +124,12 @@ export default defineConfig({
       },
     },
     {
-      // Faza 2.0: drugi serwer — Nest API na :3001. Na razie tylko health
-      // (żaden slice jeszcze nie bije w API); od fazy 2.1 kolejne moduły będą
-      // testowane przeciw web+api. `build &&` jest celowe: w CI runner jest
-      // świeży i dist/ nie istnieje, a sam `start` (= node dist/main) by padł.
+      // Faza 2.0: drugi serwer — Nest API (domyślnie na :3001; override przez
+      // `E2E_API_BASE_URL`, spójny z `apiUrl()` w e2e/helpers.ts i `apiBaseURL`
+      // powyżej). Faza 3.6: suita mówi do dwóch originów we właściwych rolach —
+      // strony do weba (`baseURL`), dane i harness do API (`apiBaseURL`).
+      // `build &&` jest celowe: w CI runner jest świeży i dist/ nie istnieje,
+      // a sam `start` (= node dist/main) by padł.
       command: "pnpm --filter api build && pnpm --filter api start",
       url: apiHealthURL,
       reuseExistingServer: !process.env.CI && TENANCY_MODE === "required",
@@ -133,7 +140,7 @@ export default defineConfig({
         ...E2E_DB_ENV,
         ...E2E_AUTH_ENV,
         ...E2E_TENANCY_ENV,
-        // Sends the post-enqueue drain kick to web (faza 2.1).
+        // The cron-drain guard assertion needs a secret to answer against.
         ...E2E_CRON_ENV,
         // Faza 2.8: the webhook suite kept 404ing locally with
         // `not_configured` while green in CI — CI exports BILLING_* as
