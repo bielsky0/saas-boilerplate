@@ -177,6 +177,17 @@ zero guarda sesji, zero rate-limitu.
 
 ## Faza 3.5 — kontrakt backendu (zmiana po stronie API)
 
+> Status: delivered. Kodowo: `suppression.ts` split, CORS/`trustedOrigins`,
+> cookie-`Domain`, `BETTER_AUTH_URL` i Stripe-webhook wprost w API były już
+> dowiezione wcześniej — ta faza dowozi resztę: kasacja `vercel.json:crons`
+> (drenaż wyłącznie zewnętrznym schedulerem wprost w `GET {api}/v1/cron/jobs`),
+> kasacja webowych relayów `/.well-known/*` (klienci MCP biją wprost w API),
+> E2E-pin hosta API w `List-Unsubscribe` (transactional + unsubscribe) oraz
+> kontrakt w `backend-contract.md` ("Self-sufficient backend"), `ARCHITECTURE.md
+§6`/cron-section i `README` (cron). Dwie ostatnie web-relaye zniknęły razem
+> z tym commitmem; `grep '"/api/` w `apps/web/src` zwraca zero łącznie
+> z `app/api` (poza komentarzami historycznymi).
+
 Cel: API jest samowystarczalne dla świata zewnętrznego — maile, dostawcy,
 schedulery i klienci MCP wskazują wprost na nie, nie na web.
 

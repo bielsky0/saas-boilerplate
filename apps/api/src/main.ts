@@ -29,14 +29,15 @@ import type { ApiConfig } from "./common/config";
 /**
  * Engine HTTP paths served directly by Nest (faza 2.1) — an ALLOWLIST, never
  * a blocklist. These are the emailed-link hops (validate-then-redirect GETs)
- * plus the legacy forget-password POST the E2E suite drives through the web
- * `[...all]` proxy, plus the OAuth 2.0 / MCP dance (faza 2.7: authorize,
- * token, dynamic registration, consent, discovery — all reached through the
- * same web proxy). Everything else under `/api/auth/*` — sign-in/up posts,
- * `get-session`, and the whole `/admin/*` plugin surface — answers 404: the
- * versioned `/v1/*` contract (with its rate limiting) is the only way in for
- * those, and the admin plugin stays reachable solely through the audited
- * `AdminService` (faza 2.6), never over HTTP.
+ * plus the legacy forget-password POST, plus the OAuth 2.0 / MCP dance
+ * (faza 2.7: authorize, token, dynamic registration, consent, discovery).
+ * Emailed links are built from `BETTER_AUTH_URL` (the API origin, faza 3.5),
+ * so they arrive here directly — no web relay. Everything else under
+ * `/api/auth/*` — sign-in/up posts, `get-session`, and the whole `/admin/*`
+ * plugin surface — answers 404: the versioned `/v1/*` contract (with its
+ * rate limiting) is the only way in for those, and the admin plugin stays
+ * reachable solely through the audited `AdminService` (faza 2.6), never
+ * over HTTP.
  */
 function isAllowedEnginePath(method: string, path: string): boolean {
   if (method === "GET" && path === "/verify-email") return true;
@@ -87,9 +88,9 @@ async function bootstrap() {
     ],
   });
 
-  // Mount the engine's own HTTP surface for the allowlisted hops above. The
-  // web `app/api/auth/[...all]` route reverse-proxies here, so emailed links
-  // and legacy engine paths keep working with no web-side engine left.
+  // Mount the engine's own HTTP surface for the allowlisted hops above.
+  // Emailed links point at the API origin directly (faza 3.5), so no web
+  // relay sits in front of them.
   const engine = app.get<AuthEngine>(AUTH_ENGINE);
   const server = app.getHttpAdapter().getInstance();
   server.use("/api/auth", (req: Request, res: Response, next: () => void) => {

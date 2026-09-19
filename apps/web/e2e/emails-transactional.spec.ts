@@ -70,7 +70,13 @@ test("welcome sends after verification, as day 0 of the sequence", async ({ requ
   const mail = await waitForEmail(request, email, "welcome");
   expect(mail.subject).toMatch(/welcome/i);
   // Onboarding mail, unlike transactional, MUST be unsubscribable (spec 10.3).
-  expect(mail.headers?.["List-Unsubscribe"]).toContain("/v1/unsubscribe");
+  // Faza 3.5: the one-click endpoint lives on the API origin, never on the
+  // web — a mail client POSTs straight at the backend.
+  const listUnsub = mail.headers?.["List-Unsubscribe"] ?? "";
+  expect(listUnsub).toContain("/v1/unsubscribe");
+  const oneClick = new URL(listUnsub.match(/<([^>]+)>/)?.[1] ?? "");
+  expect(oneClick.pathname).toBe("/v1/unsubscribe");
+  expect(oneClick.host).toBe(new URL(apiUrl("/v1/unsubscribe")).host);
   expect(mail.headers?.["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
 });
 

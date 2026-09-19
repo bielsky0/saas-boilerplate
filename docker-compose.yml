@@ -12,6 +12,11 @@
 #   BILLING_* (stripe live). Migracje: DATABASE_URL=<baza-VPS> pnpm db:migrate
 #   (z dowolnej maszyny z repo — `db:migrate` ma `cache: false`, turbo.json).
 # Web zostaje na Vercelu z API_BASE_URL=https://api.<domena>.
+#
+# Scheduler (faza 3.5 — drenaż kolejki NIE idzie przez Vercel; `vercel.json`
+# nie deklaruje cronów): hostowy cron / systemd timer bijący wprost w API:
+#   */5 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://api.<domena>/v1/cron/jobs
+# W dev nic nie trzeba — `pnpm db:up` startuje tylko api/postgres/minio.
 services:
   api:
     build:

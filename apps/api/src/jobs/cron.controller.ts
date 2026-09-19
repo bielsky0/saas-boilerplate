@@ -9,8 +9,7 @@ import { notFound, unauthorized } from "../common/http";
 import { JobsService } from "./jobs.service";
 
 /**
- * Job drain endpoint (spec 12) — THE DELIVERY GUARANTEE. The Nest twin of
- * web's `src/app/api/cron/jobs/route.ts`, which now forwards here.
+ * Job drain endpoint (spec 12) — THE DELIVERY GUARANTEE.
  *
  * `kickDrain()` runs the happy path after an enqueue, but it is only an
  * optimization: retries, the §10.3 sequence's day-3/day-7 steps, and every
@@ -19,14 +18,16 @@ import { JobsService } from "./jobs.service";
  * which then never recovers. That asymmetry is why an unset CRON_SECRET
  * answers 404 loudly rather than degrading quietly.
  *
- * AUTHENTICATION: a bearer token, not a Vercel signature. Vercel Cron
- * attaches `Authorization: Bearer $CRON_SECRET` automatically; a Docker
- * sidecar, systemd timer, or external pinger sends the identical header. ONE
- * mechanism serves both deploy targets.
+ * AUTHENTICATION: a bearer token, not a platform signature. An external
+ * scheduler (VPS cron, compose-job, cron-job.org, GitHub Actions `schedule:`)
+ * sends `Authorization: Bearer $CRON_SECRET` against
+ * `GET {api}/v1/cron/jobs` (faza 3.5 — the web serves no data endpoints and
+ * `vercel.json` declares no crons, so nothing Vercel-side drains the queue).
+ * ONE mechanism serves both deploy targets.
  *
- * GET because that is what Vercel Cron issues. It mutates, which a GET should
- * not, and the mitigating fact is that it is not reachable without the secret
- * and is idempotent in effect (draining an empty queue is a no-op).
+ * GET because that is what external pingers issue. It mutates, which a GET
+ * should not, and the mitigating fact is that it is not reachable without the
+ * secret and is idempotent in effect (draining an empty queue is a no-op).
  */
 
 const BATCH_BUDGET_MS = 50_000;

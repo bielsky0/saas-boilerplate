@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  apiUrl,
   drainJobs,
   getEmails,
   registerAndVerify,
@@ -61,6 +62,8 @@ test("one-click unsubscribe stops the rest of the sequence", async ({ request })
   const welcome = await waitForEmail(request, email, "welcome");
   expect(welcome.headers?.["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
   const url = unsubscribeUrlFrom(welcome.headers?.["List-Unsubscribe"]);
+  // Faza 3.5: one-click hits the API directly, never the web origin.
+  expect(new URL(url).host).toBe(new URL(apiUrl("/v1/unsubscribe")).host);
 
   // RFC 8058: a POST from the mail provider's servers is a deliberate act.
   const res = await request.post(url);

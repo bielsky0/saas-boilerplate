@@ -10,6 +10,10 @@ import { registerViaApi, seedOrg, uniqueEmail, apiUrl } from "./helpers";
  *      against the main API is rejected with the discovery pointer that starts
  *      the flow.
  *
+ * Faza 3.5: MCP clients talk straight at the main API (discovery + bearer, no
+ * web relay — the web `/.well-known/*` proxies are gone). Every assertion
+ * below drives the API origin via `apiUrl()`.
+ *
  * The full OAuth handshake (dynamic registration → login → consent → token) is a
  * browser/agent concern; here we assert the boundary directly and drive the tool
  * logic through the `/v1/dev/mcp` seam, which calls the SAME `resolveMcp*`
@@ -38,8 +42,8 @@ test.describe("MCP OAuth boundary", () => {
     expect(wwwAuth).toContain("/.well-known/oauth-protected-resource");
   });
 
-  test("protected-resource metadata is served at the origin root", async ({ request }) => {
-    const res = await request.get("/.well-known/oauth-protected-resource");
+  test("protected-resource metadata is served at the API origin root", async ({ request }) => {
+    const res = await request.get(apiUrl("/.well-known/oauth-protected-resource"));
     expect(res.ok()).toBe(true);
     const body = (await res.json()) as {
       resource?: string;
@@ -51,7 +55,7 @@ test.describe("MCP OAuth boundary", () => {
   });
 
   test("authorization-server metadata advertises the OAuth endpoints", async ({ request }) => {
-    const res = await request.get("/.well-known/oauth-authorization-server");
+    const res = await request.get(apiUrl("/.well-known/oauth-authorization-server"));
     expect(res.ok()).toBe(true);
     const body = (await res.json()) as {
       authorization_endpoint?: string;

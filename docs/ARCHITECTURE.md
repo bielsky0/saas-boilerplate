@@ -180,6 +180,11 @@ boundary — the session is AUTHORITATIVELY verified in the render via
   CORS + `trustedOrigins`), `API_BASE_URL` / `NEXT_PUBLIC_API_BASE_URL` on
   web = public API origin. Verify against the REAL hosts — two localhost
   ports are same-site and prove nothing about production.
+  Faza 3.5: the API is self-sufficient on this topology — providers
+  (`/v1/billing/webhook`), schedulers (`/v1/cron/jobs`), mail one-click
+  (`/v1/unsubscribe`) and MCP (`/api/mcp` + `/.well-known/*`) all point at
+  the API origin; the web keeps no relay for any of them (see
+  `backend-contract.md` "Self-sufficient backend").
 
 ## Reference patterns (fill in as modules land)
 
@@ -313,7 +318,7 @@ attempt=…`, see `apps/api/src/jobs/jobs.service.ts`): the drain is one
   `LOG_FORMAT=json` renders one object per line for a collector. **Set
   `LOG_FORMAT=json` in production** — same call sites, so a line cannot drift
   between the two. Reference: `apps/api/src/jobs/jobs.service.ts` (claim loop +
-  dead-letter/retry lines), `src/app/api/cron/jobs/route.ts` (`requestLogger`).
+  dead-letter/retry lines), `apps/api/src/jobs/cron.controller.ts` (drain entry).
   Deliberately NOT an adapter: a logger has no vendor to swap — stdout is the
   interface — so a contract there would abstract over exactly one thing.
 
@@ -537,8 +542,7 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
   verifies against Nest `GET /v1/session`). Reference:
   the `src/app/(app)/dashboard/page.tsx` server component. Mutations never
   live in server actions since faza 2.8 (the lint gate forbids `"use server"`)
-  — the browser calls Nest directly, or through a thin `src/app/api/*` proxy
-  route (reference: `src/app/api/locale/route.ts`).
+  — the browser calls Nest `/v1/*` directly (faza 3.2; no web relay since 3.3).
 - **Validate an input — spec 22.2.** Validation is a NAMED LAYER, not a habit:
   every value that crosses the trust boundary passes a zod schema **before** any
   business logic or authorization side effect. The shared parts live in
@@ -547,7 +551,7 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
   `schema.ts`. Five rules:
   1. **Parse first, authorize second.** `resolveStorageOwner`/
      `resolveNotificationOwner`/`requireOrgPermission` are handed values that
-     already have a shape. Reference: `src/app/api/storage/presign/route.ts`.
+     already have a shape. Reference: `apps/api/src/storage/storage.controller.ts`.
   2. **Factory if a human reads the message, constant if the wire does.** A form
      schema takes a `NamespaceTranslator` and returns translated messages
      (`features/auth/schema.ts`); an API schema does not, because a 422 for a
@@ -614,7 +618,7 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
   user who ever created an org fails at the FK and needs its own migration.
 - **Take money (§5.3, §5.5):** reference: `apps/api/src/billing/billing.service.ts`
   (`startCheckout`/`openBillingPortal`) + `apps/api/src/billing/billing.controller.ts`,
-  reached through thin web proxies in `src/app/api/billing/{checkout,portal}/route.ts`. Four rules:
+  reached by the browser directly at `/v1/billing/*` (no web relay since faza 3.3). Four rules:
   1. **Persist the customer mapping BEFORE creating a checkout session.** The
      ordering is an invariant, documented on `schema/billing-customers.ts` and
      enforced in `ensureBillingCustomer`: it is what lets the webhook treat an
@@ -641,15 +645,14 @@ nothing errors, it just looks wrong — so `e2e/content-prose.spec.ts` asserts
 
 - **Receive a provider webhook (§5.4):** reference:
   `apps/api/src/billing/billing.service.ts` (`processBillingEvent`) +
-  `apps/api/src/billing/billing.controller.ts`; the web route
-  (`src/app/api/billing/webhook/route.ts`) is a raw-byte relay, and Stripe
-  points at the API directly (ADR-0004).
+  `apps/api/src/billing/billing.controller.ts`; Stripe points at
+  `POST {api}/v1/billing/webhook` directly (the pre-3.3 web raw-byte relay is
+  gone — ADR-0004's relay rationale is superseded by faza 3.3/3.5).
   Four rules, in order of how badly they bite:
   1. **The signature is the authentication.** A webhook has no session, so the
-     route must be exempted in `src/proxy.ts` (`isPublicPath`) — otherwise the
-     guard answers 307 to `/login` and providers, which do not follow redirects,
-     retry forever. Verification lives in the ADAPTER, so the route never
-     imports a vendor SDK.
+     API route carries no session guard — otherwise providers, which do not
+     follow redirects, retry forever. Verification lives in the ADAPTER, so
+     the route never imports a vendor SDK.
   2. **Read the raw body with `request.text()`**, never `request.json()`: the
      signature covers the exact bytes sent, so re-serializing invalidates it.
      (Equally: any proxy that buffers or rewrites the body breaks it.)
@@ -754,12 +757,12 @@ permission)` from `src/features/organizations/context.ts` as the FIRST line —
     _shape_ (read looser than write, write looser than expensive) and five
     independent env vars would just be five ways to make it incoherent.
   - **Two endpoints are exempt on purpose, and both would be actively harmful to
-    limit.** `/api/billing/webhook`: Stripe retries every non-2xx, so a 429 there
+    limit.** `/v1/billing/webhook`: Stripe retries every non-2xx, so a 429 there
     produces _more_ traffic and walks toward Stripe disabling the endpoint — the
     limiter would cause the outage it exists to prevent, and the HMAC already
-    gates it before any DB work. `/api/cron/*`: a throttled drain does not fail
+    gates it before any DB work. `/v1/cron/*`: a throttled drain does not fail
     loudly, it silently stops every retry and all scheduled work.
-    `/api/unsubscribe` is limited but at the loosest tier, because a blocked
+    `/v1/unsubscribe` is limited but at the loosest tier, because a blocked
     RFC 8058 unsubscribe is a compliance failure.
   - **⚠️ `RATE_LIMIT_FORWARDED_DEPTH` is the security-critical variable.** The
     client IP is taken that many entries from the RIGHT of `X-Forwarded-For`,
@@ -833,7 +836,7 @@ of truth (which is why every timestamp in that adapter is computed with `now()`
 rather than passed in from Node).
 
 Expired counters are reclaimed by the `ratelimit.prune` job, enqueued from
-`/api/cron/jobs` with an **hourly** dedupe key rather than the daily one
+`GET {api}/v1/cron/jobs` with an **hourly** dedupe key rather than the daily one
 `job.prune` and `storage.purge` use — rate-limit rows are one per client per
 bucket and expire in minutes, so a daily sweep would carry a full day of dead
 rows in a table the request path writes to constantly. On Vercel Hobby (daily
@@ -870,7 +873,7 @@ Authenticated traffic is unaffected — it keys on the session.
 
 With `EMAIL_PROVIDER=log` (the default) no mail is sent — sign up and the
 verification link is printed to the server console (and captured in-process for
-the E2E tests via `/api/dev/emails`). E2E: `pnpm exec playwright install chromium`
+the E2E tests via `{api}/v1/dev/emails`). E2E: `pnpm exec playwright install chromium`
 once, ensure the DB is migrated, then `pnpm test:e2e`.
 
 > **E2E footgun:** `playwright.config.ts` sets `reuseExistingServer` outside CI,
@@ -923,7 +926,7 @@ Two things drain the queue, and **only one of them is a guarantee**:
 
 - `after()` fires a drain once the response is sent. It covers the happy path, and
   needs no configuration.
-- `GET /api/cron/jobs` is what actually delivers. Retries, the day-3/day-7
+- `GET {api}/v1/cron/jobs` is what actually delivers. Retries, the day-3/day-7
   onboarding steps and the daily prune exist **solely** because something calls it.
 
 **Set `CRON_SECRET` in production.** Without it the route answers 404 and nothing
@@ -931,31 +934,27 @@ drains — but mail still appears to work, right up until the first provider bli
 which then never recovers. That asymmetry is the whole hazard: the symptom of a
 missing `CRON_SECRET` is silence, not an error.
 
-Authentication is a bearer token rather than a Vercel signature, so **one mechanism
-serves both deploy targets** (§19.1):
+Authentication is a bearer token, so **any external scheduler works** (§19.1).
+Faza 3.5: the web serves no data endpoints and `vercel.json` declares no crons —
+nothing Vercel-side drains the queue. Point one of these at the API origin:
 
 ```bash
-# Vercel: `vercel.json` already declares the schedule, and Vercel Cron attaches
-# `Authorization: Bearer $CRON_SECRET` automatically. Just set CRON_SECRET.
-#
-# Docker / standalone Node: point any scheduler at the same URL.
-curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://app:3000/api/cron/jobs
-```
+# VPS cron / systemd timer / compose-job — every 5 minutes is a sane default.
+# (A daily cadence still works: `after()` covers the happy path, but a retry
+# could then wait up to 24h.)
+curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://api.<domain>/v1/cron/jobs
 
-> **Vercel Hobby is daily-only.** It rejects sub-daily cron expressions, so
-> `vercel.json` ships `0 3 * * *`. Consequence: `after()` still covers the happy
-> path, but a _retry_ could wait up to 24h. Because auth is a bearer secret, any
-> external pinger (cron-job.org, a GitHub Actions `schedule:`, UptimeRobot) hitting
-> the same URL every few minutes fixes that with zero code change. Pro allows
-> `*/1 * * * *`.
+# Zero-infra alternatives hitting the same URL: cron-job.org, UptimeRobot,
+# or a GitHub Actions `schedule:` workflow — no code change either way.
+```
 
 Do **not** replace this with an in-process `setInterval`: it does not exist on
 Vercel, so the primary deploy target would silently have a different execution
 model from the secondary one — and it would make the E2E suite nondeterministic,
 since a background drain racing `expect()` is a flake generator.
 
-Locally, drain by hand with `POST /api/dev/jobs/run` (404 in production); inspect
-the queue with `GET /api/dev/jobs`, or `pnpm db:studio` → `job`.
+Locally, drain by hand with `POST {api}/v1/dev/jobs/run` (404 in production); inspect
+the queue with `GET {api}/v1/dev/jobs`, or `pnpm db:studio` → `job`.
 
 ### Billing webhooks locally (spec 5.4)
 

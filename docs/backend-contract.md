@@ -50,6 +50,34 @@ topology (that would need `SameSite=None; Secure` — deliberately unused).
   same `Domain` — the conformance signal is the suite green against the
   real hosts, not against two localhost ports (same-site, proves nothing).
 
+## Self-sufficient backend (faza 3.5)
+
+The API needs no web relay for anything the outside world touches. The web
+is a pure frontend (pages + SSR/ISR + content/SEO); every external party
+points straight at the API origin:
+
+- **Mail:** emailed links (verification, reset) are built from
+  `BETTER_AUTH_URL` (the API origin) — the engine validates the token and
+  302s to the absolute web `callbackURL`. The human unsubscribe page lives on
+  the web (`{web}/unsubscribe`), but the machine header does not:
+  `List-Unsubscribe` / `List-Unsubscribe-Post` point at
+  `{api}/v1/unsubscribe` (RFC 8058 one-click POSTs straight at the backend).
+  Rotating `EMAIL_UNSUBSCRIBE_SECRET` invalidates links already in inboxes
+  (HMAC by nature — document, don't "fix").
+- **Providers:** the Stripe dashboard points at `POST
+{api}/v1/billing/webhook` directly (no web relay since faza 3.3).
+- **Schedulers:** `GET {api}/v1/cron/jobs` (bearer `CRON_SECRET`) is drained
+  by an external scheduler (VPS cron, compose-job, cron-job.org, GitHub
+  Actions `schedule:`) — `vercel.json` declares no crons.
+- **MCP clients:** transport (`{api}/api/mcp`, bearer) and both discovery
+  documents (`{api}/.well-known/oauth-authorization-server`,
+  `{api}/.well-known/oauth-protected-resource`) are served by the API; the
+  web keeps no `/.well-known/*` relay.
+- **Browsers:** `credentials: include` with CORS restricted to the single
+  explicit web origin (`trustedOrigins=[web]`); the session cookie stays
+  `SameSite=Lax` on the shared parent domain (`Domain` only when
+  `CROSS_SUBDOMAIN_COOKIES=true`, else host-only).
+
 ## Implemented: auth (faza 2.1) + notifications-read + health
 
 - `POST /v1/auth/sign-up` `{email, password, name?}` → `200 {ok: true}`
@@ -247,7 +275,7 @@ share one plan table); money moves only in the backend.
 - `POST /v1/billing/portal` `{slug?}` → `200 {url}`; never-checked-out
   (`NO_CUSTOMER`) → `404`, indistinguishable from unconfigured.
 - `POST /v1/billing/webhook` (raw body, no session — the HMAC is the auth;
-  Stripe points here directly, the web route is a byte relay) → `400` bad
+  Stripe points here directly; the pre-3.3 web byte relay is gone) → `400` bad
   signature / malformed, `404` unconfigured, `200 {received, status}` with
   `status: processed | duplicate | unknown_customer | ignored`. Marker + upsert
   - audit (`SYSTEM_ACTOR`) + `billing.notify` enqueue in ONE transaction; the

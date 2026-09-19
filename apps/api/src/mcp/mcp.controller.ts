@@ -31,8 +31,8 @@ import { McpService } from "./mcp.service";
  * route. SSE is disabled: the current MCP spec uses Streamable HTTP, and a
  * single request/response path needs no long-lived connection. The two
  * `/.well-known/*` routes are the origin-root discovery documents MCP clients
- * probe (the engine also mounts them under `/api/auth/`, reached through the
- * web `[...all]` proxy).
+ * probe directly against the API (faza 3.5 — the web serves no relay for
+ * them; clients point at the API origin).
  *
  * The handlers below are Web-standard `(Request) => Response` functions from
  * `better-auth`/`mcp-handler`, so this controller bridges Express req/res

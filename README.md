@@ -112,17 +112,17 @@ Environment variables will be validated at application startup so missing config
 ### Required in production: `CRON_SECRET`
 
 Background jobs (emails, retries, the onboarding sequence, data cleanup) are
-drained by `GET /api/cron/jobs`, authenticated with `Authorization: Bearer
-$CRON_SECRET`. Vercel Cron attaches that header automatically once the variable is
-set; on Docker or standalone Node, point any scheduler at the same URL with the
-same header.
+drained by `GET {API}/v1/cron/jobs`, authenticated with `Authorization: Bearer
+$CRON_SECRET` — the main API owns the drain (faza 3.5), the web serves no data
+endpoints and `vercel.json` declares no crons. Point any external scheduler at
+the API origin with the same header: VPS cron, a compose-job, cron-job.org,
+or a GitHub Actions `schedule:` workflow.
 
 **If `CRON_SECRET` is unset the endpoint answers 404 and nothing is retried.** The
 happy path still delivers, so nothing looks broken — until the first email-provider
 outage, which then never recovers. Generate one with `openssl rand -base64 32`.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full setup, including the
-Vercel Hobby daily-cron limitation.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full setup.
 
 ## License
 
