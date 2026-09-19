@@ -87,9 +87,8 @@ export default async function RootLayout({ children, params }: LayoutProps<"/[lo
    * so an unknown value must 404 rather than render the app in a fallback
    * language at a URL that claims otherwise. next-intl's own docs call this out.
    *
-   * The proxy already redirects unprefixed paths and default-denies unknown ones,
-   * so this is defence in depth — reachable when a SESSION exists and the guard
-   * therefore lets `/xx/dashboard` through to the router.
+   * The proxy already redirects unprefixed paths, so this is defence in depth
+   * for locale-shaped-but-unknown segments like `/xx/dashboard`.
    */
   if (!isLocale(locale)) notFound();
 

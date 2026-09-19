@@ -11,8 +11,8 @@ import { api } from "@/lib/api";
  * No owner resolution here: the subscription endpoint resolves the personal
  * account from the session itself (faza 2.5), so the page and the checkout
  * route agree on who is being billed by construction. You own your own
- * account, so there is no permission to check beyond a valid session (the
- * proxy redirects anonymous visitors to login).
+ * account, so there is no permission to check beyond a valid session (anonymous
+ * visitors get the logged-out state — the page degrades on the API's 401).
  */
 export default async function PersonalBillingPage() {
   const t = await getTranslations("billing");

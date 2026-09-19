@@ -120,15 +120,17 @@ test("the nonce is fresh on every request", async ({ request }) => {
   expect(first).not.toBe(second);
 });
 
-test("both redirect hops carry the CSP, and the guard still redirects", async ({ request }) => {
+test("both redirect hops carry the CSP, and anonymous render still redirects", async ({
+  request,
+}) => {
   /*
-   * Also re-asserts the phase-2/9 guard: adding headers must not change WHERE the
-   * proxy sends an anonymous visitor, only what the response carries.
-   *
-   * There are TWO hops, and asserting only the second would miss half the
-   * surface: `/dashboard` is unprefixed, so the locale rule redirects it to
-   * `/en/dashboard` BEFORE the session check ever runs (proxy.ts, "ORDER IS THE
-   * DESIGN"). Both are responses, so per spec 22.1 both carry the policy.
+   * Faza 3.4: the proxy no longer guards sessions, so the TWO hops have
+   * different authors now. The locale hop is still the proxy's (redirect-only,
+   * CSP attached). The auth hop is the RENDER's (`requireSession` in the
+   * dashboard server component → 307 to unprefixed /login); `redirect()` takes
+   * no headers, so the nonce CSP cannot ride it — the policy lands on the next
+   * hop instead, which the proxy builds. Both hops are asserted for WHERE they
+   * go; the CSP is asserted where a header CAN exist.
    */
   const localeHop = await request.get("/dashboard", { maxRedirects: 0 });
   expect(localeHop.status()).toBe(307);
@@ -137,9 +139,13 @@ test("both redirect hops carry the CSP, and the guard still redirects", async ({
 
   const authHop = await request.get("/en/dashboard", { maxRedirects: 0 });
   expect(authHop.status()).toBe(307);
-  expect(authHop.headers()["location"]).toContain("/en/login");
+  expect(authHop.headers()["location"]).toContain("/login");
   expect(authHop.headers()["location"]).toContain("callbackUrl");
-  expect(authHop.headers()["content-security-policy"], "auth hop has no CSP").toBeTruthy();
+
+  // Follow the chain to the login page — the proxy-built response carries the CSP.
+  const loginPage = await request.get("/en/login?callbackUrl=%2Fdashboard");
+  expect(loginPage.status()).toBe(200);
+  expect(loginPage.headers()["content-security-policy"], "login page has no CSP").toBeTruthy();
 });
 
 test("public pages render with no CSP violations", async ({ page }) => {

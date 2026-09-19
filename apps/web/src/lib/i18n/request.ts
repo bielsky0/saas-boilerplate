@@ -8,8 +8,8 @@ import { MESSAGES } from "./messages";
  * next-intl's per-request configuration (spec 16.1). Wired in `next.config.ts`.
  *
  * We use next-intl for MESSAGES, not for ROUTING — its middleware is never
- * imported. Locale routing lives in `src/proxy.ts`, composed with the default-deny
- * auth guard, so exactly one thing decides what a URL means.
+ * imported. Locale routing lives in `src/proxy.ts`, redirect-only
+ * (`localePrefix: "always"`), so exactly one thing decides what a URL means.
  *
  * The resolution order below is three fallbacks deep, and each one earns its place:
  */

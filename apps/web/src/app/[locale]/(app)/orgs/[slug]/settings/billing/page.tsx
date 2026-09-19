@@ -32,8 +32,8 @@ export default async function OrgBillingPage({ params }: { params: Promise<{ slu
     subscription = data.subscription;
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 401) throw error;
-    // Session died mid-render — the proxy guard redirects on the next
-    // navigation; an empty panel beats a 500 here.
+    // Session died mid-render — the next navigation re-checks in the render
+    // (`requireSession`); an empty panel beats a 500 here.
   }
 
   return (

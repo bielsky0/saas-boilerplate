@@ -30,7 +30,8 @@ export async function generateMetadata(): Promise<Metadata> {
  * RFC 8058 one-click endpoint at `{api}/v1/unsubscribe` is the exception — a
  * POST from a mail provider is a deliberate signal, not a prefetch.
  *
- * Public by definition: reachable with no session (exempted in src/proxy.ts).
+ * Public by definition: reachable with no session (no guard stands in front
+ * of it since faza 3.4 — the proxy holds locale/CSP/request-id only).
  */
 
 const CATEGORY_LABEL: Record<SuppressibleCategory, string> = {

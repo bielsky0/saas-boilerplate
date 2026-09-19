@@ -27,8 +27,9 @@ import { requireSession } from "@/lib/auth";
  *     ever rendering.
  *
  * What the spec's intent still gets: a dedicated path (/admin); the standard
- * authentication layer in the proxy, which already redirects an anonymous /admin
- * to /login by default-deny; and this additional, independent super-admin check
+ * authentication layer in the render (`requireSession`, which redirects an
+ * anonymous /admin to /login since faza 3.4 — the proxy deliberately holds no
+ * session check); and this additional, independent super-admin check
  * layered on top — called as the FIRST line of every admin page AND every admin
  * action, never just the layout.
  */

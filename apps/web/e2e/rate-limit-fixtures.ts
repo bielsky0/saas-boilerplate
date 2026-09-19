@@ -5,11 +5,12 @@ import { test as base, expect } from "@playwright/test";
  *
  * ─── The problem this solves ────────────────────────────────────────────────
  *
- * The suite runs `fullyParallel` against ONE origin, and a local `next start` has
- * no reverse proxy, so `clientIp()` finds no X-Forwarded-For and every request in
- * every worker lands in the same `"unknown"` bucket. With a real 5-per-15-minutes
- * login limit that is not a flake — it is a guaranteed failure within seconds,
- * and the message ("too many sign-in attempts") looks nothing like the cause.
+ * The suite runs `fullyParallel`, and a local `next start` / Nest listen has
+ * no reverse proxy, so the API's `clientIp()` (apps/api/src/rate-limit/keys.ts)
+ * finds no X-Forwarded-For and every request in every worker lands in the same
+ * `"unknown"` bucket. With a real 5-per-15-minutes login limit that is not a
+ * flake — it is a guaranteed failure within seconds, and the message ("too
+ * many sign-in attempts") looks nothing like the cause.
  *
  * ─── Why not just relax the limits in CI ────────────────────────────────────
  *
@@ -18,17 +19,21 @@ import { test as base, expect } from "@playwright/test";
  * test its own bucket instead of from making the limit unreachable. A spec that
  * fails here because it exceeded 5 login attempts is telling you something true.
  *
- * Disabling the limiter outright is worse still: acceptance criterion 2 is "a
- * 429 with a retry header", which is untestable against a disabled limiter.
+ * Disabling the limiter outright is worse still: the login specs assert the
+ * lockout message, which is untestable against a disabled limiter.
  *
- * The header is honoured only when NODE_ENV !== "production" (see `testBucket` in
- * src/lib/security/rate-limit.ts), so it cannot be used to escape a bucket in a
- * real deployment. Same guard style as the /v1/dev seams.
+ * The header is honoured only when NODE_ENV !== "production" (see `testBucket`
+ * in apps/api/src/rate-limit/keys.ts), so it cannot be used to escape a bucket
+ * in a real deployment. Same guard style as the /v1/dev seams.
  *
  * ⚠️ Any spec that drives a login MUST import `test` from this file rather than
  * from `@playwright/test`, or it shares the default bucket with every other
- * worker. `/v1/dev/*` is exempt from the limiter entirely, so pure seeding does
- * not need it.
+ * worker. `/v1/dev/*` bypasses the limiter entirely (no guard on dev seams),
+ * so pure seeding does not need it.
+ *
+ * Faza 3.4: the edge limiter is gone — the bucket below is counted exclusively
+ * by the main API (login bucket from faza 2.1). `E2E_RATE_LIMIT_ENV` is consumed
+ * by the API server block in playwright.config.ts, not the web one.
  *
  * Imported by playwright.config.ts, so the ENV export must stay free of any
  * `@playwright/test` import at module scope.
@@ -52,10 +57,10 @@ export function uniqueBucket(prefix = "bucket"): string {
 /**
  * `test` with an automatic per-test bucket.
  *
- * Set on BOTH contexts on purpose: `context` covers the login form, which reaches
- * the server as a server-action POST from the browser, and `request` covers
- * direct API calls. A fixture that set only one would isolate half of a test and
- * leak the other half into the shared bucket.
+ * Set on BOTH contexts on purpose: `context` covers the login form, which the
+ * browser POSTs straight at the API, and `request` covers direct API calls. A
+ * fixture that set only one would isolate half of a test and leak the other
+ * half into the shared bucket.
  */
 export const test = base.extend<{ bucket: string }>({
   bucket: [

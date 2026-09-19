@@ -46,8 +46,9 @@ export async function getServerSession(): Promise<Session | null> {
 
 /**
  * Require an authenticated session; redirect to /login otherwise. Use in
- * protected server components and server actions. The proxy's cookie check is
- * optimistic UX only — this is the authoritative guard (spec 4.2).
+ * protected server components and server actions. Since faza 3.4 this is the
+ * ONLY guard (the proxy deliberately holds no session check) — and the
+ * security boundary (spec 4.2).
  */
 export async function requireSession(callbackUrl?: string): Promise<Session> {
   const session = await getServerSession();

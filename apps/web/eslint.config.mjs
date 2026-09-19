@@ -81,7 +81,6 @@ const eslintConfig = defineConfig([
    */
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/lib/adapters/rate-limit/**"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -95,7 +94,7 @@ const eslintConfig = defineConfig([
             {
               group: ["@repo/db", "@repo/db/*"],
               message:
-                "Web is a pure frontend since faza 2.8 — read through Nest (@/lib/api or a feature client), never the database. Only src/lib/adapters/rate-limit/postgres.ts may import it (the edge counter).",
+                "Web is a pure frontend since faza 3.4 — read through Nest (@/lib/api or a feature client), never the database.",
             },
             {
               group: ["drizzle-orm", "drizzle-orm/*"],

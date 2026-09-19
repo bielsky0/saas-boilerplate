@@ -4,18 +4,23 @@ import { expect, test, RATE_LIMIT_BUCKET_HEADER, uniqueBucket } from "./rate-lim
 import { loginViaUi, registerViaApi, uniqueEmail, apiUrl } from "./helpers";
 
 /**
- * Rate limiting (spec 2.1 — login attempts; spec 22.3 — API-wide).
+ * Rate limiting (spec 2.1 — login attempts).
+ *
+ * Faza 3.4: the edge limiter is gone — the bucket below is counted exclusively
+ * by the main API (login bucket from faza 2.1, peek-before-hash in
+ * apps/api/src/auth/auth.service.ts). Every test below drives that limiter,
+ * either through the real form or straight at `POST /v1/auth/sign-in`; nothing
+ * here touches a web-owned counter anymore.
  *
  * Acceptance criteria under test:
- *   1. the login endpoint keeps its §2.1 limit, NOT overridden by the general one
- *   2. exceeding a limit on any endpoint answers 429 with a correct retry header
+ *   1. the login endpoint keeps its §2.1 limit (blocks after 5 failures)
+ *   2. exceeding the bucket answers 429 with `{ ok: false, code: "RATE_LIMITED" }`
  *
  * Every test runs at PRODUCTION limits and gets its own bucket from the fixture —
  * see e2e/rate-limit-fixtures.ts for why that is better than relaxing the limits.
  */
 
 const LOGIN_LIMIT = 5;
-const READ_LIMIT = 120;
 
 /** One failed sign-in through the real form. */
 async function failLogin(page: Page, email: string): Promise<string> {
@@ -124,83 +129,61 @@ test("the lockout message does not reveal whether the account exists", async ({
 });
 
 /**
- * ACCEPTANCE CRITERION 2 — the 429 and its retry header.
+ * ACCEPTANCE CRITERION 2 — the 429 and its code, straight at the main API.
  *
- * Driven against a `read`-tier path. Faza 3.3: the web serves no API routes, so
- * this probes the (deleted) `/api/unsubscribe` path — the edge limiter counts
- * BEFORE routing, which is exactly what this pins: the 429 fires even though
- * nothing serves the path underneath. Faza 3.4 rewrites this spec against the
- * main API's limiter and deletes the edge one. The last assertions are the
- * important ones structurally: a 429 is built by a THIRD response constructor
- * in src/proxy.ts, and the file's central claim is that no response can escape
- * without the CSP and the request id. This is what mechanises that claim, exactly
- * as security-headers.spec.ts does for pages.
+ * Faza 3.4: the web counts nothing, so this drives `POST /v1/auth/sign-in`
+ * directly — wrong password until the bucket is exhausted, then one past it.
+ * Each failure consumes (peek-before-hash in auth.service.ts); the next one is
+ * refused before the password is ever checked, answering 429 with the
+ * machine-stable code the browser client maps to `auth.errors.tooManyAttempts`.
  */
-test("exceeding a limit answers 429 with a retry header", async ({ request }) => {
-  let blocked: Awaited<ReturnType<typeof request.get>> | null = null;
+test("exceeding the login bucket answers 429 with RATE_LIMITED", async ({ request }) => {
+  const email = uniqueEmail("rl-direct");
+  await registerViaApi(request, email);
 
-  // One past the read tier; the fixture's bucket makes this test's own traffic
-  // the only traffic in the counter.
-  for (let i = 0; i <= READ_LIMIT; i += 1) {
-    const res = await request.get("/api/unsubscribe");
+  let blocked: Awaited<ReturnType<typeof request.post>> | null = null;
+
+  // One past the login limit; the fixture's bucket makes this test's own
+  // traffic the only traffic in the counter.
+  for (let i = 0; i <= LOGIN_LIMIT; i += 1) {
+    const res = await request.post(apiUrl("/v1/auth/sign-in"), {
+      data: { email, password: "WrongPassword9" },
+    });
     if (res.status() === 429) {
       blocked = res;
       break;
     }
+    expect(res.status(), "a wrong password is 401, not a block").toBe(401);
   }
 
-  expect(blocked, `no 429 within ${READ_LIMIT + 1} requests`).not.toBeNull();
-  const response = blocked!;
-
-  expect(await response.json()).toEqual({ error: "Too many requests" });
-
-  const headers = response.headers();
-
-  // The acceptance criterion's "nagłówek informującym, kiedy można spróbować
-  // ponownie". Delta-seconds, and never 0 — a 0 invites an instant retry.
-  const retryAfter = Number(headers["retry-after"]);
-  expect(Number.isInteger(retryAfter)).toBe(true);
-  expect(retryAfter).toBeGreaterThanOrEqual(1);
-
-  expect(headers["ratelimit-limit"]).toBe(String(READ_LIMIT));
-  expect(headers["ratelimit-remaining"]).toBe("0");
-  expect(Number(headers["ratelimit-reset"])).toBeGreaterThanOrEqual(0);
-
-  // A cached 429 would be served to clients that never hit a limit.
-  expect(headers["cache-control"]).toContain("no-store");
-
-  // The composition invariant from src/proxy.ts's header.
-  expect(headers["content-security-policy"]).toBeTruthy();
-  expect(headers["x-request-id"]).toBeTruthy();
+  expect(blocked, `no 429 within ${LOGIN_LIMIT + 1} sign-in attempts`).not.toBeNull();
+  expect(await blocked!.json()).toEqual({ ok: false, code: "RATE_LIMITED" });
 });
 
 /**
- * ACCEPTANCE CRITERION 1 — the general limit does not override the login limit.
+ * The UI and the API share ONE login counter.
  *
- * Both directions, in ONE bucket, which is what makes it meaningful: if the tiers
- * shared a counter, exhausting login would also throttle reads (or reads would
- * loosen login to 120). Limits compose by intersection, so neither happens.
+ * The fixture sets the same per-test bucket header on both the browser context
+ * and the direct request context — so failures driven through the real form
+ * must be visible to a direct API call in the same test. If the two paths ever
+ * counted separately (a forked limiter), this is the test that catches it.
  */
-test("the general API limit neither loosens nor tightens the login limit", async ({
-  page,
-  request,
-}) => {
-  const email = uniqueEmail("rl-precedence");
+test("the UI and the API share one login counter", async ({ page, request }) => {
+  const email = uniqueEmail("rl-shared");
   await registerViaApi(request, email);
 
-  // Login is blocked at its own, much stricter tier — NOT at the read tier's 120.
+  // Exhaust the bucket through the real form — merely wrong, not blocked.
   for (let i = 0; i < LOGIN_LIMIT; i += 1) {
     expect(await failLogin(page, email)).toBe("Invalid email or password.");
   }
-  expect(await failLogin(page, email)).toBe(
-    "Too many sign-in attempts. Try again in a few minutes.",
-  );
 
-  // Same bucket, different tier: reads are untouched by the exhausted login one.
-  for (let i = 0; i < 6; i += 1) {
-    const res = await request.get("/api/unsubscribe");
-    expect(res.status(), "a read must not inherit the login tier's exhaustion").not.toBe(429);
-  }
+  // Same bucket, direct call: the API sees the same exhaustion and refuses
+  // before checking the password.
+  const res = await request.post(apiUrl("/v1/auth/sign-in"), {
+    data: { email, password: "WrongPassword9" },
+  });
+  expect(res.status()).toBe(429);
+  expect(await res.json()).toEqual({ ok: false, code: "RATE_LIMITED" });
 });
 
 /**

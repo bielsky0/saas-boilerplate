@@ -60,9 +60,11 @@ test("a super admin reaches the admin panel", async ({ page, request }) => {
 
 test("an anonymous request to the admin panel is redirected to login", async ({ page }) => {
   await page.goto("/admin/users");
-  // The panel lives under `[locale]` like every other page, so the guard's
-  // redirect carries the prefix on both the destination and the callback.
-  await page.waitForURL("**/en/login?callbackUrl=%2Fen%2Fadmin%2Fusers");
+  // Faza 3.4: the redirect comes from the render (`requireSuperAdmin` →
+  // `requireSession("/admin")`), not the proxy — so the callback is the panel
+  // root the context passes, and the proxy's locale redirect prefixes only the
+  // login destination. Anonymous still never sees the panel.
+  await page.waitForURL("**/en/login?callbackUrl=%2Fadmin");
 });
 
 /**

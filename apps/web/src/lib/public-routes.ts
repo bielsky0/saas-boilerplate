@@ -7,9 +7,12 @@ import { stripLocale } from "@/lib/i18n/config";
  *
  * ONE declaration with THREE consumers, because they were drifting apart the
  * moment there was more than one:
- *   - src/proxy.ts     — which pages are reachable without a session
  *   - src/app/sitemap.ts — which pages search engines should index
  *   - src/app/robots.ts  — which pages they should be told to skip
+ *   - locale-aware helpers that need the same page list
+ *
+ * (Since faza 3.4 the proxy holds no session guard, so this list no longer
+ * drives edge auth — it is the SEO/public-surface declaration.)
  *
  * `indexable` is required, not optional. "Reachable without a session" and
  * "should be in Google" are different questions that look like one question:
@@ -87,7 +90,7 @@ export type PublicPagePath = keyof typeof PUBLIC_PAGE_ROUTES;
 const ROUTE_ENTRIES = Object.entries(PUBLIC_PAGE_ROUTES) as [PublicPagePath, PublicPageRoute][];
 
 /**
- * True when `pathname` is a public PAGE (api exemptions live in proxy.ts).
+ * True when `pathname` is a public PAGE.
  *
  * NORMALIZES the locale prefix rather than multiplying the table above (§16).
  * `/pl/blog` and `/blog` are the same page in two languages, not two entries —
