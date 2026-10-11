@@ -3,11 +3,13 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider } from "next-intl";
 import { setRequestLocale } from "next-intl/server";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import "../globals.css";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui";
 import { LOCALES, OG_LOCALE, isLocale } from "@/lib/i18n";
+import { QueryProvider } from "@/lib/query/provider";
 import { getNonce } from "@/lib/security/nonce";
 import { site } from "@/lib/site";
 
@@ -129,8 +131,18 @@ export default async function RootLayout({ children, params }: LayoutProps<"/[lo
             disableTransitionOnChange
             nonce={nonce}
           >
-            {children}
-            <Toaster />
+            {/*
+              TanStack Query (etap 4, faza 1): client-side data layer do NestJS.
+              Montowany w root, żeby widziały go też strony auth (faza 5).
+              NuqsAdapter obok — synchronizacja stanu (filtry, zakładki) z URL
+              dla widoków AdminCN (fazy 2–4).
+            */}
+            <NuqsAdapter>
+              <QueryProvider>
+                {children}
+                <Toaster />
+              </QueryProvider>
+            </NuqsAdapter>
           </ThemeProvider>
         </NextIntlClientProvider>
       </body>

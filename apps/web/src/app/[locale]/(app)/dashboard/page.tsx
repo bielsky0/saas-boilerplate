@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
 import { Alert, Button } from "@/components/ui";
+import { ApiStatus } from "@/components/api-status";
 import { requireSession } from "@/lib/auth";
 import { Link } from "@/lib/i18n/navigation";
 import { orgsExposed } from "@/lib/tenancy";
@@ -49,6 +50,13 @@ export default async function DashboardPage() {
           strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
         })}
       </p>
+
+      {/*
+        Etap 4, faza 1 (proof-of-concept TanStack Query): jeden żywy odczyt
+        z Nest renderowany po stronie klienta. Do zastąpienia przez widok
+        Orders (`features/orders`) w fazie 3.
+      */}
+      <ApiStatus />
     </div>
   );
 }

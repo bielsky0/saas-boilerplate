@@ -353,6 +353,12 @@
       "verifyEmail": "Potwierdź swój adres e-mail. Sprawdź skrzynkę i kliknij link weryfikacyjny.",
       "signedInAs": "Zalogowano jako <strong>{email}</strong>. Użyj przełącznika powyżej, aby przechodzić między kontem osobistym a organizacjami."
     },
+    "apiStatus": {
+      "title": "Status API",
+      "loading": "Sprawdzanie połączenia z API…",
+      "ok": "Połączono z API",
+      "error": "Brak połączenia z API — dane na tej stronie mogą być nieaktualne."
+    },
     "org": {
       "yourRole": "Twoja rola:",
       "members": "Członkowie",

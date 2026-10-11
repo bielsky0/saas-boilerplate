@@ -353,6 +353,12 @@
       "verifyEmail": "Please verify your email address. Check your inbox for the verification link.",
       "signedInAs": "Signed in as <strong>{email}</strong>. Use the switcher above to move between your personal account and organizations."
     },
+    "apiStatus": {
+      "title": "API status",
+      "loading": "Checking the API connection…",
+      "ok": "API connected",
+      "error": "API unreachable — data on this page may be stale."
+    },
     "org": {
       "yourRole": "Your role:",
       "members": "Members",
