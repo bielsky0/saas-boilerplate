@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Button } from "@/components/ui";
+import { buttonVariants } from "@/components/ui";
 import { AcceptInvitationForm } from "@/features/organizations/components/accept-invitation-form";
 import { requireOrgsEnabled } from "@/features/organizations/context";
 import { getServerSession } from "@/lib/auth";
@@ -47,9 +47,9 @@ export default async function AcceptInvitationPage({
           This invitation link is invalid, has expired, or has already been used.
         </p>
         <div>
-          <Button asChild variant="link">
-            <Link href="/dashboard">Go to your dashboard</Link>
-          </Button>
+          <Link href="/dashboard" className={buttonVariants({ variant: "link" })}>
+            Go to your dashboard
+          </Link>
         </div>
       </Shell>
     );
@@ -73,14 +73,18 @@ export default async function AcceptInvitationPage({
         <div className="flex flex-col gap-3">
           <p className="text-muted-foreground text-sm">Sign in or create an account to accept.</p>
           <div className="flex gap-3">
-            <Button asChild>
-              <Link href={`/login?callbackUrl=${encodeURIComponent(returnTo)}`}>Log in</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href={`/signup?callbackUrl=${encodeURIComponent(returnTo)}`}>
-                Create account
-              </Link>
-            </Button>
+            <Link
+              href={`/login?callbackUrl=${encodeURIComponent(returnTo)}`}
+              className={buttonVariants()}
+            >
+              Log in
+            </Link>
+            <Link
+              href={`/signup?callbackUrl=${encodeURIComponent(returnTo)}`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              Create account
+            </Link>
           </div>
         </div>
       )}

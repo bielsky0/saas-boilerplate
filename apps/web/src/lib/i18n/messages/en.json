@@ -5,7 +5,20 @@
     "blog": "Blog",
     "changelog": "Changelog",
     "logIn": "Log in",
-    "getStarted": "Get started"
+    "getStarted": "Get started",
+    "admin": {
+      "groups": {
+        "main": "Main",
+        "organizations": "Organizations",
+        "settings": "Settings"
+      },
+      "items": {
+        "dashboard": "Dashboard",
+        "newOrg": "New organization",
+        "billing": "Billing",
+        "notifications": "Notifications"
+      }
+    }
   },
   "common": {
     "locale": {

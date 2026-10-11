@@ -4,7 +4,7 @@ import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LocaleSwitcher } from "@/components/locale-switcher";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { Badge, Card, CardContent, CardHeader, CardTitle, buttonVariants } from "@/components/ui";
 import { PLAN_LIST, type Plan } from "@/features/billing";
 import { pageMetadata } from "@/features/content";
 import { JsonLd } from "@/features/content/components/json-ld";
@@ -138,12 +138,12 @@ export default async function Home() {
           <div className="flex items-center gap-2">
             <LocaleSwitcher />
             <ThemeToggle />
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/login">{t("hero.logIn")}</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/signup">{t("header.createAccount")}</Link>
-            </Button>
+            <Link href="/login" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+              {t("hero.logIn")}
+            </Link>
+            <Link href="/signup" className={buttonVariants({ size: "sm" })}>
+              {t("header.createAccount")}
+            </Link>
           </div>
         </div>
       </header>
@@ -162,12 +162,12 @@ export default async function Home() {
             {t(orgsEnabled ? "hero.subtitle" : "hero.subtitleSolo")}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="lg">
-              <Link href="/signup">{t("hero.getStarted")}</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link href="/login">{t("hero.logIn")}</Link>
-            </Button>
+            <Link href="/signup" className={buttonVariants({ size: "lg" })}>
+              {t("hero.getStarted")}
+            </Link>
+            <Link href="/login" className={buttonVariants({ size: "lg", variant: "outline" })}>
+              {t("hero.logIn")}
+            </Link>
           </div>
         </section>
 
@@ -243,13 +243,15 @@ export default async function Home() {
                       </li>
                     ))}
                   </ul>
-                  <Button
-                    asChild
-                    variant={plan.featured ? "default" : "outline"}
-                    className="w-full"
+                  <Link
+                    href="/signup"
+                    className={buttonVariants({
+                      variant: plan.featured ? "default" : "outline",
+                      className: "w-full",
+                    })}
                   >
-                    <Link href="/signup">{t(`pricing.${plan.id}.cta`)}</Link>
-                  </Button>
+                    {t(`pricing.${plan.id}.cta`)}
+                  </Link>
                 </CardContent>
               </Card>
             ))}
@@ -262,9 +264,9 @@ export default async function Home() {
             <CardContent className="flex flex-col items-center gap-4 p-10 text-center">
               <h2 className="text-2xl font-semibold tracking-tight">{t("cta.heading")}</h2>
               <p className="text-muted-foreground max-w-md">{t("cta.body")}</p>
-              <Button asChild size="lg">
-                <Link href="/signup">{t("cta.button")}</Link>
-              </Button>
+              <Link href="/signup" className={buttonVariants({ size: "lg" })}>
+                {t("cta.button")}
+              </Link>
             </CardContent>
           </Card>
         </section>

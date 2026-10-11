@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ComponentProps } from "react";
 
 import { cn } from "@/lib/utils";
-import { Button } from "./button";
+import { buttonVariants } from "./button";
 
 /**
  * Pagination primitive (spec §7.1). Previous/Next only — no page numbers.
@@ -40,15 +40,17 @@ export function PaginationLink({
   className,
 }: PaginationLinkProps) {
   return (
-    <Button asChild variant="outline" size="sm" className={className}>
-      <Link
-        href={disabled ? "#" : href}
-        aria-disabled={disabled || undefined}
-        tabIndex={disabled ? -1 : undefined}
-        className={cn(disabled && "pointer-events-none opacity-50")}
-      >
-        {children}
-      </Link>
-    </Button>
+    <Link
+      href={disabled ? "#" : href}
+      aria-disabled={disabled || undefined}
+      tabIndex={disabled ? -1 : undefined}
+      className={cn(
+        buttonVariants({ variant: "outline", size: "sm" }),
+        disabled && "pointer-events-none opacity-50",
+        className,
+      )}
+    >
+      {children}
+    </Link>
   );
 }

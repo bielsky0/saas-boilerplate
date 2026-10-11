@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Button } from "@/components/ui";
+import { buttonVariants } from "@/components/ui";
 
 /**
  * Global 403 boundary (spec 4.2). Rendered whenever a server component, server
@@ -16,9 +16,9 @@ export default function Forbidden() {
         You don&apos;t have permission to view this page or perform this action.
       </p>
       <div>
-        <Button asChild variant="link">
-          <Link href="/dashboard">Back to your dashboard</Link>
-        </Button>
+        <Link href="/dashboard" className={buttonVariants({ variant: "link" })}>
+          Back to your dashboard
+        </Link>
       </div>
     </main>
   );

@@ -1,18 +1,21 @@
-import type { InputHTMLAttributes } from "react";
+import * as React from "react";
+
+import { Input as InputPrimitive } from "@base-ui/react/input";
 
 import { cn } from "@/lib/utils";
 
-/**
- * Token-driven text input primitive (spec §7.1). Presentational only.
- */
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
-    <input
+    <InputPrimitive
+      type={type}
+      data-slot="input"
       className={cn(
-        "border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring focus-visible:ring-offset-background flex h-9 w-full rounded-md border px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
+        "border-input file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 shadow-xs focus-visible:ring-3 aria-invalid:ring-3 h-9 w-full min-w-0 rounded-md border bg-transparent px-2.5 py-1 text-base outline-none transition-[color,box-shadow] file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
         className,
       )}
       {...props}
     />
   );
 }
+
+export { Input };

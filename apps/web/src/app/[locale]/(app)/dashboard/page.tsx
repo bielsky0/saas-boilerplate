@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { Alert, Button } from "@/components/ui";
+import { Alert, buttonVariants } from "@/components/ui";
 import { ApiStatus } from "@/components/api-status";
 import { requireSession } from "@/lib/auth";
 import { Link } from "@/lib/i18n/navigation";
@@ -27,9 +27,9 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-semibold">{t("heading")}</h1>
         {/* Advertised only in `required` mode (spec §1.4). */}
         {orgsExposed ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href="/orgs/new">{t("newOrg")}</Link>
-          </Button>
+          <Link href="/orgs/new" className={buttonVariants({ variant: "outline", size: "sm" })}>
+            {t("newOrg")}
+          </Link>
         ) : null}
       </div>
 

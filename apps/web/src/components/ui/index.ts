@@ -33,6 +33,58 @@ export {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuGroup,
+  DropdownMenuPortal,
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "./dropdown-menu";
 export { Pagination, PaginationLink } from "./pagination";
 export { Toaster, toast } from "./sonner";
+export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
+export {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "./breadcrumb";
+export { Collapsible, CollapsibleTrigger, CollapsibleContent } from "./collapsible";
+export { Separator } from "./separator";
+export {
+  Sheet,
+  SheetTrigger,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetFooter,
+  SheetTitle,
+  SheetDescription,
+} from "./sheet";
+export { Skeleton } from "./skeleton";
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./tooltip";
+export {
+  SidebarProvider,
+  Sidebar,
+  SidebarInset,
+  SidebarTrigger,
+  SidebarContent,
+  SidebarHeader,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarMenuBadge,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
+  useSidebar,
+} from "./sidebar";

@@ -1,22 +1,17 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { ThemeToggle } from "@/components/theme-toggle";
-import { SignOutButton } from "@/features/auth";
-import { NotificationBell } from "@/features/notifications";
-import { AccountSwitcher } from "@/features/organizations";
+import { AdminShell } from "@/components/layout/admin-shell";
 import { requireSession } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { orgsEnabled, orgsExposed } from "@/lib/tenancy";
 
 /**
- * Authenticated app shell (spec 7.4). Wraps both the personal dashboard and the
- * org context routes so they share one navbar + the global account switcher
- * (spec 3.5). `requireSession` is the authoritative guard; the switcher's data
- * resolves over HTTP (`GET /v1/organizations`) — the web holds no database
- * since faza 2.8. No personal-account backfill here: Nest self-heals it on
- * every personal-scoped request (`getOrCreatePersonalAccount`) and creates it
- * at sign-up/verification/accept, so there is nothing left to ensure.
+ * Authenticated app shell (spec 7.4, etap 4 faza 2 — AdminCN chrome).
+ *
+ * Guard + data resolve exactly as before (`requireSession` is authoritative;
+ * orgs over HTTP `GET /v1/organizations`); only the chrome changed from the
+ * hand-rolled navbar to the AdminCN sidebar/header/footer (`AdminShell`).
+ * `requireSession` stays the guard; `AdminShell` is a pure client boundary.
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const session = await requireSession("/dashboard");
@@ -36,25 +31,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const personalLabel = session.user.name ?? session.user.email;
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 border-b backdrop-blur">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <Link href="/dashboard" className="shrink-0 font-semibold">
-              SaaS
-            </Link>
-            {showSwitcher ? (
-              <AccountSwitcher personalLabel={personalLabel} orgs={orgs} showNewOrg={orgsExposed} />
-            ) : null}
-          </div>
-          <div className="flex items-center gap-2">
-            <NotificationBell />
-            <ThemeToggle />
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
-    </div>
+    <AdminShell
+      user={{ name: session.user.name, email: session.user.email }}
+      personalLabel={personalLabel}
+      orgs={orgs}
+      showSwitcher={showSwitcher}
+      showNewOrg={orgsExposed}
+      orgsEnabled={orgsEnabled}
+    >
+      {children}
+    </AdminShell>
   );
 }

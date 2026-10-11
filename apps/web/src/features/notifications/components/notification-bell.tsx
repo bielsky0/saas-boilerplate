@@ -9,6 +9,7 @@ import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -98,22 +99,27 @@ export function NotificationBell() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" aria-label={t("bell.label")} className="relative">
-          <Bell className="size-4" />
-          {unread > 0 ? (
-            <span
-              aria-hidden
-              className="bg-destructive text-destructive-foreground absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium"
-            >
-              {unread > 99 ? "99+" : unread}
-            </span>
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="outline" size="sm" aria-label={t("bell.label")} className="relative">
+            <Bell className="size-4" />
+            {unread > 0 ? (
+              <span
+                aria-hidden
+                className="bg-destructive text-destructive-foreground absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium"
+              >
+                {unread > 99 ? "99+" : unread}
+              </span>
+            ) : null}
+          </Button>
+        }
+      />
       <DropdownMenuContent align="end" className="w-80">
         <div className="flex items-center justify-between px-3 py-1">
-          <DropdownMenuLabel className="px-0">{t("bell.title")}</DropdownMenuLabel>
+          {/* Base UI requires the label inside a Group (see account-switcher). */}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="px-0">{t("bell.title")}</DropdownMenuLabel>
+          </DropdownMenuGroup>
           {unread > 0 ? (
             <button
               type="button"

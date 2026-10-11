@@ -9,6 +9,7 @@ import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -48,48 +49,58 @@ export function AccountSwitcher({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          aria-label={t("label")}
-          className="max-w-52 justify-between gap-2"
-        >
-          <span className="truncate">{current}</span>
-          <ChevronsUpDown className="size-4 opacity-60" />
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label={t("label")}
+            className="max-w-52 justify-between gap-2"
+          >
+            <span className="truncate">{current}</span>
+            <ChevronsUpDown className="size-4 opacity-60" />
+          </Button>
+        }
+      />
       <DropdownMenuContent align="start" className="min-w-56">
-        <DropdownMenuLabel>{t("personal")}</DropdownMenuLabel>
-        <DropdownMenuItem asChild>
-          <Link href="/dashboard" className={cn(onPersonal && "font-medium")}>
+        {/*
+          Base UI (unlike Radix) requires every DropdownMenuLabel to sit inside
+          a DropdownMenuGroup — a bare label throws MenuGroupContext-missing
+          and the whole menu refuses to open.
+        */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t("personal")}</DropdownMenuLabel>
+          <DropdownMenuItem
+            render={<Link href="/dashboard" className={cn(onPersonal && "font-medium")} />}
+          >
             {personalLabel}
-          </Link>
-        </DropdownMenuItem>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
 
         {orgs.length > 0 ? (
-          <>
+          <DropdownMenuGroup>
             <DropdownMenuLabel>{t("organizations")}</DropdownMenuLabel>
             {orgs.map((org) => (
-              <DropdownMenuItem key={org.id} asChild>
-                <Link
-                  href={`/orgs/${org.slug}`}
-                  className={cn(org.slug === activeSlug && "font-medium")}
-                >
-                  {org.name}
-                </Link>
+              <DropdownMenuItem
+                key={org.id}
+                render={
+                  <Link
+                    href={`/orgs/${org.slug}`}
+                    className={cn(org.slug === activeSlug && "font-medium")}
+                  />
+                }
+              >
+                {org.name}
               </DropdownMenuItem>
             ))}
-          </>
+          </DropdownMenuGroup>
         ) : null}
 
         {showNewOrg ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/orgs/new">
-                <Plus className="mr-2 size-4" /> {t("newOrg")}
-              </Link>
+            <DropdownMenuItem render={<Link href="/orgs/new" />}>
+              <Plus className="mr-2 size-4" /> {t("newOrg")}
             </DropdownMenuItem>
           </>
         ) : null}

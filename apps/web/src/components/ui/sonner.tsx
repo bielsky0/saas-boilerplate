@@ -1,26 +1,46 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Toaster as SonnerToaster, toast } from "sonner";
-import type { ComponentProps } from "react";
+import { Toaster as Sonner, type ToasterProps } from "sonner";
+import {
+  CircleCheckIcon,
+  InfoIcon,
+  TriangleAlertIcon,
+  OctagonXIcon,
+  Loader2Icon,
+} from "lucide-react";
 
-/**
- * Toast host (spec §7.1). Wraps sonner's `Toaster`, syncing its light/dark
- * appearance to the app theme (next-themes). Mounted once in the root layout;
- * fire toasts anywhere with the re-exported `toast(...)`. Used for transient
- * success feedback on server actions (e.g. "Invitation sent", "Settings saved").
- */
-export function Toaster(props: ComponentProps<typeof SonnerToaster>) {
-  const { resolvedTheme } = useTheme();
+const Toaster = ({ ...props }: ToasterProps) => {
+  const { theme = "system" } = useTheme();
+
   return (
-    <SonnerToaster
-      theme={(resolvedTheme as "light" | "dark" | undefined) ?? "system"}
-      position="bottom-right"
-      richColors
-      closeButton
+    <Sonner
+      theme={theme as ToasterProps["theme"]}
+      className="toaster group"
+      icons={{
+        success: <CircleCheckIcon className="size-4" />,
+        info: <InfoIcon className="size-4" />,
+        warning: <TriangleAlertIcon className="size-4" />,
+        error: <OctagonXIcon className="size-4" />,
+        loading: <Loader2Icon className="size-4 animate-spin" />,
+      }}
+      style={
+        {
+          "--normal-bg": "var(--popover)",
+          "--normal-text": "var(--popover-foreground)",
+          "--normal-border": "var(--border)",
+          "--border-radius": "var(--radius)",
+        } as React.CSSProperties
+      }
+      toastOptions={{
+        classNames: {
+          toast: "cn-toast",
+        },
+      }}
       {...props}
     />
   );
-}
+};
 
-export { toast };
+export { Toaster };
+export { toast } from "sonner";

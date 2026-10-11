@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getLocale } from "next-intl/server";
 import Link from "next/link";
 
-import { Button } from "@/components/ui";
+import { buttonVariants } from "@/components/ui";
 import { pageMetadata } from "@/features/content";
 
 /**
@@ -50,15 +50,16 @@ export default async function VerifyEmailPage({
           invitation, offer a direct link back to it. */}
       <div className="flex flex-col items-center gap-2">
         {!isSuccess && callbackUrl ? (
-          <Button asChild>
-            <Link href={callbackUrl}>Continue</Link>
-          </Button>
-        ) : null}
-        <Button asChild variant="link">
-          <Link href={isSuccess ? "/dashboard" : "/login"}>
-            {isSuccess ? "Go to dashboard" : "Back to log in"}
+          <Link href={callbackUrl} className={buttonVariants()}>
+            Continue
           </Link>
-        </Button>
+        ) : null}
+        <Link
+          href={isSuccess ? "/dashboard" : "/login"}
+          className={buttonVariants({ variant: "link" })}
+        >
+          {isSuccess ? "Go to dashboard" : "Back to log in"}
+        </Link>
       </div>
     </main>
   );

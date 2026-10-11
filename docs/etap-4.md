@@ -159,6 +159,25 @@ clientEnv.NEXT_PUBLIC_API_BASE_URL })` bez `getCookie`.
 
 ## Faza 2 — Shell AdminCN zamiast prostego navbara
 
+Status: DONE (2026-10-11). Dowiezione: `@base-ui/react@1.6.0`; `ui/`:
+sidebar/collapsible/breadcrumb/separator/avatar/sheet/skeleton/tooltip (nowe),
+button/dropdown-menu/input/sonner (podmiana); `hooks/use-mobile.ts` (z fixem
+SSR, patrz niżej); `configs/admin-nav.ts` + klucze `nav.admin`;
+`components/layout/{admin-shell,admin-sidebar,admin-header,admin-profile-menu,
+admin-footer,admin-logo}`; `(app)/layout.tsx` na `AdminShell`;
+`e2e/admin-shell.spec.ts` 7/7 (+1 skip w trybie `required`).
+Migracje: `asChild` → `render` (dropdowny), `Button`-jako-link → `Link` +
+`buttonVariants` (Base UI stawia `role="button"`, co łamało role linków),
+`onSelect` → `onClick` (Base UI Menu nie zna `onSelect`),
+`DropdownMenuLabel` MUSI być w `DropdownMenuGroup` (inaczej Base UI error #31
+i menu w ogóle się nie otwiera). `use-mobile.ts` przepisany (init `undefined`
++ sync w mouncie — inicjalizacja z `window` dawała hydration mismatch).
+Profil w headerze z sesji (inicjały), standalone `SignOutButton` zostaje
+(2 specy E2E). `(admin)` nietknięty. Obserwacja: shell robi jeden mount-time
+`replaceState` na ten sam URL (sync NuqsAdapter) — łagodny, ale testy Query
+przeszły na asercje kwiescencji (`waitForQuiescence` w query-foundation)
+zamiast sztywnych liczników.
+
 Cel: jedna powłoka z sidebarem dla całej strefy `(app)`, guard i dane bez zmian.
 
 1. Przenieś z adaptacją (`@/*`, `[locale]`, `@/lib/i18n/navigation`):

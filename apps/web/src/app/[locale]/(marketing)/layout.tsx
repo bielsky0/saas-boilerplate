@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui";
+import { buttonVariants } from "@/components/ui";
 import { Link } from "@/lib/i18n/navigation";
 import { site } from "@/lib/site";
 
@@ -59,12 +59,19 @@ export default async function MarketingLayout({ children }: { children: ReactNod
           <div className="flex items-center gap-2">
             <LocaleSwitcher />
             <ThemeToggle />
-            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-              <Link href="/login">{t("logIn")}</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/signup">{t("getStarted")}</Link>
-            </Button>
+            <Link
+              href="/login"
+              className={buttonVariants({
+                variant: "ghost",
+                size: "sm",
+                className: "hidden sm:inline-flex",
+              })}
+            >
+              {t("logIn")}
+            </Link>
+            <Link href="/signup" className={buttonVariants({ size: "sm" })}>
+              {t("getStarted")}
+            </Link>
           </div>
         </div>
       </header>

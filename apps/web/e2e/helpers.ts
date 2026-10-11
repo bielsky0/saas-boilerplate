@@ -369,3 +369,20 @@ export async function loginViaUi(page: Page, email: string, password: string): P
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: /log in/i }).click();
 }
+
+/**
+ * Seed + verify + log in through the UI, landing on the dashboard.
+ * Shared setup for specs that assert on authenticated chrome (etap 4).
+ */
+export async function loginAsFreshUser(
+  page: Page,
+  request: APIRequestContext,
+  prefix = "e2e",
+): Promise<string> {
+  const email = uniqueEmail(prefix);
+  await registerAndVerify(request, email);
+  await page.goto("/login");
+  await loginViaUi(page, email, TEST_PASSWORD);
+  await page.waitForURL("**/dashboard");
+  return email;
+}

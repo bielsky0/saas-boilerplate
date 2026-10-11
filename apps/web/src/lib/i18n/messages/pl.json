@@ -5,7 +5,20 @@
     "blog": "Blog",
     "changelog": "Zmiany",
     "logIn": "Zaloguj się",
-    "getStarted": "Rozpocznij"
+    "getStarted": "Rozpocznij",
+    "admin": {
+      "groups": {
+        "main": "Główne",
+        "organizations": "Organizacje",
+        "settings": "Ustawienia"
+      },
+      "items": {
+        "dashboard": "Panel",
+        "newOrg": "Nowa organizacja",
+        "billing": "Płatności",
+        "notifications": "Powiadomienia"
+      }
+    }
   },
   "common": {
     "locale": {

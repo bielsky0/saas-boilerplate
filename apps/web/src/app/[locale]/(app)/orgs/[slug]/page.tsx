@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 
-import { Badge, Button } from "@/components/ui";
+import { Badge, buttonVariants } from "@/components/ui";
 import { Link } from "@/lib/i18n/navigation";
 import { hasPermission } from "@/features/rbac";
 import { requireOrgAccess } from "@/features/organizations/context";
@@ -27,26 +27,41 @@ export default async function OrganizationPage({ params }: { params: Promise<{ s
         </p>
       </div>
       <nav className="flex gap-2">
-        <Button asChild variant="outline" size="sm">
-          <Link href={`/orgs/${slug}/members`}>{t("members")}</Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link href={`/orgs/${slug}/files`}>{t("files")}</Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link href={`/orgs/${slug}/settings`}>{t("settings")}</Link>
-        </Button>
+        <Link
+          href={`/orgs/${slug}/members`}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          {t("members")}
+        </Link>
+        <Link
+          href={`/orgs/${slug}/files`}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          {t("files")}
+        </Link>
+        <Link
+          href={`/orgs/${slug}/settings`}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          {t("settings")}
+        </Link>
         {/* Cosmetic gating only (spec 4.2) — the page itself calls
             requireOrgPermission, which is the actual boundary. */}
         {hasPermission(role, "audit.read") ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/orgs/${slug}/settings/audit`}>{t("audit")}</Link>
-          </Button>
+          <Link
+            href={`/orgs/${slug}/settings/audit`}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            {t("audit")}
+          </Link>
         ) : null}
         {hasPermission(role, "billing.manage") ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/orgs/${slug}/settings/billing`}>{t("billing")}</Link>
-          </Button>
+          <Link
+            href={`/orgs/${slug}/settings/billing`}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            {t("billing")}
+          </Link>
         ) : null}
       </nav>
 

@@ -24,20 +24,22 @@ export function ThemeToggle() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Toggle theme">
-          <Sun className="size-4 dark:hidden" />
-          <Moon className="hidden size-4 dark:block" />
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="ghost" size="icon" aria-label="Toggle theme">
+            <Sun className="size-4 dark:hidden" />
+            <Moon className="hidden size-4 dark:block" />
+          </Button>
+        }
+      />
       <DropdownMenuContent align="end" className="min-w-36">
-        <DropdownMenuItem onSelect={() => setTheme("light")}>
+        <DropdownMenuItem onClick={() => setTheme("light")}>
           <Sun className="mr-2 size-4" /> Light
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setTheme("dark")}>
+        <DropdownMenuItem onClick={() => setTheme("dark")}>
           <Moon className="mr-2 size-4" /> Dark
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setTheme("system")}>
+        <DropdownMenuItem onClick={() => setTheme("system")}>
           <Monitor className="mr-2 size-4" /> System
         </DropdownMenuItem>
       </DropdownMenuContent>

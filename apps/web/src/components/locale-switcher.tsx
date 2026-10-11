@@ -73,16 +73,18 @@ export function LocaleSwitcher() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={t("label")} disabled={isPending}>
-          <Languages className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="ghost" size="icon" aria-label={t("label")} disabled={isPending}>
+            <Languages className="size-4" />
+          </Button>
+        }
+      />
       <DropdownMenuContent align="end" className="min-w-36">
         {LOCALES.map((locale) => (
           <DropdownMenuItem
             key={locale}
-            onSelect={() => select(locale)}
+            onClick={() => select(locale)}
             // The active language is marked for assistive tech, not just visually
             // — a checkmark that only exists in CSS says nothing to a screen reader.
             aria-current={locale === active ? "true" : undefined}
