@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
-import { SignInForm } from "@/features/auth";
+import { AuthCard, SignInForm } from "@/features/auth";
 import { pageMetadata } from "@/features/content";
+import { Link } from "@/lib/i18n/navigation";
 import { site } from "@/lib/site";
 
 /**
@@ -15,8 +16,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title: "Log in",
     description: `Sign in to your ${site.name} account.`,
     path: "/login",
-    locale: await getLocale(),
     index: false,
+    locale: await getLocale(),
   });
 }
 
@@ -34,14 +35,20 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
   const callbackUrl = safeCallbackUrl(params.callbackUrl);
+  const t = await getTranslations("auth.card");
+  const te = await getTranslations("auth");
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-6 px-4 py-12">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">Welcome back</h1>
-        <p className="text-muted-foreground text-sm">Log in to your account.</p>
+    <AuthCard title={t("login.title")} description={t("login.description")} wide>
+      <div className="space-y-4">
+        <SignInForm callbackUrl={callbackUrl} />
+        <p className="text-muted-foreground text-center text-base">
+          {te("signIn.needAccount")}{" "}
+          <Link href="/signup" className="text-card-foreground hover:underline">
+            {te("signIn.signUpLink")}
+          </Link>
+        </p>
       </div>
-      <SignInForm callbackUrl={callbackUrl} />
-    </main>
+    </AuthCard>
   );
 }

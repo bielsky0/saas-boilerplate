@@ -34,6 +34,7 @@ export {
 } from "./schema";
 export { SignUpForm } from "./components/sign-up-form";
 export { SignInForm } from "./components/sign-in-form";
+export { AuthCard } from "./components/auth-card";
 export { SignOutButton } from "./components/sign-out-button";
 export { ForgotPasswordForm } from "./components/forgot-password-form";
 export { ResetPasswordForm } from "./components/reset-password-form";

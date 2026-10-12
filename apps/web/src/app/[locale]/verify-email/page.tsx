@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { getLocale } from "next-intl/server";
-import Link from "next/link";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { buttonVariants } from "@/components/ui";
+import { AuthCard } from "@/features/auth";
 import { pageMetadata } from "@/features/content";
+import { Link } from "@/lib/i18n/navigation";
 
 /**
  * `generateMetadata`, not a static `metadata` object: the canonical, hreflang and
@@ -35,32 +36,29 @@ export default async function VerifyEmailPage({
     rawCallback && rawCallback.startsWith("/") && !rawCallback.startsWith("//")
       ? rawCallback
       : undefined;
+  const t = await getTranslations("auth.card");
+  const te = await getTranslations("auth");
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-4 px-4 py-12 text-center">
-      <h1 className="text-2xl font-semibold">
-        {isSuccess ? "Email verified" : "Check your inbox"}
-      </h1>
-      <p className="text-muted-foreground text-sm">
-        {isSuccess
-          ? "Your email address has been confirmed."
-          : "If that email isn't already registered, we've sent a verification link. Open it to finish setting up your account."}
-      </p>
-      {/* After sign-up the user is signed in (autoSignIn); if they came from an
-          invitation, offer a direct link back to it. */}
+    <AuthCard
+      title={isSuccess ? t("verify.successTitle") : t("verify.checkTitle")}
+      description={isSuccess ? t("verify.successBody") : t("verify.checkBody")}
+    >
       <div className="flex flex-col items-center gap-2">
+        {/* After sign-up the user is signed in (autoSignIn); if they came from an
+            invitation, offer a direct link back to it. */}
         {!isSuccess && callbackUrl ? (
           <Link href={callbackUrl} className={buttonVariants()}>
-            Continue
+            {t("verify.continue")}
           </Link>
         ) : null}
         <Link
           href={isSuccess ? "/dashboard" : "/login"}
           className={buttonVariants({ variant: "link" })}
         >
-          {isSuccess ? "Go to dashboard" : "Back to log in"}
+          {isSuccess ? t("verify.goDashboard") : te("shared.backToLogin")}
         </Link>
       </div>
-    </main>
+    </AuthCard>
   );
 }

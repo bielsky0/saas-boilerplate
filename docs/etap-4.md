@@ -261,6 +261,19 @@ podpiętych do Nest.
 
 ## Faza 5 — Auth UI reskin (bez ruszania logiki)
 
+Status: DONE (2026-10-12). Dowiezione: `AuthBackground` SVG +
+`features/auth/components/auth-card.tsx` (tło + karta + logo + tytuł);
+5 stron na karcie (formularze i cała logika nietknięte); klucze
+`auth.card.*` EN/PL; wyrzucone: quick-login, magic-link, google,
+privacy-checkbox, two-steps, statyczny mock verify. Bez nowych speców
+E2E (decyzja) — regresja istniejącymi auth-specami 11/11 + pełna suita
+142 passed (3 fail = tylko MinIO). MCP: 5 stron EN, PL login, pełny
+signup→verify→dashboard, dark, mobile 390 bez h-scrolla, zero błędów.
+Lekcje: `Button + render=<Link>` NIE do linków (rola!) — `Link +
+buttonVariants`; tło `pointer-events-none + aria-hidden`; E2E nigdy
+na reuse'owanym dev-serwerze (NODE_ENV=development dokleja unsafe-eval
+do CSP — czyścić :3000/:3001 przed suitą).
+
 Cel: wygląd AdminCN na istniejących trasach i akcjach boilerplate'u.
 
 1. Trasy zostają: `/login`, `/signup`, `/forgot-password`, `/reset-password`,

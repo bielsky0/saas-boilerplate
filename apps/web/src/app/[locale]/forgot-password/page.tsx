@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
+import { ChevronLeftIcon } from "lucide-react";
 
-import { ForgotPasswordForm } from "@/features/auth";
+import { AuthCard, ForgotPasswordForm } from "@/features/auth";
+import { buttonVariants } from "@/components/ui/button";
 import { pageMetadata } from "@/features/content";
+import { Link } from "@/lib/i18n/navigation";
 
 /**
  * `generateMetadata`, not a static `metadata` object: the canonical, hreflang and
@@ -19,16 +22,27 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-export default function ForgotPasswordPage() {
+export default async function ForgotPasswordPage() {
+  const t = await getTranslations("auth.card");
+  const te = await getTranslations("auth");
+
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-6 px-4 py-12">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">Forgot your password?</h1>
-        <p className="text-muted-foreground text-sm">
-          Enter your email and we&apos;ll send you a link to set a new one.
-        </p>
+    <AuthCard title={t("forgot.title")} description={t("forgot.description")}>
+      <div className="space-y-4">
+        <ForgotPasswordForm />
+        {/*
+          Plain Link with button styles, NOT Button+render: Base UI stamps
+          role="button" onto rendered anchors (faza 2) — a back-link must
+          keep its link role.
+        */}
+        <Link
+          href="/login"
+          className={buttonVariants({ variant: "ghost", className: "group w-full" })}
+        >
+          <ChevronLeftIcon className="size-5 transition-transform duration-200 group-hover:-translate-x-0.5" />
+          {te("shared.backToLogin")}
+        </Link>
       </div>
-      <ForgotPasswordForm />
-    </main>
+    </AuthCard>
   );
 }

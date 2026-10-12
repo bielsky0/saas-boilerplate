@@ -157,6 +157,37 @@
       "logInLink": "Log in",
       "backToLogin": "Back to log in",
       "passwordHint": "At least 8 characters, including a letter and a number."
+    },
+    "card": {
+      "login": {
+        "title": "Welcome back",
+        "description": "Log in to your account."
+      },
+      "signup": {
+        "title": "Create your account",
+        "description": "Sign up with your email and a password."
+      },
+      "forgot": {
+        "title": "Forgot your password?",
+        "description": "Enter your email and we'll send you a link to set a new one."
+      },
+      "reset": {
+        "title": "Set a new password",
+        "description": "Choose a password you haven't used before."
+      },
+      "resetExpired": {
+        "title": "This link has expired",
+        "description": "Reset links are valid for 1 hour and can only be used once.",
+        "requestNew": "Request a new link"
+      },
+      "verify": {
+        "successTitle": "Email verified",
+        "successBody": "Your email address has been confirmed.",
+        "checkTitle": "Check your inbox",
+        "checkBody": "If that email isn't already registered, we've sent a verification link. Open it to finish setting up your account.",
+        "continue": "Continue",
+        "goDashboard": "Go to dashboard"
+      }
     }
   },
   "organizations": {

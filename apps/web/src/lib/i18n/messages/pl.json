@@ -157,6 +157,37 @@
       "logInLink": "Zaloguj się",
       "backToLogin": "Wróć do logowania",
       "passwordHint": "Co najmniej 8 znaków, w tym litera i cyfra."
+    },
+    "card": {
+      "login": {
+        "title": "Witaj ponownie",
+        "description": "Zaloguj się na swoje konto."
+      },
+      "signup": {
+        "title": "Utwórz konto",
+        "description": "Zarejestruj się adresem e-mail i hasłem."
+      },
+      "forgot": {
+        "title": "Nie pamiętasz hasła?",
+        "description": "Podaj e-mail, a wyślemy Ci link do ustawienia nowego."
+      },
+      "reset": {
+        "title": "Ustaw nowe hasło",
+        "description": "Wybierz nowe hasło."
+      },
+      "resetExpired": {
+        "title": "Ten link wygasł",
+        "description": "Linki resetujące są ważne przez godzinę i są jednorazowe.",
+        "requestNew": "Poproś o nowy link"
+      },
+      "verify": {
+        "successTitle": "Adres zweryfikowany",
+        "successBody": "Twój adres e-mail został potwierdzony.",
+        "checkTitle": "Sprawdź skrzynkę",
+        "checkBody": "Jeśli ten e-mail nie jest jeszcze zarejestrowany, wysłaliśmy link weryfikacyjny. Otwórz go, aby dokończyć zakładanie konta.",
+        "continue": "Kontynuuj",
+        "goDashboard": "Przejdź do panelu"
+      }
     }
   },
   "organizations": {

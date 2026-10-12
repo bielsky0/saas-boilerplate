@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { getLocale } from "next-intl/server";
-import Link from "next/link";
+import { getLocale, getTranslations } from "next-intl/server";
 
-import { ResetPasswordForm } from "@/features/auth";
+import { AuthCard, ResetPasswordForm } from "@/features/auth";
 import { pageMetadata } from "@/features/content";
+import { Link } from "@/lib/i18n/navigation";
 
 /**
  * `generateMetadata`, not a static `metadata` object: the canonical, hreflang and
@@ -37,34 +37,23 @@ export default async function ResetPasswordPage({
   const params = await searchParams;
   const token = typeof params.token === "string" ? params.token : "";
   const hasError = typeof params.error === "string";
+  const t = await getTranslations("auth.card");
 
   if (!token || hasError) {
     return (
-      <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-6 px-4 py-12">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold">This link has expired</h1>
-          <p className="text-muted-foreground text-sm">
-            Reset links are valid for 1 hour and can only be used once.
-          </p>
-        </div>
+      <AuthCard title={t("resetExpired.title")} description={t("resetExpired.description")}>
         <p className="text-sm">
           <Link href="/forgot-password" className="text-foreground font-medium underline">
-            Request a new link
+            {t("resetExpired.requestNew")}
           </Link>
         </p>
-      </main>
+      </AuthCard>
     );
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center gap-6 px-4 py-12">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">Set a new password</h1>
-        <p className="text-muted-foreground text-sm">
-          Choose a password you haven&apos;t used before.
-        </p>
-      </div>
+    <AuthCard title={t("reset.title")} description={t("reset.description")}>
       <ResetPasswordForm token={token} />
-    </main>
+    </AuthCard>
   );
 }
