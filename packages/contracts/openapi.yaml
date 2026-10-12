@@ -24,6 +24,12 @@ tags:
       account, or — when `org` is supplied — an org they are a member of.
       Times are UTC instants; the frontend renders them in the active context's
       time zone.
+  - name: mail
+    description: >-
+      Internal mail (etap 5, faza 5.4). USER-scoped threads/messages/folders/
+      flags between platform users — no inbound MX, so sends to an address with
+      no account are refused. Delivery of a new thread runs as the
+      `mail.deliver` job.
 paths:
   /v1/dashboard/summary:
     get:
@@ -684,6 +690,172 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+  /v1/mail/threads:
+    get:
+      operationId: listMailThreads
+      tags: [mail]
+      description: The caller's threads in a folder/label, newest first, optionally filtered by search or unread.
+      parameters:
+        - name: folder
+          in: query
+          schema:
+            type: string
+            enum: [inbox, sent, drafts, spam, trash, archive]
+        - name: label
+          in: query
+          schema:
+            type: string
+            enum: [social, updates, forums, shopping, promotions]
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 200 }
+        - name: unread
+          in: query
+          schema: { type: string, enum: ["1", "true", "0", "false"] }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+      responses:
+        "200":
+          description: Threads in the mailbox view
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MailThreadSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: sendMail
+      tags: [mail]
+      description: Compose a new thread, or a draft when `draft` is true. Unknown recipients answer 422.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MailSendInput"
+      responses:
+        "201":
+          description: Thread created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: string }
+        "422":
+          description: Unknown recipient (issues.to) or schema failure
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/mail/counts:
+    get:
+      operationId: getMailCounts
+      tags: [mail]
+      responses:
+        "200":
+          description: Per-folder and per-label counts plus the inbox unread count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailCounts"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/mail/threads/{id}:
+    get:
+      operationId: getMailThread
+      tags: [mail]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Thread with my flags, its messages and the other participants
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MailThreadDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateMailThread
+      tags: [mail]
+      description: Update MY copy — folder, read/star flags or labels. Moving a draft to `sent` delivers it.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MailUpdateInput"
+      responses:
+        "200":
+          description: Updated
+        "400":
+          description: Invalid folder/label
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteMailThread
+      tags: [mail]
+      description: Remove my copy of the thread; the thread survives for the other participants.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/mail/threads/{id}/messages:
+    post:
+      operationId: replyMailThread
+      tags: [mail]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MailReplyInput"
+      responses:
+        "201":
+          description: Reply appended
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: string }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   parameters:
     OrgSlug:
@@ -955,6 +1127,119 @@ components:
         allDay: { type: boolean }
         kind: { type: string, maxLength: 40 }
         location: { type: string, maxLength: 200 }
+    MailThreadSummary:
+      type: object
+      required:
+        [
+          id,
+          subject,
+          folder,
+          isRead,
+          isStarred,
+          labels,
+          messageCount,
+          lastMessageAt,
+          preview,
+          counterpartName,
+          counterpartEmail,
+        ]
+      properties:
+        id: { type: string }
+        subject: { type: string }
+        folder:
+          type: string
+          enum: [inbox, sent, drafts, spam, trash, archive]
+        isRead: { type: boolean }
+        isStarred: { type: boolean }
+        labels:
+          type: array
+          items:
+            type: string
+            enum: [social, updates, forums, shopping, promotions]
+        messageCount: { type: integer }
+        lastMessageAt: { type: string, format: date-time }
+        preview: { type: string }
+        counterpartName: { type: string, nullable: true }
+        counterpartEmail: { type: string }
+    MailMessage:
+      type: object
+      required: [id, body, createdAt, fromName, fromEmail, isFromMe]
+      properties:
+        id: { type: string }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+        fromName: { type: string, nullable: true }
+        fromEmail: { type: string }
+        isFromMe: { type: boolean }
+    MailThreadDetail:
+      type: object
+      required: [id, subject, folder, isRead, isStarred, labels, createdAt, messages, participants]
+      properties:
+        id: { type: string }
+        subject: { type: string }
+        folder:
+          type: string
+          enum: [inbox, sent, drafts, spam, trash, archive]
+        isRead: { type: boolean }
+        isStarred: { type: boolean }
+        labels:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/MailMessage"
+        participants:
+          type: array
+          items:
+            type: object
+            required: [userId, name, email]
+            properties:
+              userId: { type: string }
+              name: { type: string, nullable: true }
+              email: { type: string }
+    MailCounts:
+      type: object
+      required: [folders, labels, unread]
+      properties:
+        folders:
+          type: object
+          additionalProperties: { type: integer }
+        labels:
+          type: object
+          additionalProperties: { type: integer }
+        unread: { type: integer }
+    MailSendInput:
+      type: object
+      required: [to, subject, body]
+      properties:
+        to:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { type: string, format: email }
+        subject: { type: string, minLength: 1, maxLength: 200 }
+        body: { type: string, minLength: 1, maxLength: 20000 }
+        draft: { type: boolean }
+    MailUpdateInput:
+      type: object
+      properties:
+        folder:
+          type: string
+          enum: [inbox, sent, drafts, spam, trash, archive]
+        isRead: { type: boolean }
+        isStarred: { type: boolean }
+        labels:
+          type: array
+          items:
+            type: string
+            enum: [social, updates, forums, shopping, promotions]
+    MailReplyInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 20000 }
     ErrorEnvelope:
       type: object
       required: [error]

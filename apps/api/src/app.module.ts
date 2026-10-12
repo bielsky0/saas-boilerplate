@@ -13,6 +13,7 @@ import { EmailsModule } from "./emails/emails.module";
 import { HealthController } from "./health/health.controller";
 import { JobsModule } from "./jobs/jobs.module";
 import { LocaleModule } from "./locale/locale.module";
+import { MailModule } from "./mail/mail.module";
 import { McpModule } from "./mcp/mcp.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { OnboardingModule } from "./onboarding/onboarding.module";
@@ -38,6 +39,7 @@ import { StorageModule } from "./storage/storage.module";
     DashboardModule,
     JobsModule,
     LocaleModule,
+    MailModule,
     McpModule,
     StorageModule,
   ],

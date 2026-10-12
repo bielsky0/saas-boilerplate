@@ -1,6 +1,6 @@
 # Etap 5 — Pozostałe funkcje AdminCN Free
 
-Status: w trakcie (fazy 5.0–5.3 DONE, 5.4–5.5 w planie). Poprzedni: [etap-4.md](etap-4.md) (shell,
+Status: w trakcie (fazy 5.0–5.4 DONE, 5.5 w planie). Poprzedni: [etap-4.md](etap-4.md) (shell,
 Orders, członkowie, profil, auth — zamknięty).
 
 Decyzje etapowe (z planowania, nie do renegocjacji w środku faz):
@@ -64,11 +64,23 @@ week/day, klawisze, mobile 390, org NY vs Warsaw dowodzi strefy org, izolacja
 personal puste, zero błędów konsoli). Bez speców E2E (decyzja). Szczegóły
 poniżej w skrócie.
 
-## Faza 5.4 — Mail, pełny backend (plan)
+## Faza 5.4 — Mail, pełny backend
 
-Moduł Nest (wątki/wiadomości/foldery/flagi), wysyłka przez istniejącą
-kolejkę, wiadomości wewnętrzne (brak MX inbound — fizyka, nie cięcie);
-web z `resizable` (dozwolone tylko tu).
+Status: DONE (2026-10-12). Dowiezione: Nest `mail_thread` /
+`mail_thread_participant` / `mail_message` (migracje `0015` + `0016`; folder
+CHECK, unique `(threadId,userId)`, `draftRecipientIds` na wątku żeby szkic
+miał do kogo trafić po wysłaniu); moduł `mail/` (list z folderem/labelą/
+szukaniem/unread + counts, detail, compose, reply, PATCH flag/folder/label,
+DELETE własnej kopii; owner = użytkownik, wiadomości wewnętrzne user↔user —
+brak MX, więc nieznany odbiorca = 422 `issues.to`); dostawa przez istniejącą
+kolejkę (`mail.deliver`, kontrakt + rejestr + handler, idempotentny). Web
+`features/mail/`: trójpanelowy `MailApp` na `resizable` (jedyne użycie
+`react-resizable-panels`), nav/list/item/display + compose Sheet (RHF),
+prymitywy `ui/resizable`, `ui/scroll-area`, `ui/switch`, trasa
+`/(app)/apps/mail`, klucze `mail.*` EN/PL. Weryfikacja: static/build zielone,
+API curl (dostawa przez job, izolacja 404, wątki/flagi/labelki/draft→send,
+422), MCP (skrzynka, detail, reply, star/label/archive, compose, search,
+mobile, zero błędów konsoli). Bez speców E2E (decyzja).
 
 ## Faza 5.5 — Domknięcie (plan)
 

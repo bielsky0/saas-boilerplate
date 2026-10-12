@@ -1,0 +1,1 @@
+ALTER TABLE "mail_thread" ADD COLUMN "draftRecipientIds" jsonb DEFAULT '[]'::jsonb NOT NULL;

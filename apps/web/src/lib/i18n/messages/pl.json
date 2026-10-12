@@ -958,5 +958,91 @@
       "descriptionMax": "Opis jest za długi",
       "generic": "Coś poszło nie tak"
     }
+  },
+  "mail": {
+    "compose": "Napisz",
+    "composeTitle": "Nowa wiadomość",
+    "mailboxes": "Skrzynki",
+    "labels": {
+      "social": "Społeczności",
+      "updates": "Aktualizacje",
+      "forums": "Fora",
+      "shopping": "Zakupy",
+      "promotions": "Promocje"
+    },
+    "labelsHeading": "Etykiety",
+    "folders": {
+      "inbox": "Odebrane",
+      "drafts": "Szkice",
+      "sent": "Wysłane",
+      "spam": "Spam",
+      "trash": "Kosz",
+      "archive": "Archiwum"
+    },
+    "loading": "Wczytywanie poczty…",
+    "empty": {
+      "title": "Brak wiadomości",
+      "body": "Ten folder jest pusty."
+    },
+    "tabAll": "Wszystkie",
+    "tabUnread": "Nieprzeczytane",
+    "search": "Szukaj",
+    "searchPlaceholder": "Szukaj w poczcie",
+    "sort": "Sortowanie",
+    "sortNewest": "Najnowsze",
+    "sortOldest": "Najstarsze",
+    "noSelection": {
+      "title": "Nie wybrano wiadomości",
+      "body": "Wybierz wiadomość z listy, aby ją przeczytać."
+    },
+    "to": "Do",
+    "replyTo": "Odpowiedz do",
+    "you": "Ty",
+    "forwarded": "Wiadomość przekazana",
+    "earlierMessages": "{count, plural, one {# wcześniejsza wiadomość} few {# wcześniejsze wiadomości} many {# wcześniejszych wiadomości} other {# wcześniejszych wiadomości}}",
+    "muteThread": "Wycisz ten wątek",
+    "replyPlaceholder": "Odpowiedz do {name}…",
+    "replyPlaceholderDraft": "Edytuj swój szkic…",
+    "send": "Wyślij",
+    "sending": "Wysyłanie…",
+    "saveDraft": "Zapisz szkic",
+    "actions": {
+      "archive": "Archiwizuj",
+      "spam": "Do spamu",
+      "notSpam": "To nie spam",
+      "restore": "Przywróć do odebranych",
+      "trash": "Do kosza",
+      "delete": "Usuń trwale",
+      "labels": "Zarządzaj etykietami",
+      "star": "Oznacz gwiazdką",
+      "unstar": "Usuń gwiazdkę",
+      "reply": "Odpowiedz",
+      "replyAll": "Odpowiedz wszystkim",
+      "forward": "Przekaż",
+      "more": "Więcej",
+      "markRead": "Oznacz jako przeczytane",
+      "markUnread": "Oznacz jako nieprzeczytane",
+      "sendDraft": "Wyślij szkic"
+    },
+    "fields": {
+      "to": "Odbiorcy",
+      "toPlaceholder": "imie@example.com, …",
+      "subject": "Temat",
+      "body": "Wiadomość"
+    },
+    "toast": {
+      "sent": "Wiadomość wysłana",
+      "draftSaved": "Szkic zapisany",
+      "replied": "Odpowiedź wysłana",
+      "deleted": "Rozmowa usunięta",
+      "error": "Coś poszło nie tak"
+    },
+    "validation": {
+      "toRequired": "Dodaj co najmniej jednego odbiorcę",
+      "subjectRequired": "Temat jest wymagany",
+      "bodyRequired": "Treść wiadomości jest wymagana",
+      "unknownRecipient": "Nie znaleziono konta dla: {emails}",
+      "generic": "Coś poszło nie tak"
+    }
   }
 }

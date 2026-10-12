@@ -110,6 +110,9 @@ export {
   SheetDescription,
 } from "./sheet";
 export { Skeleton } from "./skeleton";
+export { Switch } from "./switch";
+export { ScrollArea, ScrollBar } from "./scroll-area";
+export { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "./resizable";
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./tooltip";
 export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
 export {

@@ -7,6 +7,8 @@ import { BillingNotifyModule } from "../billing-notify/billing-notify.module";
 import { BillingNotifyService } from "../billing-notify/billing-notify.service";
 import { EmailsModule } from "../emails/emails.module";
 import { EmailsService } from "../emails/emails.service";
+import { MailModule } from "../mail/mail.module";
+import { MailService } from "../mail/mail.service";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { NotificationsService } from "../notifications/notifications.service";
 import { OnboardingModule } from "../onboarding/onboarding.module";
@@ -35,6 +37,7 @@ import { StoragePurgeService } from "./storage-purge.service";
     NotificationsModule,
     BillingNotifyModule,
     StorageModule,
+    MailModule,
   ],
   controllers: [CronController],
   providers: [
@@ -49,6 +52,7 @@ import { StoragePurgeService } from "./storage-purge.service";
         NotificationsService,
         BillingNotifyService,
         StoragePurgeService,
+        MailService,
         RATE_LIMIT_MEMORY,
         RATE_LIMIT_POSTGRES,
       ],
@@ -59,6 +63,7 @@ import { StoragePurgeService } from "./storage-purge.service";
         notifications: NotificationsService,
         billingNotify: BillingNotifyService,
         purge: StoragePurgeService,
+        mail: MailService,
         rateLimitMemory: RateLimitAdapter,
         rateLimitPostgres: RateLimitAdapter,
       ): JobRegistry => {
@@ -73,6 +78,7 @@ import { StoragePurgeService } from "./storage-purge.service";
             log.log(`pruned terminal jobs deleted=${deleted}`);
           },
           "storage.purge": () => purge.handlePurge(),
+          "mail.deliver": (payload) => mail.handleDeliver(payload),
           "ratelimit.prune": async () => {
             // Both stores: the dev seam drives either one regardless of the
             // configured provider, and a no-op on memory is the healthy norm.

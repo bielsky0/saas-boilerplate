@@ -31,6 +31,16 @@ export const queryKeys = {
   calendar: {
     all: ["calendar"],
   },
+  mail: {
+    all: ["mail"],
+    threads: (params: Record<string, string | number | boolean | undefined>) => [
+      "mail",
+      "threads",
+      params,
+    ],
+    counts: ["mail", "counts"],
+    thread: (id: string) => ["mail", "thread", id],
+  },
   connections: {
     all: ["connections"],
   },

@@ -60,7 +60,8 @@ export type JobName =
   | "notification.create"
   | "job.prune"
   | "storage.purge"
-  | "ratelimit.prune";
+  | "ratelimit.prune"
+  | "mail.deliver";
 
 /**
  * `email.send`'s `template` is `string`, not the email adapter's `TemplateName`:
@@ -144,6 +145,14 @@ export interface JobPayloads {
    * correctness. A no-op on the memory provider.
    */
   "ratelimit.prune": Record<string, never>;
+  /**
+   * Fan a newly sent mail thread out to its recipients' inboxes (etap 5, faza
+   * 5.4). The send commits the sender's `sent` row + this enqueue together; the
+   * handler inserts one `inbox` participant row per recipient, idempotently
+   * (at-least-once — see the queue header). `recipientUserIds` are resolved at
+   * enqueue time from the composed addresses.
+   */
+  "mail.deliver": { threadId: string; recipientUserIds: string[] };
 }
 
 export interface EnqueueOptions {

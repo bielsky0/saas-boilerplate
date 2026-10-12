@@ -958,5 +958,91 @@
       "descriptionMax": "Description is too long",
       "generic": "Something went wrong"
     }
+  },
+  "mail": {
+    "compose": "Compose",
+    "composeTitle": "New message",
+    "mailboxes": "Mailboxes",
+    "labels": {
+      "social": "Social",
+      "updates": "Updates",
+      "forums": "Forums",
+      "shopping": "Shopping",
+      "promotions": "Promotions"
+    },
+    "labelsHeading": "Labels",
+    "folders": {
+      "inbox": "Inbox",
+      "drafts": "Drafts",
+      "sent": "Sent",
+      "spam": "Spam",
+      "trash": "Trash",
+      "archive": "Archive"
+    },
+    "loading": "Loading mail…",
+    "empty": {
+      "title": "No messages",
+      "body": "This folder is empty."
+    },
+    "tabAll": "All mail",
+    "tabUnread": "Unread",
+    "search": "Search",
+    "searchPlaceholder": "Search mail",
+    "sort": "Sort",
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
+    "noSelection": {
+      "title": "No message selected",
+      "body": "Choose a message from the list to read it here."
+    },
+    "to": "To",
+    "replyTo": "Reply-To",
+    "you": "You",
+    "forwarded": "Forwarded message",
+    "earlierMessages": "{count, plural, one {# earlier message} other {# earlier messages}}",
+    "muteThread": "Mute this thread",
+    "replyPlaceholder": "Reply to {name}…",
+    "replyPlaceholderDraft": "Edit your draft…",
+    "send": "Send",
+    "sending": "Sending…",
+    "saveDraft": "Save draft",
+    "actions": {
+      "archive": "Archive",
+      "spam": "Move to spam",
+      "notSpam": "Not spam",
+      "restore": "Restore to inbox",
+      "trash": "Move to trash",
+      "delete": "Delete permanently",
+      "labels": "Manage labels",
+      "star": "Star",
+      "unstar": "Unstar",
+      "reply": "Reply",
+      "replyAll": "Reply all",
+      "forward": "Forward",
+      "more": "More",
+      "markRead": "Mark as read",
+      "markUnread": "Mark as unread",
+      "sendDraft": "Send draft"
+    },
+    "fields": {
+      "to": "To",
+      "toPlaceholder": "name@example.com, …",
+      "subject": "Subject",
+      "body": "Message"
+    },
+    "toast": {
+      "sent": "Message sent",
+      "draftSaved": "Draft saved",
+      "replied": "Reply sent",
+      "deleted": "Conversation deleted",
+      "error": "Something went wrong"
+    },
+    "validation": {
+      "toRequired": "Add at least one recipient",
+      "subjectRequired": "Subject is required",
+      "bodyRequired": "Message body is required",
+      "unknownRecipient": "No account found for: {emails}",
+      "generic": "Something went wrong"
+    }
   }
 }
