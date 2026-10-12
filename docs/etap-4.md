@@ -171,12 +171,13 @@ Migracje: `asChild` → `render` (dropdowny), `Button`-jako-link → `Link` +
 `onSelect` → `onClick` (Base UI Menu nie zna `onSelect`),
 `DropdownMenuLabel` MUSI być w `DropdownMenuGroup` (inaczej Base UI error #31
 i menu w ogóle się nie otwiera). `use-mobile.ts` przepisany (init `undefined`
-+ sync w mouncie — inicjalizacja z `window` dawała hydration mismatch).
-Profil w headerze z sesji (inicjały), standalone `SignOutButton` zostaje
-(2 specy E2E). `(admin)` nietknięty. Obserwacja: shell robi jeden mount-time
-`replaceState` na ten sam URL (sync NuqsAdapter) — łagodny, ale testy Query
-przeszły na asercje kwiescencji (`waitForQuiescence` w query-foundation)
-zamiast sztywnych liczników.
+
+- sync w mouncie — inicjalizacja z `window` dawała hydration mismatch).
+  Profil w headerze z sesji (inicjały), standalone `SignOutButton` zostaje
+  (2 specy E2E). `(admin)` nietknięty. Obserwacja: shell robi jeden mount-time
+  `replaceState` na ten sam URL (sync NuqsAdapter) — łagodny, ale testy Query
+  przeszły na asercje kwiescencji (`waitForQuiescence` w query-foundation)
+  zamiast sztywnych liczników.
 
 Cel: jedna powłoka z sidebarem dla całej strefy `(app)`, guard i dane bez zmian.
 
@@ -195,6 +196,20 @@ user={...}>` zamiast obecnego headera. `AccountSwitcher`,
    dark mode bez flasha, PL/EN, mobile. Commit.
 
 ## Faza 3 — Orders dashboard na żywych danych
+
+Status: DONE (2026-10-11). Dowiezione: Nest `apps/api/src/dashboard/`
+(`GET /v1/dashboard/summary`, `GET /v1/dashboard/transactions`, personal
+scope, kontrakt w `openapi.yaml`); web `features/orders/` (hooki, 5 widoków
+props-izowanych, `ui/chart.tsx`, `ui/progress.tsx`, klucze
+`dashboard.orders`); PoC usunięty (`api-status`, `use-health`,
+`query-foundation.spec` → `orders-dashboard.spec.ts` 8/8).
+Lekcje: TanStack Table ZDOWNGRADEOWANY do 8.21.3 (v9 to inne API);
+`Button`-jako-link → `Link + buttonVariants` (rola!); `DropdownMenuLabel`
+tylko w `Group`; E2E seeduje personal billing signed-webhookami;
+JEDNA client-side nawigacja Next-routera na żywot dokumentu w headless-shell
+(druga wiesza proces przeglądarki — paginacja na linkach + testy splitowane,
+szczegóły w specu); liczniki requestów → kwiescencja (`waitForQuiescence`
+w `helpers.ts`); filtry statusu w URL (nuqs shallow) są OK.
 
 Cel: pierwszy widok biznesowy na danych z NestJS, zero mocków.
 

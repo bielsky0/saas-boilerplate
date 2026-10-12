@@ -16,7 +16,50 @@ tags:
     description: Explicit language choice (spec 16.1, faza 2.8)
   - name: admin
     description: Super-admin panel (spec 6, faza 2.6). Cross-tenant by design; SuperAdminGuard is the boundary.
+  - name: dashboard
+    description: Personal revenue dashboard (etap 4, faza 3). Tenant-local by design — aggregates over the caller's personal account only.
 paths:
+  /v1/dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      responses:
+        "200":
+          description: Revenue aggregates, series and plan breakdown for the caller's personal account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /v1/dashboard/transactions:
+    get:
+      operationId: listDashboardTransactions
+      tags: [dashboard]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [all, paid, failed, refunded], default: all }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 10000, default: 0 }
+      responses:
+        "200":
+          description: Personal payments, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rows, page, hasNext]
+                properties:
+                  rows:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DashboardTransaction"
+                  page: { type: integer }
+                  hasNext: { type: boolean }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /v1/organizations:
     post:
       operationId: createOrganization
@@ -704,6 +747,69 @@ components:
       required: [value]
       properties:
         value: { type: string, enum: [grant, revoke] }
+    DashboardSummary:
+      type: object
+      required:
+        [currency, revenue, subscriptions, payments, monthlyRevenue, weeklyRevenue, planBreakdown]
+      properties:
+        currency: { type: string }
+        revenue:
+          type: object
+          required: [totalMinor, previousMinor, deltaPct]
+          properties:
+            totalMinor: { type: integer }
+            previousMinor: { type: integer }
+            deltaPct: { type: number, nullable: true }
+        subscriptions:
+          type: object
+          required: [active, trialing, pastDue, canceled]
+          properties:
+            active: { type: integer }
+            trialing: { type: integer }
+            pastDue: { type: integer }
+            canceled: { type: integer }
+        payments:
+          type: object
+          required: [paid, failed, refunded]
+          properties:
+            paid: { type: integer }
+            failed: { type: integer }
+            refunded: { type: integer }
+        monthlyRevenue:
+          type: array
+          items:
+            type: object
+            required: [month, minor]
+            properties:
+              month: { type: string }
+              minor: { type: integer }
+        weeklyRevenue:
+          type: array
+          items:
+            type: object
+            required: [weekStart, minor]
+            properties:
+              weekStart: { type: string }
+              minor: { type: integer }
+        planBreakdown:
+          type: array
+          items:
+            type: object
+            required: [planId, count, minor]
+            properties:
+              planId: { type: string, nullable: true }
+              count: { type: integer }
+              minor: { type: integer }
+    DashboardTransaction:
+      type: object
+      required: [id, amountMinor, currency, status, reason, createdAt]
+      properties:
+        id: { type: string }
+        amountMinor: { type: integer }
+        currency: { type: string }
+        status: { type: string, enum: [paid, failed, refunded] }
+        reason: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
     ErrorEnvelope:
       type: object
       required: [error]
@@ -724,6 +830,12 @@ components:
               - $ref: "#/components/schemas/ErrorEnvelope"
               - type: object
                 required: [issues]
+    Unauthorized:
+      description: Missing or invalid session (SessionGuard)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
     NotFound:
       description: Unknown org slug, or orgs disabled (indistinguishable by design)
       content:

@@ -372,6 +372,71 @@
       "ok": "Połączono z API",
       "error": "Brak połączenia z API — dane na tej stronie mogą być nieaktualne."
     },
+    "orders": {
+      "loading": "Ładowanie panelu…",
+      "error": "Nie udało się załadować panelu. Sprawdź połączenie i spróbuj ponownie.",
+      "stats": {
+        "revenue": "Przychód (30 dni)",
+        "activeSubs": "Aktywne subskrypcje",
+        "paidPayments": "Opłacone płatności",
+        "noBaseline": "Brak poprzedniego okresu do porównania",
+        "vsPrevious": "{pct} vs poprzednie 30 dni",
+        "trialing": "{count, plural, =0 {Brak subskrypcji próbnych} one {+1 subskrypcja próbna} few {+# subskrypcje próbne} other {+# subskrypcji próbnych}}",
+        "failed": "{count, plural, =0 {Brak nieudanych płatności} one {1 nieudana płatność} few {# nieudane płatności} other {# nieudanych płatności}}"
+      },
+      "metrics": {
+        "successRate": "Skuteczność płatności",
+        "totalRevenue": "Całkowity przychód",
+        "activeSubs": "Aktywne subskrypcje",
+        "payments": "Płatności",
+        "unmappedPlan": "Inne"
+      },
+      "salesMetrics": {
+        "title": "Metryki sprzedaży",
+        "sales": "Sprzedaż",
+        "revenueGoal": "Cel przychodowy",
+        "totalProfit": "Całkowity zysk",
+        "planCompleted": "Realizacja planu",
+        "salesPlan": "Plan sprzedaży",
+        "salesPlanHint": "Udział udanych płatności",
+        "cohortTitle": "Wskaźniki analizy kohortowej",
+        "cohortBody": "Przychód tygodniowy z ostatnich 12 tygodni, w walucie rozliczeń."
+      },
+      "insights": {
+        "title": "Podsumowanie produktu",
+        "subtitle": "{from} – {to}",
+        "monthly": "Przychód miesięczny",
+        "weekly": "Przychód tygodniowy"
+      },
+      "earning": {
+        "title": "Całkowity zarobek",
+        "comparison": "Ostatnie 30 dni vs poprzedni okres",
+        "subscriptions": "{count} subskrypcji"
+      },
+      "table": {
+        "filterLabel": "Filtruj po statusie",
+        "loading": "Ładowanie transakcji…",
+        "error": "Nie udało się załadować transakcji.",
+        "empty": "Brak transakcji.",
+        "page": "Strona {page}",
+        "previous": "Poprzednia strona",
+        "previousLabel": "Wstecz",
+        "next": "Następna strona",
+        "nextLabel": "Dalej",
+        "columns": {
+          "customer": "Klient",
+          "amount": "Kwota",
+          "status": "Status",
+          "date": "Data"
+        },
+        "status": {
+          "all": "Wszystkie",
+          "paid": "Opłacone",
+          "failed": "Nieudane",
+          "refunded": "Zwrócone"
+        }
+      }
+    },
     "org": {
       "yourRole": "Twoja rola:",
       "members": "Członkowie",

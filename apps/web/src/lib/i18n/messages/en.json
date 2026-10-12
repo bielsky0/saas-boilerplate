@@ -372,6 +372,71 @@
       "ok": "API connected",
       "error": "API unreachable — data on this page may be stale."
     },
+    "orders": {
+      "loading": "Loading dashboard…",
+      "error": "Could not load the dashboard. Check your connection and try again.",
+      "stats": {
+        "revenue": "Revenue (30 days)",
+        "activeSubs": "Active subscriptions",
+        "paidPayments": "Paid payments",
+        "noBaseline": "No prior period to compare",
+        "vsPrevious": "{pct} vs previous 30 days",
+        "trialing": "{count, plural, =0 {No trial subscriptions} one {+1 trial subscription} other {+# trial subscriptions}}",
+        "failed": "{count, plural, =0 {No failed payments} one {1 failed payment} other {# failed payments}}"
+      },
+      "metrics": {
+        "successRate": "Payment success",
+        "totalRevenue": "Total revenue",
+        "activeSubs": "Active subscriptions",
+        "payments": "Payments",
+        "unmappedPlan": "Other"
+      },
+      "salesMetrics": {
+        "title": "Sales metrics",
+        "sales": "Sales",
+        "revenueGoal": "Revenue goal",
+        "totalProfit": "Total Profit",
+        "planCompleted": "Plan completed",
+        "salesPlan": "Sales plan",
+        "salesPlanHint": "Share of successful payments",
+        "cohortTitle": "Cohort analysis indicators",
+        "cohortBody": "Revenue per week for the last 12 weeks, in your billing currency."
+      },
+      "insights": {
+        "title": "Product insight",
+        "subtitle": "{from} – {to}",
+        "monthly": "Monthly revenue",
+        "weekly": "Weekly revenue"
+      },
+      "earning": {
+        "title": "Total Earning",
+        "comparison": "Last 30 days vs previous period",
+        "subscriptions": "{count} subscriptions"
+      },
+      "table": {
+        "filterLabel": "Filter by status",
+        "loading": "Loading transactions…",
+        "error": "Could not load transactions.",
+        "empty": "No transactions yet.",
+        "page": "Page {page}",
+        "previous": "Go to previous page",
+        "previousLabel": "Previous",
+        "next": "Go to next page",
+        "nextLabel": "Next",
+        "columns": {
+          "customer": "Customer",
+          "amount": "Amount",
+          "status": "Status",
+          "date": "Date"
+        },
+        "status": {
+          "all": "All",
+          "paid": "Paid",
+          "failed": "Failed",
+          "refunded": "Refunded"
+        }
+      }
+    },
     "org": {
       "yourRole": "Your role:",
       "members": "Members",

@@ -111,6 +111,7 @@ type InvoiceEventOpts = {
   subscriptionId?: string;
   type: "invoice.paid" | "invoice.payment_failed";
   amount: number;
+  currency?: string;
   createdAt?: number;
 };
 
@@ -126,7 +127,7 @@ export function invoiceEvent(opts: InvoiceEventOpts) {
         id: opts.invoiceId,
         object: "invoice",
         customer: opts.customerId,
-        currency: "usd",
+        currency: opts.currency ?? "usd",
         amount_paid: opts.type === "invoice.paid" ? opts.amount : 0,
         amount_due: opts.amount,
         billing_reason: "subscription_cycle",

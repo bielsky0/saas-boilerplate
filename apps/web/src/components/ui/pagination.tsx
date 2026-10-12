@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "./button";
@@ -29,8 +29,9 @@ export function Pagination({ className, ...props }: ComponentProps<"nav">) {
 type PaginationLinkProps = {
   href: string;
   disabled?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
+  ariaLabel?: string;
 };
 
 export function PaginationLink({
@@ -38,10 +39,12 @@ export function PaginationLink({
   disabled = false,
   children,
   className,
+  ariaLabel,
 }: PaginationLinkProps) {
   return (
     <Link
       href={disabled ? "#" : href}
+      aria-label={ariaLabel}
       aria-disabled={disabled || undefined}
       tabIndex={disabled ? -1 : undefined}
       className={cn(

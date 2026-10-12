@@ -47,6 +47,13 @@ export { Pagination, PaginationLink } from "./pagination";
 export { Toaster, toast } from "./sonner";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
 export {
+  Progress,
+  ProgressTrack,
+  ProgressIndicator,
+  ProgressLabel,
+  ProgressValue,
+} from "./progress";
+export {
   Breadcrumb,
   BreadcrumbList,
   BreadcrumbItem,

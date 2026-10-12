@@ -373,16 +373,89 @@ export async function loginViaUi(page: Page, email: string, password: string): P
 /**
  * Seed + verify + log in through the UI, landing on the dashboard.
  * Shared setup for specs that assert on authenticated chrome (etap 4).
+ * Pass `email` to log in as a previously seeded account (e.g. one with
+ * billing fixtures); otherwise a fresh address is minted.
  */
 export async function loginAsFreshUser(
   page: Page,
   request: APIRequestContext,
   prefix = "e2e",
+  email?: string,
 ): Promise<string> {
-  const email = uniqueEmail(prefix);
-  await registerAndVerify(request, email);
+  const address = email ?? uniqueEmail(prefix);
+  await registerAndVerify(request, address);
   await page.goto("/login");
-  await loginViaUi(page, email, TEST_PASSWORD);
+  await loginViaUi(page, address, TEST_PASSWORD);
   await page.waitForURL("**/dashboard");
-  return email;
+  return address;
+}
+
+/**
+ * Wait until a counter stops changing (stable for `stableMs`), returning its
+ * value. Guards interception tests against app-initiated remounts (e.g. the
+ * shell's mount-time same-URL transition): instead of asserting an exact
+ * request count — which couples the test to render timing — tests assert
+ * quiescence (no retry storm) plus a small upper bound.
+ */
+export async function waitForQuiescence(
+  read: () => number,
+  stableMs = 1500,
+  timeout = 15000,
+): Promise<number> {
+  const start = Date.now();
+  let last = read();
+  let lastChange = start;
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const now = read();
+    if (now !== last) {
+      last = now;
+      lastChange = Date.now();
+    }
+    if (Date.now() - lastChange >= stableMs) return last;
+    if (Date.now() - start > timeout) throw new Error(`counter never settled (last=${last})`);
+  }
+}
+
+/**
+ * Intercept a same-origin API path with CORS-correct responses.
+ *
+ * The browser client always sends `content-type: application/json` (even for
+ * GET), so every attempt is preceded by an OPTIONS preflight. A bare
+ * `route.fulfill({ status })` answers the preflight without CORS headers —
+ * the GET never fires and the fetch rejects with a TypeError instead of the
+ * intended ApiError, which would silently test the wrong path. The preflight
+ * is answered like Nest's own CORS layer (origin + credentials) and only GET
+ * hits are counted.
+ */
+export async function interceptApi(
+  page: Page,
+  path: string,
+  status: number,
+  onGet: () => void,
+): Promise<void> {
+  await page.route(`**${path}`, async (route) => {
+    const cors = {
+      "Access-Control-Allow-Origin": "http://localhost:3000",
+      "Access-Control-Allow-Credentials": "true",
+    };
+    if (route.request().method() === "OPTIONS") {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          ...cors,
+          "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "content-type",
+        },
+      });
+      return;
+    }
+    onGet();
+    await route.fulfill({
+      status,
+      contentType: "application/json",
+      headers: cors,
+      body: "{}",
+    });
+  });
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
 import { Alert, buttonVariants } from "@/components/ui";
-import { ApiStatus } from "@/components/api-status";
+import { OrdersView } from "@/features/orders/components/orders-view";
 import { requireSession } from "@/lib/auth";
 import { Link } from "@/lib/i18n/navigation";
 import { orgsExposed } from "@/lib/tenancy";
@@ -52,11 +52,14 @@ export default async function DashboardPage() {
       </p>
 
       {/*
-        Etap 4, faza 1 (proof-of-concept TanStack Query): jeden żywy odczyt
-        z Nest renderowany po stronie klienta. Do zastąpienia przez widok
-        Orders (`features/orders`) w fazie 3.
+        Etap 4, faza 3: Orders dashboard na żywych danych z Nest
+        (`features/orders`). Cała interaktywna treść to Client Component
+        pod spodem; ta strona robi tylko guard, metadata i tłumaczenia.
       */}
-      <ApiStatus />
+      <OrdersView
+        userName={session.user.name ?? session.user.email}
+        userEmail={session.user.email}
+      />
     </div>
   );
 }
