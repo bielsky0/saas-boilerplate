@@ -15,7 +15,6 @@ import {
   Tag,
   Trash2,
 } from "lucide-react";
-import { enUS, pl } from "date-fns/locale";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 
@@ -93,7 +92,6 @@ function ThreadMessage({
   variant?: "card" | "plain";
 }) {
   const locale = useLocale();
-  const dateLocale = locale === "pl" ? pl : enUS;
   const t = useTranslations("mail");
   const name = message.isFromMe ? t("you") : (message.fromName ?? message.fromEmail);
 
@@ -107,7 +105,7 @@ function ThreadMessage({
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-semibold">{name}</span>
             <span className="text-muted-foreground shrink-0 text-xs">
-              {formatMailDate(new Date(message.createdAt), dateLocale)}
+              {formatMailDate(new Date(message.createdAt), locale)}
             </span>
           </div>
           <div className="text-muted-foreground text-xs">{message.fromEmail}</div>
@@ -145,7 +143,6 @@ export function MailDisplay({
 }) {
   const t = useTranslations("mail");
   const locale = useLocale();
-  const dateLocale = locale === "pl" ? pl : enUS;
   const name = thread
     ? (thread.participants[0]?.name ?? thread.participants[0]?.email ?? thread.subject)
     : "";
@@ -371,7 +368,7 @@ export function MailDisplay({
               </div>
             </div>
             <span className="text-muted-foreground shrink-0 pt-0.5 text-xs">
-              {formatMailDate(new Date(thread.createdAt), dateLocale)}
+              {formatMailDate(new Date(thread.createdAt), locale)}
             </span>
           </div>
         </div>

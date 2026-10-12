@@ -59,6 +59,7 @@ export function MailApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
   const [composeInitial, setComposeInitial] = useState<{
     to?: string;
     subject?: string;
@@ -81,11 +82,15 @@ export function MailApp() {
     unread: filterTab === "unread",
   });
   const threads = useMemo(() => threadsQuery.data?.items ?? [], [threadsQuery.data]);
+  const orderedThreads = useMemo(
+    () => (sortOrder === "oldest" ? [...threads].reverse() : threads),
+    [threads, sortOrder],
+  );
 
   const effectiveSelectedId = useMemo(() => {
-    if (selectedId && threads.some((thread) => thread.id === selectedId)) return selectedId;
-    return threads[0]?.id ?? null;
-  }, [selectedId, threads]);
+    if (selectedId && orderedThreads.some((thread) => thread.id === selectedId)) return selectedId;
+    return orderedThreads[0]?.id ?? null;
+  }, [selectedId, orderedThreads]);
 
   const detail = useMailThread(effectiveSelectedId);
   const updateThread = useUpdateThread();
@@ -208,14 +213,18 @@ export function MailApp() {
             }
           />
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>{t("sortNewest")}</DropdownMenuItem>
-            <DropdownMenuItem>{t("sortOldest")}</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSortOrder("newest")}>
+              {t("sortNewest")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setSortOrder("oldest")}>
+              {t("sortOldest")}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
       <TabsContent value="all" className="m-0 flex min-h-0 flex-1 flex-col">
         <MailList
-          threads={threads}
+          threads={orderedThreads}
           isLoading={threadsQuery.isPending}
           selectedId={effectiveSelectedId}
           onSelect={handleSelect}
@@ -223,7 +232,7 @@ export function MailApp() {
       </TabsContent>
       <TabsContent value="unread" className="m-0 flex min-h-0 flex-1 flex-col">
         <MailList
-          threads={threads}
+          threads={orderedThreads}
           isLoading={threadsQuery.isPending}
           selectedId={effectiveSelectedId}
           onSelect={handleSelect}

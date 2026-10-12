@@ -32,8 +32,6 @@ import { user } from "./auth";
  * commits with the enqueue, and recipient `inbox` rows land when it drains.
  */
 
-const FOLDERS = ["inbox", "sent", "drafts", "spam", "trash", "archive"];
-
 export const mailThread = pgTable(
   "mail_thread",
   {
@@ -107,5 +105,3 @@ export const mailMessage = pgTable(
   },
   (t) => [index("mail_message_thread_idx").on(t.threadId, t.createdAt)],
 );
-
-export { FOLDERS as MAIL_FOLDERS };

@@ -19,6 +19,13 @@ anything the comments say not to touch.
   rewriting ConfirmDialog, every form field and every select for zero product
   value at high regression risk. Rule: NEW primitives go on Base UI; an existing
   Radix one moves only when touched for another reason.
+- **Stage-5 apps (mail, calendar):** `src/features/mail` and
+  `src/features/calendar` are client surfaces over Nest (mail is USER-scoped
+  internal messaging; calendar events are personal or org). Library scoping is
+  deliberate: `date-fns` + `date-fns-tz` are used ONLY by the calendar (mail
+  formats dates with `Intl`), and `react-resizable-panels` ONLY by the mail
+  three-pane layout (through `ui/resizable`). Calendar times are stored in UTC
+  and rendered in the active context's zone (org `timezone`, else the browser).
 - **Content:** MDX (`@next/mdx`) in the repo, one registry per collection (`src/content/`)
 - **Database:** PostgreSQL via Drizzle ORM. Schema, migrations and the client
   factory live in `@repo/db`; since faza 2.8 the web app holds no `db` — it

@@ -1,6 +1,6 @@
 # Etap 5 — Pozostałe funkcje AdminCN Free
 
-Status: w trakcie (fazy 5.0–5.4 DONE, 5.5 w planie). Poprzedni: [etap-4.md](etap-4.md) (shell,
+Status: ZAMKNIĘTY (2026-10-12; fazy 5.0–5.5 DONE). Poprzedni: [etap-4.md](etap-4.md) (shell,
 Orders, członkowie, profil, auth — zamknięty).
 
 Decyzje etapowe (z planowania, nie do renegocjacji w środku faz):
@@ -82,6 +82,18 @@ API curl (dostawa przez job, izolacja 404, wątki/flagi/labelki/draft→send,
 422), MCP (skrzynka, detail, reply, star/label/archive, compose, search,
 mobile, zero błędów konsoli). Bez speców E2E (decyzja).
 
-## Faza 5.5 — Domknięcie (plan)
+## Faza 5.5 — Domknięcie
 
-Martwy kod, audyt zależności, docs, MCP całości, commit.
+Status: DONE (2026-10-12). Audyt i sprzątanie: usunięty martwy kod
+(`calendar` `EventColor` + `DefaultEndHour`, nieużywany eksport
+`MAIL_FOLDERS` w schemie db, klucz `calendar.loading`); przestrzeganie
+zakresu bibliotek — mail sformatowany na `Intl` (bez `date-fns`, które
+zostaje wyłącznie w kalendarzu), `react-resizable-panels` tylko w mailu
+(`ui/resizable`); niespójny, martwy dropdown sortowania w mailu podpięty
+(Newest/Oldest odwraca kolejność listy). Docs: `ARCHITECTURE.md` (sekcja
+stage-5 apps + zasady zakresu bibliotek), ten plik. Weryfikacja: pełny MCP
+pass po wszystkich powierzchniach etapu 5 + static/build zielone, zero błędów
+konsoli. Lekcja (złapana po 5.4): po produkcyjnym `pnpm build` NIE odpalać
+`pnpm dev` na tym samym `apps/web/.next` — turbopack-dev nie zbuduje drzewa
+tras i wszystkie trasy `(app)` dają wbudowany 404; przed `pnpm dev`:
+`rm -rf apps/web/.next`.

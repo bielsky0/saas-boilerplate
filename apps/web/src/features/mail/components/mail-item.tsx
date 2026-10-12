@@ -4,7 +4,6 @@ import { StarIcon } from "lucide-react";
 import { useLocale } from "next-intl";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { enUS, pl } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { formatMailDate } from "../mail-config";
 import { initialsOf, MAIL_LABEL_STYLES, isMailLabel, type MailThreadSummary } from "../mail-types";
@@ -23,7 +22,6 @@ export function MailItem({
   onClick: () => void;
 }) {
   const locale = useLocale();
-  const dateLocale = locale === "pl" ? pl : enUS;
   const name = thread.counterpartName ?? thread.counterpartEmail;
 
   return (
@@ -50,7 +48,7 @@ export function MailItem({
           </span>
           {thread.isStarred && <StarIcon className="fill-primary text-primary size-3.5 shrink-0" />}
           <span className="text-muted-foreground shrink-0 text-[11px] tabular-nums">
-            {formatMailDate(new Date(thread.lastMessageAt), dateLocale)}
+            {formatMailDate(new Date(thread.lastMessageAt), locale)}
           </span>
         </div>
         <p

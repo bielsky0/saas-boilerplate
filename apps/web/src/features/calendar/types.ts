@@ -12,6 +12,3 @@ export interface CalendarEvent {
 }
 
 export type events = "family" | "business" | "personal" | "holiday" | "etc";
-
-/** @deprecated Use `events` — kept for existing imports */
-export type EventColor = events;

@@ -947,7 +947,6 @@
       "updated": "Event updated",
       "deleted": "Event deleted"
     },
-    "loading": "Loading calendar…",
     "error": "Could not load the calendar.",
     "validation": {
       "titleRequired": "Title is required",

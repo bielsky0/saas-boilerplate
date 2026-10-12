@@ -947,7 +947,6 @@
       "updated": "Wydarzenie zaktualizowane",
       "deleted": "Wydarzenie usunięte"
     },
-    "loading": "Wczytywanie kalendarza…",
     "error": "Nie udało się wczytać kalendarza.",
     "validation": {
       "titleRequired": "Tytuł jest wymagany",
