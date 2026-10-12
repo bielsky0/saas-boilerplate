@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { AdminFooter } from "@/components/layout/admin-footer";
 import { AdminHeader } from "@/components/layout/admin-header";
@@ -16,9 +16,10 @@ import type { SwitcherOrg } from "@/features/organizations/components/account-sw
  * like the template, which writes the `sidebar_state` cookie client-side but
  * never reads it on the server.
  *
- * `AdminSidebar` sits in `Suspense` because it reads `useSearchParams` (active
- * menu state for `?setting=`/`?view=` tabs) — same as the template's
- * `(pages)/layout.tsx`.
+ * Deliberately NO `useSearchParams` anywhere in the shell (etap 4, faza 4):
+ * that hook suspends on first client render while the server already resolved,
+ * a hydration mismatch by construction. Active-menu matching is pathname-only
+ * (our nav has no query-string hrefs).
  */
 export function AdminShell({
   user,
@@ -41,9 +42,7 @@ export function AdminShell({
     <SidebarProvider defaultOpen>
       <TooltipProvider>
         <div className="flex h-full min-h-dvh w-full min-w-0">
-          <Suspense>
-            <AdminSidebar orgsEnabled={orgsEnabled} showNewOrg={showNewOrg} />
-          </Suspense>
+          <AdminSidebar orgsEnabled={orgsEnabled} showNewOrg={showNewOrg} />
           <SidebarInset className="flex flex-1 flex-col">
             <AdminHeader
               user={user}

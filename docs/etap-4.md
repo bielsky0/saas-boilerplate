@@ -229,6 +229,22 @@ Cel: pierwszy widok biznesowy na danych z NestJS, zero mocków.
 
 ## Faza 4 — Users + Settings/Profile
 
+Status: DONE (2026-10-12). Dowiezione: Nest `PATCH /v1/profile` (nazwa,
+session-scope, w `AuthController`; openapi pominięte świadomie — plik nie
+dokumentuje ŻADNYCH endpointów auth); web `features/profile/` (schema-fabryka
+jak `auth/schema.ts`, hooki, formularz RHF) + nowa trasa
+`/(app)/settings/profile`; tabela członków (`features/organizations/
+components/members-table/`: filtry w URL, sortowanie, paginacja client-side)
+na `/orgs/[slug]/members` (RSC guard, reszta client); akcje
+invite/role/remove/revoke przepięte z `router.refresh()` na mutacje
+z invalidacją; `members-table.spec.ts` 5/5 + `settings-profile.spec.ts` 4/4.
+Lekcje: Base UI `Label` MUSI być w `Group` (error #31); fabryki schematów
+biorą `useTranslations("profile.validation")`, nie `"profile"`
+(MISSING_MESSAGE); RHF: `defaultValues` + `reset` w effekcie zamiast propsa
+`values`; `useSearchParams` w shellu usunięty (suspend-on-mount =
+hydration mismatch — active-matching tylko po pathname, nav nie ma ?-hrefów);
+`router.refresh()` po renamie konwerguje menu i switcher (bez nawigacji).
+
 Cel: lista i podgląd użytkowników + settings/profile na formularzach RHF+Zod
 podpiętych do Nest.
 

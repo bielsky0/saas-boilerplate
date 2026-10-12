@@ -9,7 +9,6 @@ import { useCallback, useMemo, useState } from "react";
 // path WITHOUT the locale segment, so `pathname === href` compares directly
 // against the locale-free hrefs in the nav config)
 import { Link, usePathname } from "@/lib/i18n/navigation";
-import { useSearchParams } from "next/navigation";
 
 // Third-party Imports
 import * as Icon from "lucide-react";
@@ -71,28 +70,14 @@ const isExternalLink = (href: string) => href.startsWith("http://") || href.star
 // so two sub-groups sharing a label in different parents never collide.
 const subGroupKey = (itemLabel: string, subItemLabel: string) => `${itemLabel}::${subItemLabel}`;
 
-function isLinkActive(
-  href: string,
-  activePath: string | undefined,
-  pathname: string,
-  searchParams: Pick<URLSearchParams, "get">,
-): boolean {
+// NOTE (etap 4, faza 4): pathname-only matching. The template also matched
+// `?setting=`/`?view=` query strings via `useSearchParams`, but that hook
+// suspends on first client render while the server already resolved —
+// a hydration mismatch by construction. Our nav has no query-string hrefs,
+// so the params contributed nothing; if a future phase adds them, revisit.
+function isLinkActive(href: string, activePath: string | undefined, pathname: string): boolean {
   if (activePath) {
     return pathname.startsWith(activePath);
-  }
-
-  if (href.includes("?")) {
-    const [hrefPath, hrefQuery] = href.split("?");
-
-    if (pathname !== hrefPath) return false;
-
-    const hrefParams = new URLSearchParams(hrefQuery);
-
-    for (const [key, value] of hrefParams.entries()) {
-      if (searchParams.get(key) !== value) return false;
-    }
-
-    return true;
   }
 
   return pathname === href;
@@ -101,11 +86,7 @@ function isLinkActive(
 // Keys of every branch (top-level item, plus nested sub-group) that contains the active
 // route. Branches the user has never toggled fall back to this, so the tree opens itself
 // on first render and follows the route on every navigation.
-function getActiveBranchKeys(
-  groups: NavItem[],
-  pathname: string,
-  searchParams: Pick<URLSearchParams, "get">,
-): Set<string> {
+function getActiveBranchKeys(groups: NavItem[], pathname: string): Set<string> {
   const keys = new Set<string>();
 
   groups.forEach((group) => {
@@ -113,14 +94,12 @@ function getActiveBranchKeys(
       item.childItems?.forEach((subItem) => {
         if (isSubGroup(subItem)) {
           if (
-            subItem.childItems.some((leaf) =>
-              isLinkActive(leaf.href, leaf.activePath, pathname, searchParams),
-            )
+            subItem.childItems.some((leaf) => isLinkActive(leaf.href, leaf.activePath, pathname))
           ) {
             keys.add(item.label);
             keys.add(subGroupKey(item.label, subItem.label));
           }
-        } else if (isLinkActive(subItem.href, subItem.activePath, pathname, searchParams)) {
+        } else if (isLinkActive(subItem.href, subItem.activePath, pathname)) {
           keys.add(item.label);
         }
       });
@@ -166,13 +145,11 @@ const FlyoutMenuItem = ({
   childItems,
   isChildActive,
   pathname,
-  searchParams,
 }: {
   item: MenuItem;
   childItems: MenuSubItem[];
   isChildActive: boolean;
   pathname: string;
-  searchParams: Pick<URLSearchParams, "get">;
 }) => {
   const Tag = item.icon ? (Icon[item.icon] as ComponentType) : null;
 
@@ -211,7 +188,7 @@ const FlyoutMenuItem = ({
                   <DropdownMenuSubTrigger
                     className={cn(
                       subItem.childItems.some((leaf) =>
-                        isLinkActive(leaf.href, leaf.activePath, pathname, searchParams),
+                        isLinkActive(leaf.href, leaf.activePath, pathname),
                       ) && "bg-primary/10 text-accent-foreground font-medium",
                     )}
                   >
@@ -222,7 +199,7 @@ const FlyoutMenuItem = ({
                       <FlyoutMenuLink
                         key={leaf.label}
                         item={leaf}
-                        isActive={isLinkActive(leaf.href, leaf.activePath, pathname, searchParams)}
+                        isActive={isLinkActive(leaf.href, leaf.activePath, pathname)}
                       />
                     ))}
                   </DropdownMenuSubContent>
@@ -231,7 +208,7 @@ const FlyoutMenuItem = ({
                 <FlyoutMenuLink
                   key={subItem.label}
                   item={subItem}
-                  isActive={isLinkActive(subItem.href, subItem.activePath, pathname, searchParams)}
+                  isActive={isLinkActive(subItem.href, subItem.activePath, pathname)}
                 />
               ),
             )}
@@ -246,7 +223,6 @@ const SidebarGroupedMenuItems = ({
   data,
   groupLabel,
   pathname,
-  searchParams,
   isIconMode,
   isBranchOpen,
   setOpenItem,
@@ -254,7 +230,6 @@ const SidebarGroupedMenuItems = ({
   data: MenuItem[];
   groupLabel?: string;
   pathname: string;
-  searchParams: Pick<URLSearchParams, "get">;
   isIconMode: boolean;
   isBranchOpen: (key: string) => boolean;
   setOpenItem: (key: string, open: boolean) => void;
@@ -275,9 +250,9 @@ const SidebarGroupedMenuItems = ({
               item.childItems?.some((subItem) =>
                 isSubGroup(subItem)
                   ? subItem.childItems.some((leaf) =>
-                      isLinkActive(leaf.href, leaf.activePath, pathname, searchParams),
+                      isLinkActive(leaf.href, leaf.activePath, pathname),
                     )
-                  : isLinkActive(subItem.href, subItem.activePath, pathname, searchParams),
+                  : isLinkActive(subItem.href, subItem.activePath, pathname),
               ) ?? false;
 
             if (item.childItems && isIconMode) {
@@ -288,7 +263,6 @@ const SidebarGroupedMenuItems = ({
                   childItems={item.childItems}
                   isChildActive={isChildActive}
                   pathname={pathname}
-                  searchParams={searchParams}
                 />
               );
             }
@@ -345,12 +319,7 @@ const SidebarGroupedMenuItems = ({
                                   <SidebarMenuSubButton
                                     className="data-active:bg-primary/10! justify-between"
                                     isActive={subItem.childItems.some((leaf) =>
-                                      isLinkActive(
-                                        leaf.href,
-                                        leaf.activePath,
-                                        pathname,
-                                        searchParams,
-                                      ),
+                                      isLinkActive(leaf.href, leaf.activePath, pathname),
                                     )}
                                   />
                                 }
@@ -369,7 +338,6 @@ const SidebarGroupedMenuItems = ({
                                           leaf.href,
                                           leaf.activePath,
                                           pathname,
-                                          searchParams,
                                         )}
                                       >
                                         <span
@@ -408,12 +376,7 @@ const SidebarGroupedMenuItems = ({
                             <SidebarMenuSubButton
                               className="data-active:bg-primary/10! justify-between"
                               render={<Link href={subItem.href} target={subItem.target} />}
-                              isActive={isLinkActive(
-                                subItem.href,
-                                subItem.activePath,
-                                pathname,
-                                searchParams,
-                              )}
+                              isActive={isLinkActive(subItem.href, subItem.activePath, pathname)}
                             >
                               <span
                                 className={cn(
@@ -498,7 +461,6 @@ export function AdminSidebar({
   showNewOrg: boolean;
 }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { state, isMobile } = useSidebar();
   const t = useTranslations("nav.admin");
 
@@ -532,8 +494,8 @@ export function AdminSidebar({
   );
 
   const activeBranchKeys = useMemo(
-    () => getActiveBranchKeys(navGroups, pathname, searchParams),
-    [navGroups, pathname, searchParams],
+    () => getActiveBranchKeys(navGroups, pathname),
+    [navGroups, pathname],
   );
 
   // A user toggle wins; otherwise the branch mirrors whether it holds the active route.
@@ -573,7 +535,6 @@ export function AdminSidebar({
               data={navItem.items}
               groupLabel={navItem.groupLabel}
               pathname={pathname}
-              searchParams={searchParams}
               isIconMode={isIconMode}
               isBranchOpen={isBranchOpen}
               setOpenItem={setOpenItem}

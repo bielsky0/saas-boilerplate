@@ -68,7 +68,7 @@ test("header keeps account controls working", async ({ page, request }) => {
 
 test("theme toggle applies dark mode without losing query state", async ({ page, request }) => {
   await loginAsFreshUser(page, request, "shell");
-  await expect(page.getByTestId("api-status-ok")).toBeVisible();
+  await expect(page.getByTestId("orders-view")).toBeVisible();
 
   const banner = page.locator("header").first();
   await banner.getByRole("button", { name: "Toggle theme" }).click();
@@ -76,7 +76,7 @@ test("theme toggle applies dark mode without losing query state", async ({ page,
   await expect(page.locator("html")).toHaveClass(/dark/);
 
   // Query cache survives the theme switch (no refetch flash to error).
-  await expect(page.getByTestId("api-status-ok")).toBeVisible();
+  await expect(page.getByTestId("orders-view")).toBeVisible();
 });
 
 test("mobile opens the sidebar as a sheet", async ({ page, request }) => {

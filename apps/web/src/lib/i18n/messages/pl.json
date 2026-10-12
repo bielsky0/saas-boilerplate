@@ -593,5 +593,54 @@
       "incomplete_expired": "Wygasła",
       "paused": "Wstrzymana"
     }
+  },
+  "users": {
+    "loading": "Ładowanie członków…",
+    "error": "Nie udało się załadować członków. Sprawdź połączenie i spróbuj ponownie.",
+    "empty": "Brak członków dla tych filtrów.",
+    "table": {
+      "member": "Członek",
+      "role": "Rola",
+      "status": "Status",
+      "joined": "Dołączył",
+      "actions": "Akcje"
+    },
+    "filters": {
+      "allRoles": "Wszystkie role",
+      "allStatuses": "Wszystkie statusy",
+      "roleLabel": "Filtruj po roli",
+      "statusLabel": "Filtruj po statusie"
+    },
+    "status": {
+      "active": "Aktywny",
+      "invited": "Zaproszony",
+      "suspended": "Zawieszony"
+    },
+    "toolbar": {
+      "searchLabel": "Szukaj członków",
+      "searchPlaceholder": "Szukaj po nazwie lub e-mailu",
+      "rowsPerPageLabel": "Wierszy na stronę"
+    },
+    "pagination": {
+      "previous": "Poprzednia strona",
+      "next": "Następna strona",
+      "showing": "Widok {from}–{to} z {total}"
+    }
+  },
+  "profile": {
+    "heading": "Profil",
+    "subheading": "Twoja nazwa wyświetlana w aplikacji.",
+    "loading": "Ładowanie profilu…",
+    "error": "Nie udało się załadować profilu.",
+    "nameLabel": "Nazwa wyświetlana",
+    "namePlaceholder": "Twoje imię i nazwisko",
+    "save": "Zapisz",
+    "saving": "Zapisywanie…",
+    "saved": "Zapisano profil",
+    "validation": {
+      "nameRequired": "Podaj nazwę wyświetlaną",
+      "nameTooLong": "Nazwa może mieć maksymalnie 120 znaków",
+      "generic": "Nie udało się zapisać. Spróbuj ponownie."
+    }
   }
 }

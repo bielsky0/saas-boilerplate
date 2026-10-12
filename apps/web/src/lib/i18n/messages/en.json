@@ -593,5 +593,54 @@
       "incomplete_expired": "Expired",
       "paused": "Paused"
     }
+  },
+  "users": {
+    "loading": "Loading members…",
+    "error": "Could not load members. Check your connection and try again.",
+    "empty": "No members match these filters.",
+    "table": {
+      "member": "Member",
+      "role": "Role",
+      "status": "Status",
+      "joined": "Joined",
+      "actions": "Actions"
+    },
+    "filters": {
+      "allRoles": "All roles",
+      "allStatuses": "All statuses",
+      "roleLabel": "Filter by role",
+      "statusLabel": "Filter by status"
+    },
+    "status": {
+      "active": "Active",
+      "invited": "Invited",
+      "suspended": "Suspended"
+    },
+    "toolbar": {
+      "searchLabel": "Search members",
+      "searchPlaceholder": "Search name or email",
+      "rowsPerPageLabel": "Rows per page"
+    },
+    "pagination": {
+      "previous": "Previous page",
+      "next": "Next page",
+      "showing": "Showing {from}–{to} of {total}"
+    }
+  },
+  "profile": {
+    "heading": "Profile",
+    "subheading": "Your display name across the app.",
+    "loading": "Loading profile…",
+    "error": "Could not load your profile.",
+    "nameLabel": "Display name",
+    "namePlaceholder": "Your name",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Profile updated",
+    "validation": {
+      "nameRequired": "Enter your display name",
+      "nameTooLong": "Name must be at most 120 characters",
+      "generic": "Could not save. Try again."
+    }
   }
 }

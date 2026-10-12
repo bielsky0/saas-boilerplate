@@ -14,15 +14,14 @@ import {
   SelectValue,
   toast,
 } from "@/components/ui";
-import { useRouter } from "@/lib/i18n/navigation";
-import { removeMember, updateMemberRole } from "../client";
+import { useRemoveMember, useUpdateMemberRole } from "../hooks/use-members";
 
 /**
- * Per-member controls (spec §3.4, faza 2.2): change role + remove. Rendered
- * only when the viewer has the matching permission (cosmetic gating — Nest
- * re-checks `members.update_role` / `members.remove` and the last-owner rule).
- * Removal is confirmed in a dialog; failures stay inline, successes toast and
- * refresh the list.
+ * Per-member controls (spec §3.4). Rendered only when the viewer has the
+ * matching permission (cosmetic gating — Nest re-checks `members.update_role`
+ * / `members.remove` and the last-owner rule).
+ * Transport via TanStack Query (etap 4, faza 4) — same endpoints and codes as
+ * before, invalidation instead of `router.refresh()`.
  */
 export function MemberActions({
   slug,
@@ -39,48 +38,35 @@ export function MemberActions({
 }) {
   const [roleError, setRoleError] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
-  const [rolePending, setRolePending] = useState(false);
-  const [removePending, setRemovePending] = useState(false);
   const t = useTranslations("organizations");
-  const router = useRouter();
+  const updateRole = useUpdateMemberRole(slug);
+  const remove = useRemoveMember(slug);
+  const rolePending = updateRole.isPending;
+  const removePending = remove.isPending;
 
   async function onRoleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setRolePending(true);
     setRoleError(null);
-    try {
-      const formData = new FormData(event.currentTarget);
-      const role = String(formData.get("role") ?? "");
-      const result = await updateMemberRole(slug, membershipId, role);
-      if (result.ok) {
-        toast.success(t("success.roleUpdated"));
-        router.refresh();
-        return;
-      }
-      setRoleError(
-        result.code === "LAST_OWNER" ? t("errors.lastOwnerDemote") : t("errors.generic"),
-      );
-    } finally {
-      setRolePending(false);
+    const formData = new FormData(event.currentTarget);
+    const role = String(formData.get("role") ?? "");
+    const result = await updateRole.mutateAsync({ memberId: membershipId, role });
+    if (result.ok) {
+      toast.success(t("success.roleUpdated"));
+      return;
     }
+    setRoleError(result.code === "LAST_OWNER" ? t("errors.lastOwnerDemote") : t("errors.generic"));
   }
 
   async function onRemove() {
-    setRemovePending(true);
     setRemoveError(null);
-    try {
-      const result = await removeMember(slug, membershipId);
-      if (result.ok) {
-        toast.success(t("success.memberRemoved"));
-        router.refresh();
-        return;
-      }
-      setRemoveError(
-        result.code === "LAST_OWNER" ? t("errors.lastOwnerRemove") : t("errors.generic"),
-      );
-    } finally {
-      setRemovePending(false);
+    const result = await remove.mutateAsync(membershipId);
+    if (result.ok) {
+      toast.success(t("success.memberRemoved"));
+      return;
     }
+    setRemoveError(
+      result.code === "LAST_OWNER" ? t("errors.lastOwnerRemove") : t("errors.generic"),
+    );
   }
 
   return (

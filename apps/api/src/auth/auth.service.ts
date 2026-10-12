@@ -1,11 +1,12 @@
 import { HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import type { RateLimitAdapter, RateLimitRule } from "@repo/contracts";
-import type { Db } from "@repo/db";
+import { user, type Db } from "@repo/db";
 import { API_CONFIG, DB } from "../db/db.module";
 import type { ApiConfig } from "../common/config";
-import { validationFailed } from "../common/http";
+import { validationFailed, notFound } from "../common/http";
 import { AUTH_ENGINE, engineErrorCode, type AuthEngine } from "./auth-engine";
 import { LOGIN_RULE, RATE_LIMIT } from "../rate-limit/rate-limit.module";
 import { loginRateLimitKey } from "../rate-limit/keys";
@@ -85,6 +86,13 @@ const resetRequestSchema = z.object({
 const resetConfirmSchema = z.object({
   token: z.string().min(1),
   newPassword: passwordRule,
+});
+
+/** Profile display name (etap 4, faza 4): required, trimmed, same ceiling as
+ * sign-up. The client pre-validates with a translated schema; this is the
+ * authoritative backstop (spec 22.2). */
+const updateProfileSchema = z.object({
+  name: z.string().trim().min(1).max(120),
 });
 
 @Injectable()
@@ -306,6 +314,26 @@ export class AuthService {
       }
       this.failure("UNKNOWN", HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  /**
+   * Update the caller's display name (etap 4, faza 4 — settings/profile).
+   *
+   * Direct row write, session-scoped: the WHERE is the caller's own user id,
+   * so there is no target parameter to authorize and no enumeration surface.
+   * Returns the stored (trimmed) name so the client can render exactly what
+   * the server kept.
+   */
+  async updateProfileName(userId: string, input: unknown): Promise<{ ok: true; name: string }> {
+    const parsed = updateProfileSchema.safeParse(input);
+    if (!parsed.success) validationFailed(parsed.error);
+    const [row] = await this.db
+      .update(user)
+      .set({ name: parsed.data.name, updatedAt: new Date() })
+      .where(eq(user.id, userId))
+      .returning({ name: user.name });
+    if (!row) notFound("USER_NOT_FOUND");
+    return { ok: true, name: row.name };
   }
 
   /**

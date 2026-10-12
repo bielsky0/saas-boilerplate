@@ -4,46 +4,40 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { Button, ConfirmDialog, FormMessage, toast } from "@/components/ui";
-import { useRouter } from "@/lib/i18n/navigation";
-import { revokeInvitation } from "../client";
+import { useRevokeInvitation } from "../hooks/use-members";
 
-/** Revoke a pending invitation (spec §3.3, faza 2.2). Nest re-checks `invitations.revoke`. */
+/** Revoke a pending invitation (spec §3.3). Nest re-checks `invitations.revoke`.
+ * Transport via TanStack Query (etap 4, faza 4) — same endpoint and codes as
+ * before, invalidation instead of `router.refresh()`. */
 export function RevokeInviteButton({ slug, invitationId }: { slug: string; invitationId: string }) {
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
   const t = useTranslations("organizations.invitationActions");
   const te = useTranslations("organizations");
-  const router = useRouter();
+  const revoke = useRevokeInvitation(slug);
 
   async function onConfirm() {
-    setPending(true);
     setError(null);
-    try {
-      const result = await revokeInvitation(slug, invitationId);
-      if (result.ok) {
-        toast.success(te("success.invitationRevoked"));
-        router.refresh();
-        return;
-      }
-      setError(te("errors.generic"));
-    } finally {
-      setPending(false);
+    const result = await revoke.mutateAsync(invitationId);
+    if (result.ok) {
+      toast.success(te("success.invitationRevoked"));
+      return;
     }
+    setError(te("errors.generic"));
   }
 
   return (
     <div className="flex flex-col items-end gap-1">
       <ConfirmDialog
         trigger={
-          <Button type="button" variant="ghost" size="sm" disabled={pending}>
-            {pending ? t("revoking") : t("revoke")}
+          <Button type="button" variant="ghost" size="sm" disabled={revoke.isPending}>
+            {revoke.isPending ? t("revoking") : t("revoke")}
           </Button>
         }
         title={t("confirmTitle")}
         description={t("confirmBody")}
         confirmLabel={t("confirmAction")}
         onConfirm={onConfirm}
-        disabled={pending}
+        disabled={revoke.isPending}
       />
       {error ? <FormMessage className="text-xs">{error}</FormMessage> : null}
     </div>

@@ -1,16 +1,21 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Inject,
+  Patch,
   Post,
   Query,
   Req,
   Res,
+  UseGuards,
 } from "@nestjs/common";
 import type { Request, Response } from "express";
 
 import { AUTH_ENGINE, getFullSessionFromHeaders, type AuthEngine } from "./auth-engine";
+import { Session, SessionGuard } from "./session.guard";
+import type { RequestSession } from "./auth-engine";
 import { forwardedHeaders } from "../common/headers";
 import { unauthorized } from "../common/http";
 import { AuthService } from "./auth.service";
@@ -95,5 +100,18 @@ export class AuthController {
     const session = await getFullSessionFromHeaders(this.engine, forwardedHeaders(req));
     if (!session) unauthorized();
     return session;
+  }
+
+  /**
+   * Display-name update (etap 4, faza 4 — settings/profile). Session-scoped:
+   * the target is always the caller, so `SessionGuard` is the whole boundary.
+   */
+  @Patch("v1/profile")
+  @UseGuards(SessionGuard)
+  async updateProfile(
+    @Session() session: RequestSession,
+    @Body() body: unknown,
+  ): Promise<{ ok: true; name: string }> {
+    return this.auth.updateProfileName(session.user.id, body);
   }
 }

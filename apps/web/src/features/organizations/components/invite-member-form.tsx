@@ -15,9 +15,8 @@ import {
   SelectValue,
   toast,
 } from "@/components/ui";
-import { useRouter } from "@/lib/i18n/navigation";
 import { isLocale } from "@/lib/i18n/config";
-import { createInvitation } from "../client";
+import { useInviteMember } from "../hooks/use-members";
 
 /**
  * Invite-member form (spec §3.3, faza 2.2). Posts to Nest, which resolves the
@@ -27,33 +26,31 @@ import { createInvitation } from "../client";
  */
 export function InviteMemberForm({ slug }: { slug: string }) {
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
   const t = useTranslations("organizations");
   const locale = useLocale();
-  const router = useRouter();
+  const invite = useInviteMember(slug);
+  const pending = invite.isPending;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPending(true);
     setError(null);
     try {
       const formData = new FormData(event.currentTarget);
       const email = String(formData.get("email") ?? "");
       const role = String(formData.get("role") || "member");
-      const result = await createInvitation(
-        slug,
-        { email, role },
-        isLocale(locale) ? locale : undefined,
-      );
+      const result = await invite.mutateAsync({
+        email,
+        role,
+        ...(isLocale(locale) ? { locale } : {}),
+      });
       if (result.ok) {
         toast.success(t("success.invitationSent", { email }));
         event.currentTarget.reset();
-        router.refresh();
         return;
       }
       setError(t("errors.generic"));
-    } finally {
-      setPending(false);
+    } catch {
+      setError(t("errors.generic"));
     }
   }
 
