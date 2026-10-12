@@ -34,7 +34,15 @@ export { Badge, badgeVariants } from "./badge";
 export { Alert, AlertTitle, AlertDescription, alertVariants } from "./alert";
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "./card";
 export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./table";
-export { Select, SelectValue, SelectTrigger, SelectContent, SelectItem } from "./select";
+export {
+  Select,
+  SelectValue,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectGroup,
+  SelectLabel,
+} from "./select";
 export {
   Dialog,
   DialogTrigger,
@@ -95,6 +103,7 @@ export {
 } from "./sheet";
 export { Skeleton } from "./skeleton";
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./tooltip";
+export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
 export {
   SidebarProvider,
   Sidebar,

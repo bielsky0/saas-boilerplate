@@ -55,6 +55,7 @@ export * from "./auth";
 export * from "./personal-accounts";
 export * from "./organizations";
 export * from "./memberships";
+export * from "./user-connections";
 export * from "./invitations";
 export * from "./billing-customers";
 export * from "./subscriptions";

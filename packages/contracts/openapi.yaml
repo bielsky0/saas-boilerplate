@@ -587,6 +587,7 @@ components:
         id: { type: string }
         name: { type: string }
         slug: { type: string }
+        timezone: { type: string }
     OrganizationWithRole:
       allOf:
         - $ref: "#/components/schemas/Organization"
@@ -637,6 +638,7 @@ components:
       properties:
         name: { type: string, minLength: 2, maxLength: 120 }
         newSlug: { type: string, minLength: 2, maxLength: 48 }
+        timezone: { type: string, description: IANA timezone name }
     CreateInvitationInput:
       type: object
       required: [email]

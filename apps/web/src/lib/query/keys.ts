@@ -28,4 +28,7 @@ export const queryKeys = {
     detail: (id: string) => ["users", "detail", id],
   },
   profile: ["profile"],
+  connections: {
+    all: ["connections"],
+  },
 } as const;

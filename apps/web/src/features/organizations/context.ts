@@ -21,7 +21,7 @@ import { orgsEnabled } from "@/lib/tenancy";
 
 export type OrgContext = {
   session: Session;
-  org: { id: string; name: string; slug: string };
+  org: { id: string; name: string; slug: string; timezone: string };
   role: Role;
 };
 
@@ -55,11 +55,15 @@ export function requireOrgsEnabled(): void {
 export async function requireOrgAccess(slug: string): Promise<OrgContext> {
   requireOrgsEnabled();
   const session = await requireSession(`/orgs/${slug}`);
-  let org: { id: string; name: string; slug: string; role: string };
+  let org: { id: string; name: string; slug: string; role: string; timezone: string };
   try {
-    org = await api().get<{ id: string; name: string; slug: string; role: string }>(
-      `/v1/organizations/${encodeURIComponent(slug)}`,
-    );
+    org = await api().get<{
+      id: string;
+      name: string;
+      slug: string;
+      role: string;
+      timezone: string;
+    }>(`/v1/organizations/${encodeURIComponent(slug)}`);
   } catch (error) {
     // Nest speaks HTTP statuses; Next speaks interrupts. 404 = unknown slug
     // (or disabled orgs — indistinguishable by design), 403 = non-member.
@@ -77,7 +81,11 @@ export async function requireOrgAccess(slug: string): Promise<OrgContext> {
   if (!isRole(org.role)) {
     forbidden();
   }
-  return { session, org: { id: org.id, name: org.name, slug: org.slug }, role: org.role };
+  return {
+    session,
+    org: { id: org.id, name: org.name, slug: org.slug, timezone: org.timezone },
+    role: org.role,
+  };
 }
 
 /**

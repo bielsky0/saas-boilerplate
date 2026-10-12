@@ -18,6 +18,14 @@ export const organization = pgTable("organization", {
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   logo: text("logo"),
+  /**
+   * IANA timezone for rendering times in this org's context (etap 5, faza 5.2
+   * — calendar renders in the active context's zone: org → this column,
+   * personal → the browser's zone). Stored times stay UTC; this only names
+   * the display zone. Validated against `Intl.supportedValuesOf("timeZone")`
+   * at the service boundary, never trusted raw.
+   */
+  timezone: text("timezone").notNull().default("UTC"),
   createdByUserId: text("createdByUserId")
     .notNull()
     .references(() => user.id, { onDelete: "restrict" }),

@@ -240,7 +240,8 @@
       "slugOptional": "Slug (optional)",
       "email": "Email",
       "role": "Role",
-      "slugPlaceholder": "auto-generated from name"
+      "slugPlaceholder": "auto-generated from name",
+      "timezone": "Time zone"
     },
     "create": {
       "submit": "Create organization",
@@ -688,6 +689,10 @@
       "nameRequired": "Enter your display name",
       "nameTooLong": "Name must be at most 120 characters",
       "generic": "Could not save. Try again."
+    },
+    "tabs": {
+      "profile": "Profile",
+      "connections": "Connections"
     }
   },
   "demo": {
@@ -883,5 +888,19 @@
       "body": "We couldn't find the page you are looking for",
       "back": "Go back to dashboard"
     }
+  },
+  "connections": {
+    "addTitle": "Add a connection",
+    "emailLabel": "Email",
+    "add": "Connect",
+    "adding": "Connecting…",
+    "added": "Connected",
+    "addedNeutral": "If that address belongs to an account, you're now connected.",
+    "genericError": "Could not save. Try again.",
+    "loading": "Loading connections…",
+    "error": "Could not load connections.",
+    "empty": "No connections yet.",
+    "listTitle": "Connections ({count})",
+    "remove": "Remove"
   }
 }

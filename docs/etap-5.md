@@ -26,11 +26,22 @@ Szczegóły: [etap-5-faza-5-1.md](etap-5-faza-5-1.md). Skrót: `features/demo/`
 menu-level), trasy `/(app)/demo/*`, grupa nav Demo, i18n `demo.*`.
 Bez E2E.
 
-## Faza 5.2 — Profil i Workspace (plan)
+## Faza 5.2 — Profil i Workspace
 
-Self-view profilu, connections (model user↔user), Workspace settings
-
-- selektor `timezone` (migracja `organization.timezone`, PATCH, UI).
+Status: DONE (2026-10-12). Dowiezione: Nest `user_connection` (migracja,
+symetryczne pary low/high + unique, moduł `connections/`: list/connect
+(neutralny)/disconnect, `PATCH /v1/organizations/:slug` + `timezone`
+(IANA, 422 na śmieci) + `timezone` w `getOrganization`/kontrakcie;
+web `features/connections/` + `features/profile/` (zakładki `?view=`,
+self-view, formularz nazwy), selektor strefy w ustawieniach org
+(Radix `SelectGroup/Label` dopisane do `ui/select`), klucze
+`profile.tabs`, `connections.*`, `organizations.fields.timezone`.
+Weryfikacja: static zielone, MCP (profil, connect/remove, timezone
+Warsaw→NY persist, izolacja Charlie/pusty, invalid 422, PL, mobile,
+zero błędów). Bez speców E2E (decyzja). Lekcja: ubity serwer API-dev
+(`BILLING_PROVIDER=none`) reuse'owany przez suitę dawał fałszywe 404
+webhooków — przed suitą ZAWSZE czyścić `:3000/:3001` i weryfikować
+`ps`, nie tylko curl.
 
 ## Faza 5.3 — Calendar, pełny backend (plan)
 

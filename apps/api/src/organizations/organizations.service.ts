@@ -74,7 +74,25 @@ const createOrgBodySchema = z.object({
 const updateOrgBodySchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   newSlug: slugRule.optional(),
+  // Display zone for org-context rendering (etap 5, faza 5.2). IANA only —
+  // validated against the runtime list, never trusted raw.
+  timezone: z
+    .string()
+    .trim()
+    .optional()
+    .refine((v) => v === undefined || isValidTimezone(v), {
+      message: "Unknown timezone",
+    }),
 });
+
+/** IANA guard without new dependencies — Node 20+ ships the full list. */
+function isValidTimezone(value: string): boolean {
+  try {
+    return Intl.supportedValuesOf("timeZone").includes(value);
+  } catch {
+    return false;
+  }
+}
 const inviteBodySchema = z.object({
   email: z.email().trim().toLowerCase(),
   role: z.enum(["admin", "member"]).default("member"),
@@ -239,9 +257,15 @@ export class OrganizationsService {
   async getOrganization(
     session: RequestSession,
     slug: string,
-  ): Promise<{ id: string; name: string; slug: string; role: string }> {
+  ): Promise<{ id: string; name: string; slug: string; role: string; timezone: string }> {
     const ctx = await this.requireOrgContext(session, slug);
-    return { id: ctx.org.id, name: ctx.org.name, slug: ctx.org.slug, role: ctx.role };
+    return {
+      id: ctx.org.id,
+      name: ctx.org.name,
+      slug: ctx.org.slug,
+      role: ctx.role,
+      timezone: ctx.org.timezone,
+    };
   }
 
   // --- Settings ----------------------------------------------------------------
@@ -257,6 +281,7 @@ export class OrganizationsService {
     if (!parsed.success) validationFailed(parsed.error);
 
     const nextName = parsed.data.name ?? ctx.org.name;
+    const nextTimezone = parsed.data.timezone ?? ctx.org.timezone;
     let nextSlug = ctx.org.slug;
     const rawNewSlug = parsed.data.newSlug?.trim();
     if (rawNewSlug && rawNewSlug !== ctx.org.slug) {
@@ -275,7 +300,7 @@ export class OrganizationsService {
     await this.db.transaction(async (tx) => {
       await tx
         .update(organization)
-        .set({ name: nextName, slug: nextSlug, updatedAt: new Date() })
+        .set({ name: nextName, slug: nextSlug, timezone: nextTimezone, updatedAt: new Date() })
         .where(eq(organization.id, ctx.org.id));
 
       await recordAudit(
@@ -289,9 +314,9 @@ export class OrganizationsService {
           targetLabel: nextSlug,
           metadata: {
             changes: changed(
-              { name: ctx.org.name, slug: ctx.org.slug },
-              { name: nextName, slug: nextSlug },
-              ["name", "slug"],
+              { name: ctx.org.name, slug: ctx.org.slug, timezone: ctx.org.timezone },
+              { name: nextName, slug: nextSlug, timezone: nextTimezone },
+              ["name", "slug", "timezone"],
             ),
           },
         },

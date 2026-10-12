@@ -4,12 +4,53 @@ import { useLocale, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 
 import { Button, ConfirmDialog, FormField, FormMessage, Input, toast } from "@/components/ui";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useRouter } from "@/lib/i18n/navigation";
 import { isLocale } from "@/lib/i18n/config";
 import { deleteOrganization, leaveOrganization, updateOrganization } from "../client";
 
-/** Edit org name + slug (spec §3.2, faza 2.2). Nest re-checks `organization.update`. */
-export function OrgSettingsForm({ slug, name }: { slug: string; name: string }) {
+/**
+ * IANA zones grouped by continent (etap 5, faza 5.2). Computed once at module
+ * load from the runtime list — no catalog, no dependency; zone names are
+ * identifiers, never translated.
+ */
+const TIMEZONES_BY_REGION: { region: string; zones: string[] }[] = (() => {
+  const zones = Intl.supportedValuesOf("timeZone");
+  const groups = new Map<string, string[]>();
+  for (const zone of zones) {
+    const slash = zone.indexOf("/");
+    const region = slash === -1 ? "Other" : zone.slice(0, slash);
+    const list = groups.get(region) ?? [];
+    list.push(zone);
+    groups.set(region, list);
+  }
+  return [...groups.entries()]
+    .map(([region, regionZones]) => ({ region, zones: regionZones.sort() }))
+    .sort((a, b) =>
+      a.region === "Other" ? 1 : b.region === "Other" ? -1 : a.region.localeCompare(b.region),
+    );
+})();
+
+/** Edit org name + slug + timezone (spec §3.2, faza 2.2 + etap 5 timezone).
+ * Nest re-checks `organization.update`. Timezone ships only when changed —
+ * the select defaults to the stored value, so untouched means absent. */
+export function OrgSettingsForm({
+  slug,
+  name,
+  timezone,
+}: {
+  slug: string;
+  name: string;
+  timezone: string;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const t = useTranslations("organizations");
@@ -24,11 +65,14 @@ export function OrgSettingsForm({ slug, name }: { slug: string; name: string }) 
       const formData = new FormData(event.currentTarget);
       const nextName = String(formData.get("name") ?? "");
       const nextSlugRaw = String(formData.get("newSlug") ?? "").trim();
+      const nextTimezone = String(formData.get("timezone") ?? "");
       const result = await updateOrganization(
         slug,
-        nextSlugRaw && nextSlugRaw !== slug
-          ? { name: nextName, newSlug: nextSlugRaw }
-          : { name: nextName },
+        {
+          name: nextName,
+          ...(nextSlugRaw && nextSlugRaw !== slug ? { newSlug: nextSlugRaw } : {}),
+          ...(nextTimezone && nextTimezone !== timezone ? { timezone: nextTimezone } : {}),
+        },
         isLocale(locale) ? locale : undefined,
       );
       if (result.ok) {
@@ -55,6 +99,25 @@ export function OrgSettingsForm({ slug, name }: { slug: string; name: string }) 
       </FormField>
       <FormField label={t("fields.slug")} htmlFor="org-slug">
         <Input id="org-slug" name="newSlug" defaultValue={slug} />
+      </FormField>
+      <FormField label={t("fields.timezone")} htmlFor="org-timezone">
+        <Select name="timezone" defaultValue={timezone}>
+          <SelectTrigger id="org-timezone" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="max-h-72">
+            {TIMEZONES_BY_REGION.map((group) => (
+              <SelectGroup key={group.region}>
+                <SelectLabel>{group.region}</SelectLabel>
+                {group.zones.map((zone) => (
+                  <SelectItem key={zone} value={zone}>
+                    {zone}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
+          </SelectContent>
+        </Select>
       </FormField>
 
       {error ? <FormMessage>{error}</FormMessage> : null}

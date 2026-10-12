@@ -67,6 +67,17 @@ export function SelectContent({
   );
 }
 
+export const SelectGroup = SelectPrimitive.Group;
+
+export function SelectLabel({ className, ...props }: ComponentProps<typeof SelectPrimitive.Label>) {
+  return (
+    <SelectPrimitive.Label
+      className={cn("text-muted-foreground px-2 py-1.5 text-xs font-medium", className)}
+      {...props}
+    />
+  );
+}
+
 export function SelectItem({
   className,
   children,

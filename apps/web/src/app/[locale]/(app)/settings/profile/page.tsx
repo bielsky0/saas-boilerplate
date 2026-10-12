@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-import { ProfileForm } from "@/features/profile/components/profile-form";
+import { ProfileTabs } from "@/features/profile/components/profile-tabs";
 import { requireSession } from "@/lib/auth";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -9,8 +9,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * Own profile settings (etap 4, faza 4). Guard here (RSC); the form is a
- * Client Component over TanStack Query (`PATCH /v1/profile`).
+ * Own profile settings (etap 5, faza 5.2 — tabs over the faza-4 form).
+ * Guard here (RSC); view card + name form + connections are Client
+ * Components over TanStack Query.
  */
 export default async function ProfileSettingsPage() {
   await requireSession("/settings/profile");
@@ -23,7 +24,7 @@ export default async function ProfileSettingsPage() {
         <h1 className="text-2xl font-semibold">{t("heading")}</h1>
         <p className="text-muted-foreground text-sm">{t("subheading")}</p>
       </div>
-      <ProfileForm />
+      <ProfileTabs />
     </div>
   );
 }

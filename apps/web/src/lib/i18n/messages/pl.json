@@ -240,7 +240,8 @@
       "slugOptional": "Slug (opcjonalnie)",
       "email": "E-mail",
       "role": "Rola",
-      "slugPlaceholder": "generowany z nazwy"
+      "slugPlaceholder": "generowany z nazwy",
+      "timezone": "Strefa czasowa"
     },
     "create": {
       "submit": "Utwórz organizację",
@@ -688,6 +689,10 @@
       "nameRequired": "Podaj nazwę wyświetlaną",
       "nameTooLong": "Nazwa może mieć maksymalnie 120 znaków",
       "generic": "Nie udało się zapisać. Spróbuj ponownie."
+    },
+    "tabs": {
+      "profile": "Profil",
+      "connections": "Kontakty"
     }
   },
   "demo": {
@@ -883,5 +888,19 @@
       "body": "Nie znaleziono szukanej strony",
       "back": "Wróć do panelu"
     }
+  },
+  "connections": {
+    "addTitle": "Dodaj kontakt",
+    "emailLabel": "E-mail",
+    "add": "Połącz",
+    "adding": "Łączenie…",
+    "added": "Połączono",
+    "addedNeutral": "Jeśli ten adres należy do konta, nawiązano połączenie.",
+    "genericError": "Nie udało się zapisać. Spróbuj ponownie.",
+    "loading": "Ładowanie kontaktów…",
+    "error": "Nie udało się załadować kontaktów.",
+    "empty": "Brak kontaktów.",
+    "listTitle": "Kontakty ({count})",
+    "remove": "Usuń"
   }
 }

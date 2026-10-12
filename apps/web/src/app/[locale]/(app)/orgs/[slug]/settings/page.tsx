@@ -29,7 +29,7 @@ export default async function OrgSettingsPage({ params }: { params: Promise<{ sl
           <CardTitle>{t("general")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <OrgSettingsForm slug={slug} name={org.name} />
+          <OrgSettingsForm slug={slug} name={org.name} timezone={org.timezone} />
         </CardContent>
       </Card>
 

@@ -112,7 +112,7 @@ export function createOrganization(
 
 export function updateOrganization(
   slug: string,
-  input: { name?: string; newSlug?: string },
+  input: { name?: string; newSlug?: string; timezone?: string },
   locale?: Locale,
 ): Promise<OrgResult<OrgDTO>> {
   return request("PATCH", `/v1/organizations/${encodeURIComponent(slug)}`, input, locale);
