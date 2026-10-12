@@ -10,14 +10,19 @@
       "groups": {
         "main": "Main",
         "organizations": "Organizations",
-        "settings": "Settings"
+        "settings": "Settings",
+        "apps": "Apps"
       },
       "items": {
         "dashboard": "Dashboard",
         "newOrg": "New organization",
         "billing": "Billing",
-        "notifications": "Notifications"
-      }
+        "notifications": "Notifications",
+        "mail": "Mail",
+        "calendar": "Calendar"
+      },
+      "comingSoon": "Coming soon",
+      "comingSoonBody": "This section is under construction and will appear here with live data."
     }
   },
   "common": {

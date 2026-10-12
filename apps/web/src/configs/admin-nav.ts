@@ -56,8 +56,15 @@ export type NavItem = {
  * Fazy 3–4 append groups here (Orders detail, Users) — the structure is ready.
  */
 export function buildAdminNav(opts: {
-  groups: { main: string; organizations: string; settings: string };
-  items: { dashboard: string; newOrg: string; billing: string; notifications: string };
+  groups: { main: string; organizations: string; settings: string; apps: string };
+  items: {
+    dashboard: string;
+    newOrg: string;
+    billing: string;
+    notifications: string;
+    mail: string;
+    calendar: string;
+  };
   orgsEnabled: boolean;
   showNewOrg: boolean;
 }): NavItem[] {
@@ -77,6 +84,14 @@ export function buildAdminNav(opts: {
       groups.push({ groupLabel: opts.groups.organizations, items });
     }
   }
+
+  groups.push({
+    groupLabel: opts.groups.apps,
+    items: [
+      { icon: "MailIcon", label: opts.items.mail, href: "/apps/mail" },
+      { icon: "CalendarIcon", label: opts.items.calendar, href: "/apps/calendar" },
+    ],
+  });
 
   groups.push({
     groupLabel: opts.groups.settings,

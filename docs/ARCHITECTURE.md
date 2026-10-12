@@ -10,8 +10,15 @@ anything the comments say not to touch.
 ## Stack
 
 - **App:** Next.js (App Router) + React + TypeScript (`strict`, `output: "standalone"`)
-- **Styling:** Tailwind CSS v4 + shadcn/ui-style primitives on Radix (`src/components/ui`),
-  `@tailwindcss/typography` for long-form content
+- **Styling:** Tailwind CSS v4 + shadcn/ui-style primitives (`src/components/ui`),
+  `@tailwindcss/typography` for long-form content. The primitives run on TWO
+  headless engines, split per component (etap 4): newer copies (`button`,
+  `dropdown-menu`, `input`, `sonner`, sidebar/shell set) stand on
+  `@base-ui/react`, while `dialog`, `select` and `field` stay on `@radix-ui/*`.
+  That split is accepted, not transitional — migrating the Radix three means
+  rewriting ConfirmDialog, every form field and every select for zero product
+  value at high regression risk. Rule: NEW primitives go on Base UI; an existing
+  Radix one moves only when touched for another reason.
 - **Content:** MDX (`@next/mdx`) in the repo, one registry per collection (`src/content/`)
 - **Database:** PostgreSQL via Drizzle ORM. Schema, migrations and the client
   factory live in `@repo/db`; since faza 2.8 the web app holds no `db` — it

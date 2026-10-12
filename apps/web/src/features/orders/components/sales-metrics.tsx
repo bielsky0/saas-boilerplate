@@ -156,9 +156,12 @@ const SalesMetricsCard = ({
       <CardContent>
         <Card className="ring-foreground/10 shadow-none ring-1">
           <CardContent className="grid gap-4 lg:grid-cols-5">
-            <div className="flex flex-col justify-center gap-6">
+            <div className="flex min-w-0 flex-col justify-center gap-6">
               <span className="text-lg font-semibold">{t("salesMetrics.salesPlan")}</span>
-              <span className="max-lg:5xl text-6xl">{salesPlanPct}%</span>
+              {/* Dead `max-lg:5xl` class from the template removed (no such
+                  utility); the giant figure gets a responsive size so it stops
+                  bleeding into the cohort column on narrow grids. */}
+              <span className="break-words text-5xl xl:text-6xl">{salesPlanPct}%</span>
               <span className="text-muted-foreground text-sm">
                 {t("salesMetrics.salesPlanHint")}
               </span>

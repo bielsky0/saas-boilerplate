@@ -8,7 +8,6 @@
  */
 
 export const queryKeys = {
-  health: ["health"],
   session: ["session"],
   orders: {
     all: ["orders"],

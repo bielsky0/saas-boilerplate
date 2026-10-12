@@ -153,7 +153,13 @@ export function NotificationBell() {
                   </span>
                   <span className="text-muted-foreground text-xs">{labelFor(item, "body")}</span>
                   <span className="text-muted-foreground/70 text-[11px]">
-                    {format.relativeTime(new Date(item.createdAt))}
+                    {/*
+                      `now` pinned per render (etap 4, faza 6): without it
+                      next-intl falls back to `ENVIRONMENT_FALLBACK` and logs
+                      an IntlError on every open. Re-renders (15s poll +
+                      interactions) keep it fresh enough for "x ago" labels.
+                    */}
+                    {format.relativeTime(new Date(item.createdAt), new Date())}
                   </span>
                 </button>
               </li>

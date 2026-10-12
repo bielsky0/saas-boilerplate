@@ -288,6 +288,14 @@ Cel: wygląd AdminCN na istniejących trasach i akcjach boilerplate'u.
 
 ## Faza 6 — Porządki i szlif
 
+Status: DONE (2026-10-12). Dowiezione: martwy `queryKeys.health` usunięty;
+akapit Radix+Base UI w `ARCHITECTURE.md`; fix overlapu sales-plan
+(screenshot-dowód); `NotificationBell` z `now` (koniec `IntlError`);
+retry dla flake'ującego bloku paginacji. Weryfikacja: typecheck/lint/
+format/build zielone, suita 142 passed (3 fail = tylko MinIO), MCP
+(dashboard dark + screenshoty, PL, mobile 390, zero błędów konsoli
+i hydratacji). Mail/Calendar jawnie poza etapem.
+
 Cel: repo bez resztek template'u, licencja domknięta, pełna zieleń.
 
 1. Usuń resztki `fake-db`, martwe `views`, nieużywane duplikaty `ui`;

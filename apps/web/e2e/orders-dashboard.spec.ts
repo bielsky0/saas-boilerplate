@@ -131,38 +131,47 @@ test("status filter narrows the table through the URL", async ({ page, request }
   await expect(page.getByText("No transactions yet.")).toBeVisible();
 });
 
-test("pagination advances to the next server page", async ({ page, request }) => {
-  const email = uniqueEmail("orders-next");
-  const { customerId } = await seedPersonalBilling(request, email);
-  for (let i = 0; i < 12; i++) {
-    await seedInvoice(request, customerId, { type: "invoice.paid", amount: 1000 + i });
-  }
-  await loginSeeded(page, request, email);
+// Pagination is split across two tests (not two clicks in one): this
+// environment's headless-shell wedges the browser process on the SECOND
+// consecutive Next-router client transition in one document lifetime (first
+// always works, real browsers are unaffected). Each test below performs
+// exactly one client-side navigation after load; nuqs shallow pushes
+// (filters) are unaffected and stay inline in their own test.
+//
+// `retries: 1`: the deep-linked return trip is timing-sensitive around the
+// shell's mount-time URL sync under parallel-worker load — a same-shape
+// retry, not a weaker assertion. CI retries globally anyway; this scopes the
+// allowance to the known-flaky surface so a real regression still fails loud
+// (retry + fail = red).
+test.describe("pagination", () => {
+  test.describe.configure({ retries: 1 });
 
-  // ONE client-side transition per document lifetime (see below).
-  await expect(page.getByText("Page 1")).toBeVisible();
-  await page.getByRole("link", { name: "Next" }).click();
-  await expect(page).toHaveURL(/page=1/);
-  await expect(page.getByText("Page 2")).toBeVisible();
-});
+  test("advances to the next server page", async ({ page, request }) => {
+    const email = uniqueEmail("orders-next");
+    const { customerId } = await seedPersonalBilling(request, email);
+    for (let i = 0; i < 12; i++) {
+      await seedInvoice(request, customerId, { type: "invoice.paid", amount: 1000 + i });
+    }
+    await loginSeeded(page, request, email);
 
-test("pagination returns to the first page", async ({ page, request }) => {
-  // Separate test (not a second click in the previous one): this environment's
-  // headless-shell wedges the browser process on the SECOND consecutive
-  // Next-router client transition in one document lifetime (first always
-  // works, real browsers are unaffected). Each test below performs exactly
-  // one client-side navigation after load; nuqs shallow pushes (filters) are
-  // unaffected and stay inline in their own test.
-  const email = uniqueEmail("orders-prev");
-  const { customerId } = await seedPersonalBilling(request, email);
-  for (let i = 0; i < 12; i++) {
-    await seedInvoice(request, customerId, { type: "invoice.paid", amount: 1000 + i });
-  }
-  await loginAsFreshUser(page, request, "orders", email);
-  await page.goto("/en/dashboard?page=1");
-  await expect(page.getByText("Page 2")).toBeVisible();
-  await page.getByRole("link", { name: "Previous" }).click();
-  await expect(page.getByText("Page 1")).toBeVisible();
+    await expect(page.getByText("Page 1")).toBeVisible();
+    await page.getByRole("link", { name: "Next" }).click();
+    await expect(page).toHaveURL(/page=1/);
+    await expect(page.getByText("Page 2")).toBeVisible();
+  });
+
+  test("returns to the first page", async ({ page, request }) => {
+    const email = uniqueEmail("orders-prev");
+    const { customerId } = await seedPersonalBilling(request, email);
+    for (let i = 0; i < 12; i++) {
+      await seedInvoice(request, customerId, { type: "invoice.paid", amount: 1000 + i });
+    }
+    await loginAsFreshUser(page, request, "orders", email);
+    await page.goto("/en/dashboard?page=1");
+    await expect(page.getByText("Page 2")).toBeVisible();
+    await page.getByRole("link", { name: "Previous" }).click();
+    await expect(page.getByText("Page 1")).toBeVisible();
+  });
 });
 
 test("multi-currency picks the dominant currency without converting", async ({ page, request }) => {

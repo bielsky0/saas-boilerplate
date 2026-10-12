@@ -10,14 +10,19 @@
       "groups": {
         "main": "Główne",
         "organizations": "Organizacje",
-        "settings": "Ustawienia"
+        "settings": "Ustawienia",
+        "apps": "Aplikacje"
       },
       "items": {
         "dashboard": "Panel",
         "newOrg": "Nowa organizacja",
         "billing": "Płatności",
-        "notifications": "Powiadomienia"
-      }
+        "notifications": "Powiadomienia",
+        "mail": "Poczta",
+        "calendar": "Kalendarz"
+      },
+      "comingSoon": "Wkrótce",
+      "comingSoonBody": "Ta sekcja jest w budowie i pojawi się tutaj z żywymi danymi."
     }
   },
   "common": {
