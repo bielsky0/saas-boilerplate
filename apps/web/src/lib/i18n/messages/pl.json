@@ -491,7 +491,8 @@
       "settings": "Ustawienia",
       "files": "Pliki",
       "audit": "Dziennik zmian",
-      "billing": "Płatności"
+      "billing": "Płatności",
+      "calendar": "Kalendarz"
     },
     "settings": {
       "heading": "Ustawienia",
@@ -902,5 +903,60 @@
     "empty": "Brak kontaktów.",
     "listTitle": "Kontakty ({count})",
     "remove": "Usuń"
+  },
+  "calendar": {
+    "heading": "Kalendarz",
+    "subheading": "Twój osobisty grafik. Godziny w strefie czasowej przeglądarki.",
+    "orgSubheading": "Wspólny kalendarz organizacji {org}. Godziny w strefie czasowej organizacji.",
+    "newEvent": "Nowe wydarzenie",
+    "today": "Dzisiaj",
+    "previous": "Poprzedni",
+    "next": "Następny",
+    "allDay": "Cały dzień",
+    "timeZone": "Godziny w strefie {zone}",
+    "views": {
+      "month": "Miesiąc",
+      "week": "Tydzień",
+      "day": "Dzień"
+    },
+    "kinds": {
+      "family": "Rodzina",
+      "business": "Firma",
+      "personal": "Prywatne",
+      "holiday": "Święto",
+      "etc": "Inne"
+    },
+    "form": {
+      "createTitle": "Nowe wydarzenie",
+      "editTitle": "Edytuj wydarzenie",
+      "title": "Tytuł",
+      "date": "Data",
+      "start": "Początek",
+      "end": "Koniec",
+      "allDay": "Cały dzień",
+      "kind": "Kategoria",
+      "location": "Miejsce",
+      "description": "Opis",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "cancel": "Anuluj",
+      "delete": "Usuń"
+    },
+    "toast": {
+      "created": "Wydarzenie utworzone",
+      "updated": "Wydarzenie zaktualizowane",
+      "deleted": "Wydarzenie usunięte"
+    },
+    "loading": "Wczytywanie kalendarza…",
+    "error": "Nie udało się wczytać kalendarza.",
+    "validation": {
+      "titleRequired": "Tytuł jest wymagany",
+      "titleMax": "Tytuł jest za długi",
+      "dateRequired": "Data i godzina są wymagane",
+      "endAfterStart": "Godzina końca musi być późniejsza niż początku",
+      "locationMax": "Miejsce jest za długie",
+      "descriptionMax": "Opis jest za długi",
+      "generic": "Coś poszło nie tak"
+    }
   }
 }

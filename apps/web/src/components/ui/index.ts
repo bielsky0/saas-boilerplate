@@ -72,6 +72,14 @@ export {
   DropdownMenuSubContent,
 } from "./dropdown-menu";
 export { Pagination, PaginationLink } from "./pagination";
+export {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverDescription,
+} from "./popover";
 export { Toaster, toast } from "./sonner";
 export { Avatar, AvatarImage, AvatarFallback } from "./avatar";
 export {

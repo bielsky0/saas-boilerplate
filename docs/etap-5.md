@@ -1,6 +1,6 @@
 # Etap 5 — Pozostałe funkcje AdminCN Free
 
-Status: w trakcie (faza 5.0 DONE). Poprzedni: [etap-4.md](etap-4.md) (shell,
+Status: w trakcie (fazy 5.0–5.3 DONE, 5.4–5.5 w planie). Poprzedni: [etap-4.md](etap-4.md) (shell,
 Orders, członkowie, profil, auth — zamknięty).
 
 Decyzje etapowe (z planowania, nie do renegocjacji w środku faz):
@@ -43,11 +43,26 @@ zero błędów). Bez speców E2E (decyzja). Lekcja: ubity serwer API-dev
 webhooków — przed suitą ZAWSZE czyścić `:3000/:3001` i weryfikować
 `ps`, nie tylko curl.
 
-## Faza 5.3 — Calendar, pełny backend (plan)
+## Faza 5.3 — Calendar, pełny backend
 
-Moduł Nest `calendar_event` (owner personal XOR org), CRUD, endpointy
-zakresowe; web z renderowaniem w strefie kontekstu (org → jej timezone,
-personal → przeglądarka), zapis w UTC. `date-fns` dozwolony tylko tu.
+Status: DONE (2026-10-12). Dowiezione: Nest `calendar_event` (migracja
+`0014`, owner personal XOR org — constraint `(organizationId IS NULL) <>
+(accountId IS NULL)`, check `endsAt > startsAt`, indeksy po ownerze i
+`startsAt`); moduł `calendar/` (list range `[from,to)` stabowanie,
+create/update/delete z hintem `org` w query — bare id nie nazywa tenanta,
+więc obcy hint daje 404, a nie skan tenantów; walidacja zakresu 400,
+schema 422); kontrakt OpenAPI (`calendar` tag, `CalendarEvent` +
+`CalendarEventInput`). Web `features/calendar/`: widoki month/week/day
+(port z template, `date-fns` + `date-fns-tz`), `CalendarApp` (zakres →
+query key, mount-gate, ticker „teraz", klawisze M/W/D), Sheet + RHF
+create/edit (wall-time w strefie → UTC w zapisie), `ui/popover` (Base UI,
+dopisany), trasy `/(app)/apps/calendar` (personal, strefa przeglądarki) i
+`/(app)/orgs/[slug]/calendar` (strefa org), link w widoku org, klucze
+`calendar.*` EN/PL. Weryfikacja: static/build zielone, MCP (PL+EN,
+create/edit/delete + toast, walidacja end>start, kategorie, all-day,
+week/day, klawisze, mobile 390, org NY vs Warsaw dowodzi strefy org, izolacja
+personal puste, zero błędów konsoli). Bez speców E2E (decyzja). Szczegóły
+poniżej w skrócie.
 
 ## Faza 5.4 — Mail, pełny backend (plan)
 

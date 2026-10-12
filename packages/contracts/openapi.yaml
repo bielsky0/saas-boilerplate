@@ -18,6 +18,12 @@ tags:
     description: Super-admin panel (spec 6, faza 2.6). Cross-tenant by design; SuperAdminGuard is the boundary.
   - name: dashboard
     description: Personal revenue dashboard (etap 4, faza 3). Tenant-local by design — aggregates over the caller's personal account only.
+  - name: calendar
+    description: >-
+      Calendar events (etap 5, faza 5.3). Owner is the caller's personal
+      account, or — when `org` is supplied — an org they are a member of.
+      Times are UTC instants; the frontend renders them in the active context's
+      time zone.
 paths:
   /v1/dashboard/summary:
     get:
@@ -568,6 +574,116 @@ paths:
           description: Flag updated
         "409":
           $ref: "#/components/responses/LastAdmin"
+  /v1/calendar/events:
+    get:
+      operationId: listCalendarEvents
+      tags: [calendar]
+      description: >-
+        Events intersecting the [from, to) window (stabbing query). Personal
+        scope by default; `org` selects an org the caller is a member of.
+      parameters:
+        - name: org
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 48 }
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Events ordered by start time
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CalendarEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+    post:
+      operationId: createCalendarEvent
+      tags: [calendar]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CalendarEventInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: string }
+        "400":
+          description: End is not after start
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /v1/calendar/events/{id}:
+    patch:
+      operationId: updateCalendarEvent
+      tags: [calendar]
+      description: >-
+        Partial update. The `org` owner hint travels as a query param: a bare id
+        cannot name its tenant, and mismatched hints answer 404 rather than
+        scanning tenants.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: org
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 48 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CalendarEventInput"
+      responses:
+        "200":
+          description: Updated
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+    delete:
+      operationId: deleteCalendarEvent
+      tags: [calendar]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: org
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 48 }
+      responses:
+        "200":
+          description: Deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
   parameters:
     OrgSlug:
@@ -812,6 +928,33 @@ components:
         status: { type: string, enum: [paid, failed, refunded] }
         reason: { type: string, nullable: true }
         createdAt: { type: string, format: date-time }
+    CalendarEvent:
+      type: object
+      required:
+        [id, title, description, startsAt, endsAt, allDay, kind, location, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        allDay: { type: boolean }
+        kind: { type: string }
+        location: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CalendarEventInput:
+      type: object
+      required: [title, startsAt, endsAt]
+      properties:
+        org: { type: string, minLength: 1, maxLength: 48 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        allDay: { type: boolean }
+        kind: { type: string, maxLength: 40 }
+        location: { type: string, maxLength: 200 }
     ErrorEnvelope:
       type: object
       required: [error]

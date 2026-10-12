@@ -40,6 +40,12 @@ export default async function OrganizationPage({ params }: { params: Promise<{ s
           {t("files")}
         </Link>
         <Link
+          href={`/orgs/${slug}/calendar`}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          {t("calendar")}
+        </Link>
+        <Link
           href={`/orgs/${slug}/settings`}
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >

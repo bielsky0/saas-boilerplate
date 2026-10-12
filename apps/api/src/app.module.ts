@@ -4,6 +4,7 @@ import { AdminModule } from "./admin/admin.module";
 import { AuthModule } from "./auth/auth.module";
 import { BillingNotifyModule } from "./billing-notify/billing-notify.module";
 import { BillingModule } from "./billing/billing.module";
+import { CalendarModule } from "./calendar/calendar.module";
 import { ConnectionsModule } from "./connections/connections.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
 import { DbModule } from "./db/db.module";
@@ -32,6 +33,7 @@ import { StorageModule } from "./storage/storage.module";
     OrganizationsModule,
     BillingNotifyModule,
     BillingModule,
+    CalendarModule,
     ConnectionsModule,
     DashboardModule,
     JobsModule,

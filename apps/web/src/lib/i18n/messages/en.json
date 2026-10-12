@@ -491,7 +491,8 @@
       "settings": "Settings",
       "files": "Files",
       "audit": "Audit trail",
-      "billing": "Billing"
+      "billing": "Billing",
+      "calendar": "Calendar"
     },
     "settings": {
       "heading": "Settings",
@@ -902,5 +903,60 @@
     "empty": "No connections yet.",
     "listTitle": "Connections ({count})",
     "remove": "Remove"
+  },
+  "calendar": {
+    "heading": "Calendar",
+    "subheading": "Your personal schedule. Times are shown in your browser's time zone.",
+    "orgSubheading": "Shared calendar for {org}. Times are shown in the organization's time zone.",
+    "newEvent": "New event",
+    "today": "Today",
+    "previous": "Previous",
+    "next": "Next",
+    "allDay": "All day",
+    "timeZone": "Times shown in {zone}",
+    "views": {
+      "month": "Month",
+      "week": "Week",
+      "day": "Day"
+    },
+    "kinds": {
+      "family": "Family",
+      "business": "Business",
+      "personal": "Personal",
+      "holiday": "Holiday",
+      "etc": "Other"
+    },
+    "form": {
+      "createTitle": "New event",
+      "editTitle": "Edit event",
+      "title": "Title",
+      "date": "Date",
+      "start": "Start",
+      "end": "End",
+      "allDay": "All day",
+      "kind": "Category",
+      "location": "Location",
+      "description": "Description",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    },
+    "toast": {
+      "created": "Event created",
+      "updated": "Event updated",
+      "deleted": "Event deleted"
+    },
+    "loading": "Loading calendar…",
+    "error": "Could not load the calendar.",
+    "validation": {
+      "titleRequired": "Title is required",
+      "titleMax": "Title is too long",
+      "dateRequired": "Date and time are required",
+      "endAfterStart": "End time must be after start time",
+      "locationMax": "Location is too long",
+      "descriptionMax": "Description is too long",
+      "generic": "Something went wrong"
+    }
   }
 }
