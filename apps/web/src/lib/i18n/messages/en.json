@@ -11,7 +11,8 @@
         "main": "Main",
         "organizations": "Organizations",
         "settings": "Settings",
-        "apps": "Apps"
+        "apps": "Apps",
+        "demo": "Demo"
       },
       "items": {
         "dashboard": "Dashboard",
@@ -19,7 +20,17 @@
         "billing": "Billing",
         "notifications": "Notifications",
         "mail": "Mail",
-        "calendar": "Calendar"
+        "calendar": "Calendar",
+        "demoForms": "Form Layouts",
+        "demoVertical": "Vertical Layout",
+        "demoHorizontal": "Horizontal Layout",
+        "demoValidation": "Form Validation",
+        "demoDatatable": "Data Table",
+        "demoError": "Error Page",
+        "demoMenuLevel": "Menu Level",
+        "demoMenuItem": "Menu Item",
+        "demoMenuLevel1": "Menu Level 1",
+        "demoMenuLevel2": "Menu Level 2"
       },
       "comingSoon": "Coming soon",
       "comingSoonBody": "This section is under construction and will appear here with live data."
@@ -677,6 +688,200 @@
       "nameRequired": "Enter your display name",
       "nameTooLong": "Name must be at most 120 characters",
       "generic": "Could not save. Try again."
+    }
+  },
+  "demo": {
+    "banner": {
+      "title": "Demo page",
+      "body": "Figures and rows below are hardcoded samples, not your data."
+    },
+    "pages": {
+      "vertical": "Vertical forms",
+      "horizontal": "Horizontal forms",
+      "validation": "Form validation",
+      "datatable": "Data table",
+      "error": "Error page demo"
+    },
+    "forms": {
+      "basic": "Basic Form",
+      "withIcon": "Basic Form with Icon",
+      "save": "Save Information",
+      "send": "Send",
+      "labels": {
+        "firstName": "First Name",
+        "lastName": "Last Name",
+        "mobile": "Mobile",
+        "pincode": "Pincode",
+        "address": "Address",
+        "landmark": "Landmark",
+        "city": "City",
+        "state": "State",
+        "name": "Name",
+        "company": "Company",
+        "email": "Email",
+        "phone": "Phone No",
+        "message": "Message"
+      }
+    },
+    "validation": {
+      "reportTitle": "Registration Form",
+      "demoInput": "Demo Input",
+      "typeHere": "Type here…",
+      "submit": "Submit",
+      "reset": "Reset",
+      "submitted": "Submitted successfully",
+      "modesTitle": "Validation Modes Demo",
+      "modesSubtitle": "Experience how different validation modes affect user experience. Try typing in each field to see when validation occurs.",
+      "modes": {
+        "messages": {
+          "minLength": "Must be at least 5 characters",
+          "maxLength": "Must be at most 20 characters"
+        },
+        "onChange": {
+          "title": "onChange Mode",
+          "hint": "Validates on every keystroke",
+          "description": "Error appears <strong>instantly</strong> as you type"
+        },
+        "onBlur": {
+          "title": "onBlur Mode",
+          "hint": "Validates when you leave the field",
+          "description": "Error appears <strong>after</strong> you leave the field"
+        },
+        "onSubmit": {
+          "title": "onSubmit Mode (Default)",
+          "hint": "Validates only when you click submit",
+          "description": "Error appears <strong>only</strong> after clicking submit"
+        },
+        "onTouched": {
+          "title": "onTouched Mode",
+          "hint": "Validates on blur, then on every change",
+          "description": "First validation on blur, then <strong>real-time</strong>"
+        }
+      },
+      "table": {
+        "mode": "Mode",
+        "when": "When Validation Occurs",
+        "bestFor": "Best For",
+        "onChange": {
+          "when": "Every keystroke",
+          "bestFor": "Real-time feedback (e.g., password strength)"
+        },
+        "onBlur": {
+          "when": "When leaving the field",
+          "bestFor": "Less intrusive validation (recommended for most cases)"
+        },
+        "onSubmit": {
+          "when": "When form is submitted",
+          "bestFor": "Simple forms, minimal interruption"
+        },
+        "onTouched": {
+          "when": "First blur, then every change",
+          "bestFor": "Balance between UX and feedback"
+        }
+      },
+      "report": {
+        "title": "Report Issue",
+        "subtitle": "Describe the issue you're facing; our team will help you.",
+        "submitted": "Issue submitted successfully! Our team will reach out to you shortly.",
+        "fields": {
+          "name": "Name",
+          "phone": "Phone",
+          "company": "Company",
+          "email": "Email",
+          "orderId": "Order ID",
+          "issue": "Issue",
+          "department": "Department",
+          "priority": "Priority",
+          "message": "Please describe your issue"
+        },
+        "placeholders": {
+          "name": "Your full name",
+          "phone": "Phone number",
+          "company": "Company name",
+          "email": "Email address",
+          "orderId": "Order ID",
+          "issue": "Issue you are facing",
+          "department": "Select department",
+          "priority": "Select priority",
+          "message": "Provide detailed information about your issue"
+        },
+        "issues": {
+          "damaged": "Product is Damaged",
+          "got-different": "Received wrong product",
+          "not-like": "Not as expectation",
+          "other": "Other"
+        },
+        "departments": {
+          "sales": "Sales",
+          "billing": "Billing",
+          "returns": "Returns",
+          "technical": "Technical Support"
+        },
+        "priorities": {
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High",
+          "urgent": "Urgent"
+        },
+        "help": {
+          "replace": "Need a product replacement",
+          "refund": "Need a refund",
+          "support": "Need guidance or support"
+        },
+        "helpTitle": "How can we help you?",
+        "nameMin": "Name must be at least 2 characters.",
+        "phoneRequired": "Phone is required",
+        "phoneInvalid": "Please enter a valid phone number.",
+        "companyMin": "Company name must be at least 2 characters.",
+        "emailRequired": "Email is required",
+        "emailInvalid": "Please enter a valid email address.",
+        "orderRequired": "Order ID is required.",
+        "selectIssue": "Kindly select an issue.",
+        "selectDepartment": "Kindly select a department.",
+        "selectPriority": "Kindly select a priority.",
+        "selectOption": "Selection of an option is required.",
+        "messageMin": "Describe your issue using at least 50 characters."
+      }
+    },
+    "datatable": {
+      "basicTitle": "Basic Data Table",
+      "pinnableTitle": "Pinnable Columns",
+      "filtersTitle": "Data Table with Filters",
+      "empty": "No results.",
+      "selectAll": "Select all",
+      "selectRow": "Select row",
+      "columns": {
+        "name": "Name",
+        "status": "Status",
+        "email": "Email",
+        "amount": "Amount"
+      },
+      "filters": {
+        "product": "Product",
+        "price": "Price",
+        "availability": "Availability",
+        "rating": "Rating",
+        "min": "Min",
+        "max": "Max",
+        "all": "All",
+        "search": "Search {column}"
+      },
+      "pinnable": {
+        "productName": "Product Name",
+        "category": "Category",
+        "stock": "Stock Quantity",
+        "price": "Price",
+        "supplier": "Supplier",
+        "discontinued": "Discontinued",
+        "unpin": "Unpin {column} column",
+        "pinOptions": "Pin options for {column} column",
+        "pinLeft": "Stick to left",
+        "pinRight": "Stick to right"
+      }
+    },
+    "errorPage": {
+      "body": "We couldn't find the page you are looking for",
+      "back": "Go back to dashboard"
     }
   }
 }

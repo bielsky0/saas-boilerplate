@@ -17,15 +17,20 @@ two-steps wchodzi).
   (Mail/Calendar, ikony jak w template) + klucze `nav.admin.*` EN/PL.
 - Weryfikacja: typecheck + lint zielone, MCP (nav, obie trasy, zero błędów).
 
-## Faza 5.1 — Strony bez backendu (plan)
+## Faza 5.1 — Strony bez backendu
 
-Form layouts, form-validation, datatable demo (baner demo), error page,
-menu-level + i18n. Bez E2E.
+Status: DONE (2026-10-12). Dowiezione: `features/demo/`, trasy `/(app)/demo/*`, grupa nav Demo, klucze `demo.*` EN/PL; prymitywy `ui/checkbox`, `ui/radio-group`, `ui/textarea`, `ui/input-group` + 7 `Field*` w `ui/field`. Weryfikacja: static + build zielone, istniejące specy zielone, MCP (5 tras, submit→toast, walidacja live, sort/pin/filtry, dark, PL, mobile 390). Bez nowych speców E2E (decyzja). Szczegóły: [etap-5-faza-5-1.md](etap-5-faza-5-1.md).
+
+Szczegóły: [etap-5-faza-5-1.md](etap-5-faza-5-1.md). Skrót: `features/demo/`
+(form layouts ×2, validation, datatable ×3 z banerem demo, error-demo,
+menu-level), trasy `/(app)/demo/*`, grupa nav Demo, i18n `demo.*`.
+Bez E2E.
 
 ## Faza 5.2 — Profil i Workspace (plan)
 
 Self-view profilu, connections (model user↔user), Workspace settings
-+ selektor `timezone` (migracja `organization.timezone`, PATCH, UI).
+
+- selektor `timezone` (migracja `organization.timezone`, PATCH, UI).
 
 ## Faza 5.3 — Calendar, pełny backend (plan)
 

@@ -11,7 +11,8 @@
         "main": "Główne",
         "organizations": "Organizacje",
         "settings": "Ustawienia",
-        "apps": "Aplikacje"
+        "apps": "Aplikacje",
+        "demo": "Demo"
       },
       "items": {
         "dashboard": "Panel",
@@ -19,7 +20,17 @@
         "billing": "Płatności",
         "notifications": "Powiadomienia",
         "mail": "Poczta",
-        "calendar": "Kalendarz"
+        "calendar": "Kalendarz",
+        "demoForms": "Układy formularzy",
+        "demoVertical": "Układ pionowy",
+        "demoHorizontal": "Układ poziomy",
+        "demoValidation": "Walidacja formularzy",
+        "demoDatatable": "Tabela danych",
+        "demoError": "Strona błędu",
+        "demoMenuLevel": "Poziom menu",
+        "demoMenuItem": "Pozycja menu",
+        "demoMenuLevel1": "Poziom menu 1",
+        "demoMenuLevel2": "Poziom menu 2"
       },
       "comingSoon": "Wkrótce",
       "comingSoonBody": "Ta sekcja jest w budowie i pojawi się tutaj z żywymi danymi."
@@ -677,6 +688,200 @@
       "nameRequired": "Podaj nazwę wyświetlaną",
       "nameTooLong": "Nazwa może mieć maksymalnie 120 znaków",
       "generic": "Nie udało się zapisać. Spróbuj ponownie."
+    }
+  },
+  "demo": {
+    "banner": {
+      "title": "Strona demonstracyjna",
+      "body": "Liczby i wiersze poniżej to zahardkodowane przykłady, nie Twoje dane."
+    },
+    "pages": {
+      "vertical": "Formularze pionowe",
+      "horizontal": "Formularze poziome",
+      "validation": "Walidacja formularzy",
+      "datatable": "Tabela danych",
+      "error": "Demo strony błędu"
+    },
+    "forms": {
+      "basic": "Formularz podstawowy",
+      "withIcon": "Formularz z ikonami",
+      "save": "Zapisz dane",
+      "send": "Wyślij",
+      "labels": {
+        "firstName": "Imię",
+        "lastName": "Nazwisko",
+        "mobile": "Telefon",
+        "pincode": "Kod pocztowy",
+        "address": "Adres",
+        "landmark": "Punkt orientacyjny",
+        "city": "Miasto",
+        "state": "Województwo",
+        "name": "Nazwa",
+        "company": "Firma",
+        "email": "E-mail",
+        "phone": "Telefon",
+        "message": "Wiadomość"
+      }
+    },
+    "validation": {
+      "reportTitle": "Formularz rejestracyjny",
+      "demoInput": "Pole demonstracyjne",
+      "typeHere": "Pisz tutaj…",
+      "submit": "Zatwierdź",
+      "reset": "Wyczyść",
+      "submitted": "Wysłano pomyślnie",
+      "modesTitle": "Demo trybów walidacji",
+      "modesSubtitle": "Zobacz, jak różne tryby walidacji wpływają na doświadczenie. Pisz w polach, aby zobaczyć, kiedy następuje walidacja.",
+      "modes": {
+        "messages": {
+          "minLength": "Musi mieć co najmniej 5 znaków",
+          "maxLength": "Musi mieć maksymalnie 20 znaków"
+        },
+        "onChange": {
+          "title": "Tryb onChange",
+          "hint": "Waliduje przy każdym znaku",
+          "description": "Błąd pojawia się <strong>natychmiast</strong> podczas pisania"
+        },
+        "onBlur": {
+          "title": "Tryb onBlur",
+          "hint": "Waliduje po opuszczeniu pola",
+          "description": "Błąd pojawia się <strong>dopiero</strong> po opuszczeniu pola"
+        },
+        "onSubmit": {
+          "title": "Tryb onSubmit (domyślny)",
+          "hint": "Waliduje tylko po kliknięciu",
+          "description": "Błąd pojawia się <strong>tylko</strong> po kliknięciu"
+        },
+        "onTouched": {
+          "title": "Tryb onTouched",
+          "hint": "Waliduje po blur, potem przy zmianie",
+          "description": "Najpierw blur, potem <strong>na żywo</strong>"
+        }
+      },
+      "table": {
+        "mode": "Tryb",
+        "when": "Kiedy następuje walidacja",
+        "bestFor": "Do czego",
+        "onChange": {
+          "when": "Każdy znak",
+          "bestFor": "Informacja na żywo (np. siła hasła)"
+        },
+        "onBlur": {
+          "when": "Po opuszczeniu pola",
+          "bestFor": "Mało inwazyjna (zalecana)"
+        },
+        "onSubmit": {
+          "when": "Po wysłaniu formularza",
+          "bestFor": "Proste formularze"
+        },
+        "onTouched": {
+          "when": "Najpierw blur, potem zmiany",
+          "bestFor": "Balans UX i informacji"
+        }
+      },
+      "report": {
+        "title": "Zgłoś problem",
+        "subtitle": "Opisz problem, a nasz zespół Ci pomoże.",
+        "submitted": "Zgłoszenie wysłane! Nasz zespół wkrótce się odezwie.",
+        "fields": {
+          "name": "Imię i nazwisko",
+          "phone": "Telefon",
+          "company": "Firma",
+          "email": "E-mail",
+          "orderId": "Numer zamówienia",
+          "issue": "Problem",
+          "department": "Dział",
+          "priority": "Priorytet",
+          "message": "Opisz swój problem"
+        },
+        "placeholders": {
+          "name": "Imię i nazwisko",
+          "phone": "Numer telefonu",
+          "company": "Nazwa firmy",
+          "email": "Adres e-mail",
+          "orderId": "Numer zamówienia",
+          "issue": "Wybierz problem",
+          "department": "Wybierz dział",
+          "priority": "Wybierz priorytet",
+          "message": "Podaj szczegóły problemu"
+        },
+        "issues": {
+          "damaged": "Produkt uszkodzony",
+          "got-different": "Otrzymano zły produkt",
+          "not-like": "Niezgodne z oczekiwaniami",
+          "other": "Inne"
+        },
+        "departments": {
+          "sales": "Sprzedaż",
+          "billing": "Płatności",
+          "returns": "Zwroty",
+          "technical": "Wsparcie techniczne"
+        },
+        "priorities": {
+          "low": "Niski",
+          "medium": "Średni",
+          "high": "Wysoki",
+          "urgent": "Pilny"
+        },
+        "help": {
+          "replace": "Wymiana produktu",
+          "refund": "Zwrot pieniędzy",
+          "support": "Pomoc i wskazówki"
+        },
+        "helpTitle": "Jak możemy pomóc?",
+        "nameMin": "Nazwa musi mieć co najmniej 2 znaki.",
+        "phoneRequired": "Telefon jest wymagany",
+        "phoneInvalid": "Podaj poprawny numer telefonu.",
+        "companyMin": "Nazwa firmy musi mieć co najmniej 2 znaki.",
+        "emailRequired": "E-mail jest wymagany",
+        "emailInvalid": "Podaj poprawny adres e-mail.",
+        "orderRequired": "Numer zamówienia jest wymagany.",
+        "selectIssue": "Wybierz problem.",
+        "selectDepartment": "Wybierz dział.",
+        "selectPriority": "Wybierz priorytet.",
+        "selectOption": "Wybór opcji jest wymagany.",
+        "messageMin": "Opisz problem (co najmniej 50 znaków)."
+      }
+    },
+    "datatable": {
+      "basicTitle": "Podstawowa tabela",
+      "pinnableTitle": "Kolumny przypinane",
+      "filtersTitle": "Tabela z filtrami",
+      "empty": "Brak wyników.",
+      "selectAll": "Zaznacz wszystko",
+      "selectRow": "Zaznacz wiersz",
+      "columns": {
+        "name": "Nazwa",
+        "status": "Status",
+        "email": "E-mail",
+        "amount": "Kwota"
+      },
+      "filters": {
+        "product": "Produkt",
+        "price": "Cena",
+        "availability": "Dostępność",
+        "rating": "Ocena",
+        "min": "Min",
+        "max": "Maks",
+        "all": "Wszystkie",
+        "search": "Szukaj: {column}"
+      },
+      "pinnable": {
+        "productName": "Nazwa produktu",
+        "category": "Kategoria",
+        "stock": "Stan",
+        "price": "Cena",
+        "supplier": "Dostawca",
+        "discontinued": "Wycofany",
+        "unpin": "Odepnij kolumnę {column}",
+        "pinOptions": "Opcje kolumny {column}",
+        "pinLeft": "Przyklej do lewej",
+        "pinRight": "Przyklej do prawej"
+      }
+    },
+    "errorPage": {
+      "body": "Nie znaleziono szukanej strony",
+      "back": "Wróć do panelu"
     }
   }
 }

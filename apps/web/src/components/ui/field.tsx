@@ -84,3 +84,123 @@ export function FormMessage({
     </p>
   );
 }
+
+/**
+ * AdminCN layout field primitives (etap 5, faza 5.1) — plain styled wrappers
+ * ported from the template's `field.tsx` WITHOUT its Base-UI machinery.
+ *
+ * Why not the whole template file: it is built on `useRender` and expects a
+ * Base-UI `Label`, while this module's contract (`FormField`/`FormMessage`)
+ * stays Radix-based per the faza-6 decision. These additions are
+ * deliberately dumb divs/fieldset/legend/label so the demo form layouts keep
+ * the template's look with zero behavior coupling. `FieldError` accepts RHF
+ * field errors (`{ message }` items), like the template's.
+ */
+export function FieldGroup({ className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="field-group"
+      className={cn(
+        "group/field-group @container/field-group flex w-full flex-col gap-7",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function Field({
+  className,
+  orientation = "vertical",
+  ...props
+}: ComponentProps<"div"> & { orientation?: "vertical" | "horizontal" }) {
+  return (
+    <div
+      role="group"
+      data-slot="field"
+      data-orientation={orientation}
+      className={cn(
+        "group/field flex w-full gap-3",
+        orientation === "horizontal" && "flex-row items-center",
+        orientation === "vertical" && "flex-col",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function FieldLabel({ className, ...props }: ComponentProps<typeof LabelRoot>) {
+  return (
+    <Label
+      data-slot="field-label"
+      className={cn("group/field-label flex w-fit gap-2 leading-snug", className)}
+      {...props}
+    />
+  );
+}
+
+export function FieldDescription({ className, ...props }: ComponentProps<"p">) {
+  return (
+    <p
+      data-slot="field-description"
+      className={cn(
+        "text-muted-foreground text-left text-sm font-normal leading-normal",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function FieldSet({ className, ...props }: ComponentProps<"fieldset">) {
+  return (
+    <fieldset data-slot="field-set" className={cn("flex flex-col gap-6", className)} {...props} />
+  );
+}
+
+export function FieldLegend({
+  className,
+  variant = "legend",
+  ...props
+}: ComponentProps<"legend"> & { variant?: "legend" | "label" }) {
+  return (
+    <legend
+      data-slot="field-legend"
+      data-variant={variant}
+      className={cn(
+        "mb-3 font-medium data-[variant=label]:text-sm data-[variant=legend]:text-base",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export function FieldError({
+  className,
+  errors,
+  ...props
+}: ComponentProps<"div"> & { errors?: Array<{ message?: string } | undefined> }) {
+  const messages = (errors ?? []).map((error) => error?.message).filter(Boolean) as string[];
+  const unique = [...new Set(messages)];
+  if (unique.length === 0) return null;
+  return (
+    <div
+      role="alert"
+      data-slot="field-error"
+      className={cn("text-destructive text-sm font-normal", className)}
+      {...props}
+    >
+      {unique.length === 1 ? (
+        unique[0]
+      ) : (
+        <ul className="ml-4 flex list-disc flex-col gap-1">
+          {unique.map((message) => (
+            <li key={message}>{message}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}

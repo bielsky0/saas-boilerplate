@@ -84,7 +84,7 @@ export function AdminHeader({
             </BreadcrumbList>
           </Breadcrumb>
         </div>
-        <div className="flex min-w-0 items-center gap-1.5">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1.5">
           {showSwitcher ? (
             <AccountSwitcher personalLabel={personalLabel} orgs={orgs} showNewOrg={showNewOrg} />
           ) : null}

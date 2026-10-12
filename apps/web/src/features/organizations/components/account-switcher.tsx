@@ -55,7 +55,7 @@ export function AccountSwitcher({
             variant="outline"
             size="sm"
             aria-label={t("label")}
-            className="max-w-52 justify-between gap-2"
+            className="max-w-32 justify-between gap-2 sm:max-w-52"
           >
             <span className="truncate">{current}</span>
             <ChevronsUpDown className="size-4 opacity-60" />

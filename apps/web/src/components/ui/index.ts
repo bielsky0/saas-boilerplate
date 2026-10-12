@@ -10,6 +10,26 @@
 export { Button, buttonVariants } from "./button";
 export { Input } from "./input";
 export { Label, FormField, FormMessage } from "./field";
+export {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldDescription,
+  FieldSet,
+  FieldLegend,
+  FieldError,
+} from "./field";
+export { Checkbox } from "./checkbox";
+export { RadioGroup, RadioGroupItem } from "./radio-group";
+export {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupText,
+  InputGroupInput,
+  InputGroupTextarea,
+} from "./input-group";
+export { Textarea } from "./textarea";
 export { Badge, badgeVariants } from "./badge";
 export { Alert, AlertTitle, AlertDescription, alertVariants } from "./alert";
 export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "./card";

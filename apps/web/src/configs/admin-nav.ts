@@ -56,7 +56,7 @@ export type NavItem = {
  * Fazy 3–4 append groups here (Orders detail, Users) — the structure is ready.
  */
 export function buildAdminNav(opts: {
-  groups: { main: string; organizations: string; settings: string; apps: string };
+  groups: { main: string; organizations: string; settings: string; apps: string; demo: string };
   items: {
     dashboard: string;
     newOrg: string;
@@ -64,6 +64,16 @@ export function buildAdminNav(opts: {
     notifications: string;
     mail: string;
     calendar: string;
+    demoForms: string;
+    demoVertical: string;
+    demoHorizontal: string;
+    demoValidation: string;
+    demoDatatable: string;
+    demoError: string;
+    demoMenuLevel: string;
+    demoMenuItem: string;
+    demoMenuLevel1: string;
+    demoMenuLevel2: string;
   };
   orgsEnabled: boolean;
   showNewOrg: boolean;
@@ -90,6 +100,34 @@ export function buildAdminNav(opts: {
     items: [
       { icon: "MailIcon", label: opts.items.mail, href: "/apps/mail" },
       { icon: "CalendarIcon", label: opts.items.calendar, href: "/apps/calendar" },
+    ],
+  });
+
+  groups.push({
+    groupLabel: opts.groups.demo,
+    items: [
+      {
+        icon: "LayoutTemplateIcon",
+        label: opts.items.demoForms,
+        childItems: [
+          { label: opts.items.demoVertical, href: "/demo/forms/vertical" },
+          { label: opts.items.demoHorizontal, href: "/demo/forms/horizontal" },
+          { label: opts.items.demoValidation, href: "/demo/forms/validation" },
+        ],
+      },
+      { icon: "TableIcon", label: opts.items.demoDatatable, href: "/demo/datatable" },
+      { icon: "BugIcon", label: opts.items.demoError, href: "/demo/error" },
+      {
+        icon: "MenuIcon",
+        label: opts.items.demoMenuLevel,
+        childItems: [
+          { label: opts.items.demoMenuItem, href: "#" },
+          {
+            label: opts.items.demoMenuLevel1,
+            childItems: [{ label: opts.items.demoMenuLevel2, href: "#" }],
+          },
+        ],
+      },
     ],
   });
 
